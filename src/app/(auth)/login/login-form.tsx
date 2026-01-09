@@ -3,7 +3,7 @@
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-import { toast } from "sonner";
+// import { toast } from "sonner";
 import * as z from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -74,6 +74,13 @@ export default function LoginForm() {
         }
         return data;
       });
+
+      // Lưu thông tin user vào localStorage
+      if (res.payload && res.payload.user) {
+        localStorage.setItem('user', JSON.stringify(res.payload.user));
+        // Có thể redirect về home hoặc user page
+        window.location.href = '/';
+      }
     } catch (error) {
       console.error("Login error:", error);
     }
@@ -116,11 +123,12 @@ export default function LoginForm() {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <FieldLabel htmlFor="password">Mật khẩu</FieldLabel>
                   <Input
                     {...field}
                     id="password"
                     type="password"
+                    placeholder="Nhập mật khẩu"
                     autoComplete="new-password"
                     aria-invalid={fieldState.invalid}
                   />
@@ -134,12 +142,9 @@ export default function LoginForm() {
         </form>
       </CardContent>
       <CardFooter>
-        <Field orientation="horizontal">
-          <Button type="button" variant="outline" onClick={() => form.reset()}>
-            Reset
-          </Button>
-          <Button type="submit" form="form-rhf-demo">
-            Submit
+        <Field orientation="horizontal" className="w-full flex justify-center">
+          <Button type="submit" form="form-rhf-demo" className="px-8 py-3">
+            Đăng nhập ngay
           </Button>
         </Field>
       </CardFooter>

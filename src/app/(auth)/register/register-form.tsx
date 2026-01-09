@@ -112,7 +112,7 @@ export default function RegisterForm() {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="fullName">Full name</FieldLabel>
+                  <FieldLabel htmlFor="fullName">Họ và tên</FieldLabel>
                   <Input
                     {...field}
                     id="fullName"
@@ -151,11 +151,12 @@ export default function RegisterForm() {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <FieldLabel htmlFor="password">Mật khẩu</FieldLabel>
                   <Input
                     {...field}
                     id="password"
                     type="password"
+                    placeholder="Nhập mật khẩu"
                     autoComplete="new-password"
                     aria-invalid={fieldState.invalid}
                   />
@@ -171,13 +172,14 @@ export default function RegisterForm() {
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="confirmPassword">
-                    Confirm password
+                    Xác nhận mật khẩu
                   </FieldLabel>
                   <Input
                     {...field}
                     id="confirmPassword"
                     type="password"
                     autoComplete="new-password"
+                    placeholder="Xác nhận mật khẩu"
                     aria-invalid={fieldState.invalid}
                   />
                   {fieldState.invalid && (
@@ -190,12 +192,9 @@ export default function RegisterForm() {
         </form>
       </CardContent>
       <CardFooter>
-        <Field orientation="horizontal">
-          <Button type="button" variant="outline" onClick={() => form.reset()}>
-            Reset
-          </Button>
-          <Button type="submit" form="form-rhf-demo">
-            Submit
+        <Field orientation="horizontal" className="w-full flex justify-center">
+          <Button type="submit" form="form-rhf-demo" className="px-8 py-3">
+            Đăng kí ngay
           </Button>
         </Field>
       </CardFooter>
