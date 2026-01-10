@@ -3,7 +3,6 @@
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-// import { toast } from "sonner";
 import * as z from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -17,37 +16,25 @@ import {
 } from "@/components/ui/card";
 import {
   Field,
-  // FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-// import {
-//   InputGroup,
-//   InputGroupAddon,
-//   InputGroupText,
-//   InputGroupTextarea,
-// } from "@/components/ui/input-group";
+
 import envConfig from "@/config";
 
 const formSchema = z.object({
-  email: z.string().refine((val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
-    message: "Invalid email address.",
+  phone: z.string().refine((val) => /^(0|\+84)[0-9]{9,10}$/.test(val), {
+    message: "Số điện thoại không hợp lệ.",
   }),
-
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters.")
-    .max(100, "Password must be at most 100 characters."),
 });
 
-export default function LoginForm() {
+export default function VerificationPhoneForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: "",
-      password: "",
+      phone: "",
     },
   });
   // 2. Define a submit handler ( Nơi gắn api)
@@ -88,47 +75,27 @@ export default function LoginForm() {
     <Card className="w-full sm:max-w-md">
       <CardHeader>
         <CardTitle className="text-2xl font-bold text-center">
-          Đăng nhập
+          F&B Coffee Xin Chào
         </CardTitle>
         <CardDescription className="font-bold text-center">
-          Chào mừng bạn quay lại
+          Đăng kí / Đăng nhập
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form id="form-rhf-demo" onSubmit={form.handleSubmit(onSubmit)}>
           <FieldGroup>
             <Controller
-              name="email"
+              name="phone"
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
+                  <FieldLabel htmlFor="phone">Số điện thoại</FieldLabel>
                   <Input
                     {...field}
-                    id="email"
-                    type="email"
-                    placeholder="email@example.com"
-                    autoComplete="email"
-                    aria-invalid={fieldState.invalid}
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-            <Controller
-              name="password"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="password">Mật khẩu</FieldLabel>
-                  <Input
-                    {...field}
-                    id="password"
-                    type="password"
-                    placeholder="Nhập mật khẩu"
-                    autoComplete="new-password"
+                    id="phone"
+                    type="tel"
+                    placeholder="Nhập số điện thoại"
+                    autoComplete="tel"
                     aria-invalid={fieldState.invalid}
                   />
                   {fieldState.invalid && (
@@ -143,7 +110,7 @@ export default function LoginForm() {
       <CardFooter>
         <Field orientation="horizontal" className="w-full flex justify-center">
           <Button type="submit" form="form-rhf-demo" className="px-8 py-3">
-            Đăng nhập ngay
+            Tiếp tục
           </Button>
         </Field>
       </CardFooter>

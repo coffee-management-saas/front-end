@@ -94,7 +94,7 @@ export default function ProfileForm() {
   return (
     <div className="flex gap-4 p-4">
       {/* Sidebar */}
-      <div className="w-80 bg-white border border-gray-200 rounded-lg min-h-screen p-4 ">
+      <div className="w-80 bg-white border border-gray-200 rounded-lg p-4 ">
         <div className="space-y-1">
           {menuItems.map((item) => (
             <button
@@ -102,7 +102,7 @@ export default function ProfileForm() {
               onClick={() => setActiveTab(item.id)}
               className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
                 activeTab === item.id
-                  ? "bg-amber-50 border-l-4 border-amber-600"
+                  ? "bg-amber-50 border-l-4 border-amber-700"
                   : "hover:bg-gray-50"
               }`}
             >
@@ -116,21 +116,21 @@ export default function ProfileForm() {
                   {item.label}
                 </span>
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
+              <ChevronRight className="w-5 h-5 text-gray-500" />
             </button>
           ))}
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 pl-8 pr-8 pb-12 bg-white border border-gray-200 rounded-lg min-h-screen">
+      <div className="flex-1 pl-8 pr-8 pb-12 bg-white border border-gray-200 rounded-lg">
         <div className="p-4">
           <h2 className="text-2xl text-amber-700 mb-6">Thông tin cá nhân</h2>
           <form className="space-y-6">
             {/* Row 1 */}
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Họ & tên
                 </label>
                 <input
@@ -139,19 +139,19 @@ export default function ProfileForm() {
                   onChange={(e) =>
                     handleInputChange("fullName", e.target.value)
                   }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500
  focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Số điện thoại
                 </label>
                 <input
                   type="tel"
                   value={profile.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border text-black border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -159,13 +159,13 @@ export default function ProfileForm() {
             {/* Row 2 */}
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Giới tính
                 </label>
                 <select
                   value={profile.gender}
                   onChange={(e) => handleInputChange("gender", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent appearance-none bg-white"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent appearance-none bg-white"
                 >
                   <option value=""></option>
                   <option value="male">Nam</option>
@@ -174,14 +174,14 @@ export default function ProfileForm() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Số CMND/CCCD
                 </label>
                 <input
                   type="text"
                   value={profile.idCard}
                   onChange={(e) => handleInputChange("idCard", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent"
                 />
               </div>
             </div>
@@ -189,7 +189,7 @@ export default function ProfileForm() {
             {/* Row 3 */}
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Ngày sinh
                 </label>
                 <input
@@ -198,18 +198,18 @@ export default function ProfileForm() {
                   onChange={(e) =>
                     handleInputChange("birthDate", e.target.value)
                   }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Email
                 </label>
                 <input
                   type="email"
                   value={profile.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent"
                 />
               </div>
             </div>
@@ -217,13 +217,13 @@ export default function ProfileForm() {
             {/* Row 4 */}
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Tỉnh/Thành phố
                 </label>
                 <select
                   value={profile.city}
                   onChange={(e) => handleInputChange("city", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent appearance-none bg-white"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent appearance-none bg-white"
                 >
                   <option value=""></option>
                   <option value="hanoi">Hà Nội</option>
@@ -232,7 +232,7 @@ export default function ProfileForm() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Quận/Huyện
                 </label>
                 <select
@@ -240,7 +240,7 @@ export default function ProfileForm() {
                   onChange={(e) =>
                     handleInputChange("district", e.target.value)
                   }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent appearance-none bg-white"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent appearance-none bg-white"
                 >
                   <option value=""></option>
                   <option value="district1">Quận 1</option>
@@ -254,7 +254,7 @@ export default function ProfileForm() {
             <div className="flex justify-end pt-4">
               <button
                 type="button"
-                className="px-8 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors"
+                className="px-8 py-3 bg-amber-700 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors"
               >
                 Lưu thông tin
               </button>
