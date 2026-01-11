@@ -86,12 +86,12 @@ export default function PhucLongHeader() {
         <div className="container mx-auto px-4">
           <ul className="flex items-center justify-center gap-8 text-sm font-medium text-gray-700">
             <li>
-              <a
-                href="#"
+              <Link
+                href="/"
                 className="block py-3 hover:text-amber-700 transition border-b-2 border-transparent hover:border-amber-700"
               >
                 TRANG CHỦ
-              </a>
+              </Link>
             </li>
             <li>
               <DropdownMenu>
@@ -102,16 +102,16 @@ export default function PhucLongHeader() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-48">
                   <DropdownMenuItem asChild>
-                    <Link href="/menu/cafe">ĐỒ UỐNG </Link>
+                    <Link href="/menu/beverages">ĐỒ UỐNG </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/menu/tra">BÁNH</Link>
+                    <Link href="/menu/cake">BÁNH</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/menu/do-an-nhanh">COMBO</Link>
+                    <Link href="/menu/combo">COMBO</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/menu/banh-ngot">BEST SELLERS</Link>
+                    <Link href="/menu/best-seller">BEST SELLERS</Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -133,12 +133,12 @@ export default function PhucLongHeader() {
               </a>
             </li>
             <li>
-              <a
-                href="#"
+              <Link
+                href="/supscription"
                 className="block py-3 hover:text-amber-700 transition border-b-2 border-transparent hover:border-amber-700"
               >
                 KHUYẾN MÃI
-              </a>
+              </Link>
             </li>
             <li>
               <a
