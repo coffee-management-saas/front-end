@@ -6,8 +6,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 export default function PhucLongHeader() {
@@ -24,11 +22,11 @@ export default function PhucLongHeader() {
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center gap-4">
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-12 h-12 bg-amber-700 rounded-full flex items-center justify-center">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-12 h-12 bg-amber-700 rounded-full flex items-center justify-center cursor-pointer">
               <span className="text-white font-bold text-xs">F&B</span>
             </div>
-          </div>
+          </Link>
 
           {/* Search Bar sát logo */}
           <div className="flex-1 max-w-md">
