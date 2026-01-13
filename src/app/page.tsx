@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import Footer from "@/components/footer";
@@ -12,7 +12,6 @@ interface Product {
   isBestSeller?: boolean;
   badge?: string;
 }
-
 const Homepage: React.FC = () => {
   const [cart, setCart] = useState(0);
   const bestSellerRef = useRef<HTMLDivElement>(null);
@@ -64,6 +63,7 @@ const Homepage: React.FC = () => {
         "https://i.pinimg.com/736x/f8/56/5b/f8565b7442a9df396adc387c8555d8b4.jpg",
     },
   ];
+
   // Thông tin về các chương trình khuyến mãi
   const supcription: Product[] = [
     {
@@ -111,6 +111,33 @@ const Homepage: React.FC = () => {
         "https://i.pinimg.com/736x/64/d7/2e/64d72e14084b39358fad5c4354c4f05f.jpg",
     },
   ];
+  // Thông tin về sản phẩm nước
+  const newMenu: Product[] = [
+    {
+      id: 1,
+      name: "Trà Sữa Phúc Long (L)",
+      price: 59000,
+      image:
+        "https://s3-hcmc02.higiocloud.vn/images/2026/01/ly_giay_tet_websitecover_2560x768-20260113032405.jpg",
+      isBestSeller: true,
+    },
+    {
+      id: 2,
+      name: "Trà Sữa Ô Long (L)",
+      price: 59000,
+      image:
+        "https://i.pinimg.com/1200x/29/22/14/292214e4e318c2b8a245191da9c1e2f9.jpg",
+    },
+    {
+      id: 3,
+      name: "Hồng Trà Sữa (L)",
+      price: 55000,
+      image:
+        "https://i.pinimg.com/1200x/dd/70/0f/dd700f4d71d9f001992ca382f49ac02c.jpg",
+      badge: "Hồng Trà Sữa (L)",
+    },
+  ];
+
   const handleAddToCart = () => {
     setCart(cart + 1);
   };
@@ -126,11 +153,74 @@ const Homepage: React.FC = () => {
       ref.current.scrollBy({ left: 200, behavior: "smooth" });
     }
   };
+  // landing page
+  // đặt ở đầu component
+  const [active, setActive] = useState(0);
+
+  // số card hiển thị theo màn hình (1 mobile, 2 tablet, 3 desktop)
+  const [perView, setPerView] = useState(1);
+
+  useEffect(() => {
+    const calc = () => {
+      if (window.innerWidth >= 1024) setPerView(3);
+      else if (window.innerWidth >= 640) setPerView(2);
+      else setPerView(1);
+    };
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
+
+  const bannerPages = useMemo(() => newMenu.map((_, i) => i), [newMenu.length]);
+
+  useEffect(() => {
+    if (bannerPages.length <= 1) return;
+    const t = setInterval(() => {
+      setActive((prev) => (prev + 1) % bannerPages.length);
+    }, 3000);
+    return () => clearInterval(t);
+  }, [bannerPages.length]);
+
+  // items đang hiển thị
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Main Content */}
-      <main className="container mx-auto px-2 py-4 pt-20">
+      {/* Main Content cho các sản phẩm mới - landing page */}
+      <main className="w-full pt-7">
+        <div className="relative w-full">
+          {/* Banner (chỉ 1 ảnh mỗi lần) */}
+          <div className="relative w-full overflow-hidden">
+            <div className="relative w-full h-[180px] sm:h-[240px] md:h-[320px] lg:h-[400px]">
+              <Image
+                src={newMenu[active]?.image || "/fallback.jpg"}
+                alt={newMenu[active]?.name || "banner"}
+                fill
+                className="object-cover"
+                sizes="100vw"
+                priority
+              />
+            </div>
+          </div>
+
+          {/* Dots */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
+            {bannerPages.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setActive(i)}
+                className={`h-2.5 w-2.5 rounded-full transition ${
+                  i === active ? "bg-gray-800" : "bg-white/80"
+                }`}
+                aria-label={`Go to ${i + 1}`}
+                type="button"
+              />
+            ))}
+          </div>
+        </div>
+      </main>
+
+      {/* Main Content sản phẩm */}
+      <main className="container mx-auto px-2 py-4 pt-1">
         {/* Title Section */}
         <div className="text-center mb-12 mt-6">
           <h1 className="text-2xl md:text-2xl font-bold text-amber-700 mb-2">
@@ -192,7 +282,7 @@ const Homepage: React.FC = () => {
           </button>
         </div>
       </main>
-      {/* Main Content */}
+      {/* Main Content tin tức & khuyến mãi */}
       <main className="container mx-auto px-2 py-4 pt-1">
         {/* Title Section */}
         <div className="text-center mb-12 mt-6">
@@ -233,9 +323,7 @@ const Homepage: React.FC = () => {
                   <h3 className="text-xs font-semibold text-gray-800 mb-1 h-8 text-xs leading-tight">
                     {product.name}
                   </h3>
-                  {/* <p className="text-base font-bold text-green-700 mb-2">
-                    {product.price.toLocaleString("vi-VN")} ₫
-                  </p> */}
+
                   <button
                     onClick={handleAddToCart}
                     className="w-full bg-amber-700 hover:bg-amber-700 text-white font-semibold py-1 rounded-lg transition-colors duration-300 flex items-center justify-center gap-1 text-xs"

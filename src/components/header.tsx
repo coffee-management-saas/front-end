@@ -1,5 +1,15 @@
 "use client";
-import { Search, ShoppingCart, Mail, User } from "lucide-react";
+import {
+  Search,
+  ShoppingCart,
+  Mail,
+  User,
+  ShoppingBag,
+  Heart,
+  Users,
+  Star,
+  LogOut,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -7,7 +17,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+
 export default function PhucLongHeader() {
   const [cart, setCart] = useState(2);
   const [user, setUser] = useState(null);
@@ -59,11 +72,95 @@ export default function PhucLongHeader() {
                 <button className="p-2 hover:bg-gray-100 rounded-full transition">
                   <Mail className="w-6 h-6 text-gray-600" />
                 </button>
-                <Link href="/verification">
+                {/* <Link href="/verification">
                   <button className="p-2 hover:bg-gray-100 rounded-full transition">
                     <User className="w-6 h-6 text-gray-600" />
                   </button>
-                </Link>
+                </Link> */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="p-2 rounded-full transition hover:bg-green-50">
+                      <User className="w-6 h-6 text-amber-700" />
+                    </button>
+                  </DropdownMenuTrigger>
+
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-60 rounded-xl border border-gray-100 bg-white shadow-lg"
+                  >
+                    <DropdownMenuItem
+                      asChild
+                      className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
+                    >
+                      <Link href="/profile" className="flex items-center gap-3">
+                        <User className="w-4 h-4 text-gray-500 group-hover:text-amber-700" />
+                        <span className="text-sm text-gray-700 group-hover:text-amber-700">
+                          Thông tin cá nhân
+                        </span>
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      asChild
+                      className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
+                    >
+                      <Link href="/orders" className="flex items-center gap-3">
+                        <ShoppingBag className="w-4 h-4 text-gray-500 group-hover:text-amber-700" />
+                        <span className="text-sm text-gray-700 group-hover:text-amber-700">
+                          Đơn hàng
+                        </span>
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      asChild
+                      className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
+                    >
+                      <Link
+                        href="/favorites"
+                        className="flex items-center gap-3"
+                      >
+                        <Heart className="w-4 h-4 text-gray-500 group-hover:text-amber-700" />
+                        <span className="text-sm text-gray-700 group-hover:text-amber-700">
+                          Sản phẩm yêu thích
+                        </span>
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      asChild
+                      className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
+                    >
+                      <Link href="/members" className="flex items-center gap-3">
+                        <Users className="w-4 h-4 text-gray-500 group-hover:text-amber-700" />
+                        <span className="text-sm text-gray-700 group-hover:text-amber-700">
+                          Khách hàng thành viên
+                        </span>
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      asChild
+                      className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
+                    >
+                      <Link href="/points" className="flex items-center gap-3">
+                        <Star className="w-4 h-4 text-gray-500 group-hover:text-amber-700" />
+                        <span className="text-sm text-gray-700 group-hover:text-amber-700">
+                          Điểm và hạng
+                        </span>
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator className="my-1" />
+
+                    <DropdownMenuItem className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-red-50">
+                      <LogOut className="w-4 h-4 text-red-500 group-hover:text-red-600" />
+                      <span className="ml-3 text-sm text-red-600">
+                        Đăng xuất
+                      </span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             )}
 

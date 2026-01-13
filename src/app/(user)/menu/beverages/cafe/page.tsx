@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 type LevelOption = "Ít" | "Bình thường" | "Nhiều";
 type SizeOption = "M" | "L";
 
@@ -116,13 +117,15 @@ const CoffeeMenu = () => {
                 key={item.id}
                 className="bg-white rounded-xl shadow-md max-w-50 mx-auto overflow-hidden hover:shadow-lg transition-shadow"
               >
-                <Image
-                  src={item.image}
-                  alt={item.name}
-                  width={200}
-                  height={140}
-                  className="object-cover rounded-lg"
-                />
+                <Link href="/menu/beverages/cafe/details" className="block">
+                  <Image
+                    src={item.image}
+                    alt={item.name}
+                    width={200}
+                    height={140}
+                    className="object-cover rounded-lg"
+                  />
+                </Link>
                 <div className="p-3">
                   <h3 className="text-sm font-semibold text-amber-700 mb-2 h-5">
                     {item.name}
@@ -193,7 +196,7 @@ const CoffeeMenu = () => {
                                     </Button>
 
                                     <span className="w-5 text-center text-sm font-semibold">
-                                      {quantity}
+                                      S {quantity}
                                     </span>
 
                                     <Button

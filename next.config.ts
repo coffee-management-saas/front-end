@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
         hostname: "i.pinimg.com",
       },
     ],
+    domains: ["i.pinimg.com", "s3-hcmc02.higiocloud.vn"],
   },
 };
 
