@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 type LevelOption = "Ít" | "Bình thường" | "Nhiều";
 type SizeOption = "M" | "L";
 const JuiceMenu = () => {
@@ -63,34 +64,6 @@ const JuiceMenu = () => {
       image:
         "https://i.pinimg.com/736x/ee/94/d7/ee94d710d36d2b867309b3eefd3af996.jpg",
     },
-    {
-      id: 7,
-      name: "Cà phê Cappuccino (L)",
-      price: 65000,
-      image:
-        "https://i.pinimg.com/736x/58/bf/7d/58bf7d52b0e92943ae4df81df3c18903.jpg",
-    },
-    {
-      id: 8,
-      name: "Cà Phê Sữa Kem",
-      price: 65000,
-      image:
-        "https://i.pinimg.com/736x/4c/ce/e9/4ccee99b825d0c8a83be74db379bf5a1.jpg",
-    },
-    {
-      id: 9,
-      name: "Cà Phê Sữa Đá (M)",
-      price: 39000,
-      image:
-        "https://i.pinimg.com/736x/89/0e/53/890e53b3fb9eab117dcbb14a96cd9706.jpg",
-    },
-    {
-      id: 10,
-      name: "Cà phê Latte (M)",
-      price: 55000,
-      image:
-        "https://i.pinimg.com/736x/51/2e/77/512e777310e7d04b528e525480591674.jpg",
-    },
   ];
 
   const handleOpenPopover = (id: number) => {
@@ -130,13 +103,15 @@ const JuiceMenu = () => {
                 key={item.id}
                 className="bg-white rounded-xl shadow-md max-w-50 mx-auto overflow-hidden hover:shadow-lg transition-shadow"
               >
-                <Image
-                  src={item.image}
-                  alt={item.name}
-                  width={200}
-                  height={140}
-                  className="object-cover rounded-lg"
-                />
+                <Link href="/products/details" className="block">
+                  <Image
+                    src={item.image}
+                    alt={item.name}
+                    width={200}
+                    height={140}
+                    className="object-cover rounded-lg"
+                  />
+                </Link>
                 <div className="p-3">
                   <h3 className="text-sm font-semibold text-amber-700 mb-2 h-5">
                     {item.name}

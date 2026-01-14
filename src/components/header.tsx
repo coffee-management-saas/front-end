@@ -17,7 +17,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
@@ -79,7 +78,10 @@ export default function PhucLongHeader() {
                 </Link> */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="p-2 rounded-full transition hover:bg-green-50">
+                    <button
+                      type="button"
+                      className="p-2 rounded-full transition hover:bg-green-50"
+                    >
                       <User className="w-6 h-6 text-amber-700" />
                     </button>
                   </DropdownMenuTrigger>

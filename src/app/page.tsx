@@ -352,7 +352,6 @@ const Homepage: React.FC = () => {
           </span>
         )}
       </button>
-      <Footer />
     </div>
   );
 };

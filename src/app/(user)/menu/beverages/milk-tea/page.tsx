@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 type LevelOption = "Ít" | "Bình thường" | "Nhiều";
 type SizeOption = "M" | "L";
 
@@ -113,13 +114,15 @@ const MilkTeaMenu = () => {
                 key={item.id}
                 className="bg-white rounded-xl shadow-md max-w-50 mx-auto overflow-hidden hover:shadow-lg transition-shadow"
               >
-                <Image
-                  src={item.image}
-                  alt={item.name}
-                  width={200}
-                  height={140}
-                  className="object-cover rounded-lg"
-                />
+                <Link href="/products/details" className="block">
+                  <Image
+                    src={item.image}
+                    alt={item.name}
+                    width={200}
+                    height={140}
+                    className="object-cover rounded-lg"
+                  />
+                </Link>
                 <div className="p-3">
                   <h3 className="text-sm font-semibold text-amber-700 mb-2 h-5">
                     {item.name}
@@ -136,6 +139,7 @@ const MilkTeaMenu = () => {
                   >
                     <DialogTrigger asChild>
                       <button
+                        type="button"
                         onClick={() => handleOpenPopover(item.id)}
                         className="w-full bg-amber-700 text-white py-1.5 rounded-lg hover:bg-amber-800 transition-colors text-sm flex items-center justify-center gap-2"
                       >

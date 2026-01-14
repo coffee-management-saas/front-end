@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Footer from "@/components/footer";
-
+import Link from "next/link";
 export default function MenuLayout({
   children,
 }: {
@@ -28,9 +28,9 @@ export default function MenuLayout({
 
           <ul className="space-y-2">
             <li>
-              <a href="/menu/cake" className={linkClass("/menu/cake")}>
+              <Link href="/menu/cake" className={linkClass("/menu/cake")}>
                 Tất cả
-              </a>
+              </Link>
             </li>
 
             <li>
@@ -56,9 +56,6 @@ export default function MenuLayout({
         {/* Content */}
         <main className="flex-1 pl-6">{children}</main>
       </div>
-
-      {/* Footer nằm dưới cùng */}
-      <Footer />
     </div>
   );
 }

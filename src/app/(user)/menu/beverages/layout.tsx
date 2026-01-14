@@ -68,9 +68,6 @@ export default function MenuLayout({
         {/* Content */}
         <main className="flex-1 pl-6">{children}</main>
       </div>
-
-      {/* Footer nằm dưới cùng */}
-      <Footer />
     </div>
   );
 }

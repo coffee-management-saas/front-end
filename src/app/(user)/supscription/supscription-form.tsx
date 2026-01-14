@@ -152,7 +152,6 @@ const SubscriptionCards: React.FC = () => {
           </span>
         )}
       </button>
-      <Footer />
     </div>
   );
 };

@@ -117,7 +117,7 @@ const CoffeeMenu = () => {
                 key={item.id}
                 className="bg-white rounded-xl shadow-md max-w-50 mx-auto overflow-hidden hover:shadow-lg transition-shadow"
               >
-                <Link href="/menu/beverages/cafe/details" className="block">
+                <Link href="/products/details" className="block">
                   <Image
                     src={item.image}
                     alt={item.name}
@@ -196,7 +196,7 @@ const CoffeeMenu = () => {
                                     </Button>
 
                                     <span className="w-5 text-center text-sm font-semibold">
-                                      S {quantity}
+                                      {quantity}
                                     </span>
 
                                     <Button
