@@ -1,3 +1,4 @@
+// chạy ở môi trường server không chạy ở môi trường client
 import z from "zod";
 
 const configSchema = z.object({

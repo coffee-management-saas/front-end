@@ -4,7 +4,7 @@ import PhucLongHeader from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export default function LayoutContent({
   children,
@@ -13,12 +13,10 @@ export default function LayoutContent({
 }) {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-
-  // useEffect(() => {
-  //   setMounted(true);
-  // }, []);
-
+  // ẩn header với các route
   const hideHeader =
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/staff") ||
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/verification";

@@ -3,9 +3,8 @@
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-// import { toast } from "sonner";
 import * as z from "zod";
-
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,24 +16,24 @@ import {
 } from "@/components/ui/card";
 import {
   Field,
-  // FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-// import {
-//   InputGroup,
-//   InputGroupAddon,
-//   InputGroupText,
-//   InputGroupTextarea,
-// } from "@/components/ui/input-group";
 import envConfig from "@/config";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 const formSchema = z.object({
-  email: z.string().refine((val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
-    message: "Invalid email address.",
-  }),
+  username: z
+    .string()
+    .min(3, "Username must be at least 3 characters.")
+    .max(32, "Username must be at most 32 characters.")
+    .regex(
+      /^[a-zA-Z0-9_]+$/,
+      "Username can only contain letters, numbers, and underscore."
+    ),
 
   password: z
     .string()
@@ -46,92 +45,113 @@ export default function LoginForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: "",
+      username: "",
       password: "",
     },
   });
+  const router = useRouter();
+
   // 2. Define a submit handler ( Nơi gắn api)
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
+      const payload = {
+        username: values.username,
+        password: values.password,
+      };
+
       const res = await fetch(
         `${envConfig.NEXT_PUBLIC_API_ENDPOINT}/auth/login`,
         {
-          body: JSON.stringify(values),
-          headers: {
-            "Content-Type": "application/json",
-          },
-
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         }
-      ).then(async (res) => {
-        const payload = await res.json();
-        const data = {
-          status: res.status,
-          payload,
-        };
-        if (!res.ok) {
-          throw data;
-        }
-        return data;
-      });
+      );
 
-      // Lưu thông tin user vào localStorage
-      if (res.payload && res.payload.user) {
-        localStorage.setItem("user", JSON.stringify(res.payload.user));
-        // Có thể redirect về home hoặc user page
+      const raw = await res.text();
+      const data = raw ? JSON.parse(raw) : null;
+      if (!res.ok) {
+        throw new Error(data?.message || `Register failed (${res.status})`);
       }
+
+      console.log("Login success:", data);
+      toast("Đăng nhập thành công!");
+      router.replace("/");
     } catch (error) {
       console.error("Login error:", error);
     }
   }
   return (
-    <Card className="w-full sm:max-w-md">
-      <CardHeader>
-        <CardTitle className="text-2xl font-bold text-center">
+    <Card className="w-full sm:max-w-sm p-0 max-h-[90vh] overflow-hidden">
+      {/* Logo */}
+      <div className="flex justify-center pt-2 pb-0 -mb-4">
+        <Image
+          src="https://i.pinimg.com/1200x/fc/da/b7/fcdab7e591105149942a91cea82afbf1.jpg"
+          alt="Cafe Logo"
+          width={72}
+          height={72}
+          className="h-16 w-16 rounded-full"
+        />
+      </div>
+
+      {/* Header */}
+      <CardHeader className="pt-0 pb-0 px-4 space-y-0">
+        <CardTitle className="text-xl font-bold text-center">
           Đăng nhập
         </CardTitle>
-        <CardDescription className="font-bold text-center">
+        <CardDescription className="text-sm font-semibold text-center">
           Chào mừng bạn quay lại
         </CardDescription>
       </CardHeader>
-      <CardContent>
+
+      {/* Content */}
+      <CardContent className="pt-0 pb-2 px-4 overflow-y-auto max-h-[65vh]">
         <form id="form-rhf-demo" onSubmit={form.handleSubmit(onSubmit)}>
-          <FieldGroup>
+          <FieldGroup className="space-y-0">
+            {/* Email */}
             <Controller
-              name="email"
+              name="username"
               control={form.control}
               render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Field data-invalid={fieldState.invalid} className="space-y-0">
+                  <FieldLabel className="text-sm mb-0" htmlFor="username">
+                    Tên đăng nhập
+                  </FieldLabel>
                   <Input
                     {...field}
-                    id="email"
-                    type="email"
-                    placeholder="email@example.com"
-                    autoComplete="email"
+                    id="username"
+                    placeholder="nguyenvana"
+                    autoComplete="username"
                     aria-invalid={fieldState.invalid}
+                    className="h-10 text-base placeholder:text-sm"
                   />
-                  {fieldState.invalid && (
+
+                  {fieldState.error && (
                     <FieldError errors={[fieldState.error]} />
                   )}
                 </Field>
               )}
             />
+
+            {/* Password */}
             <Controller
               name="password"
               control={form.control}
               render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="password">Mật khẩu</FieldLabel>
+                <Field data-invalid={fieldState.invalid} className="space-y-0">
+                  <FieldLabel className="text-sm mb-0" htmlFor="password">
+                    Mật khẩu
+                  </FieldLabel>
                   <Input
                     {...field}
                     id="password"
                     type="password"
-                    placeholder="Nhập mật khẩu"
+                    placeholder="••••••••"
                     autoComplete="new-password"
                     aria-invalid={fieldState.invalid}
+                    className="h-10 text-base placeholder:text-sm"
                   />
-                  {fieldState.invalid && (
+                  {fieldState.error && (
                     <FieldError errors={[fieldState.error]} />
                   )}
                 </Field>
@@ -140,9 +160,15 @@ export default function LoginForm() {
           </FieldGroup>
         </form>
       </CardContent>
-      <CardFooter>
+
+      {/* Footer */}
+      <CardFooter className="pt-1 pb-4 px-2">
         <Field orientation="horizontal" className="w-full flex justify-center">
-          <Button type="submit" form="form-rhf-demo" className="px-8 py-3">
+          <Button
+            type="submit"
+            form="form-rhf-demo"
+            className="h-8 px-10 text-sm bg-amber-700 hover:bg-amber-800 text-white"
+          >
             Đăng nhập ngay
           </Button>
         </Field>

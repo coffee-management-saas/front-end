@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
-import Footer from "@/components/footer";
 
 interface Product {
   id: number;
