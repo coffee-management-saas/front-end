@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import envConfig from "@/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useAppContext } from "@/app/AppProvider";
 
 const formSchema = z.object({
   username: z
@@ -32,7 +33,7 @@ const formSchema = z.object({
     .max(32, "Username must be at most 32 characters.")
     .regex(
       /^[a-zA-Z0-9_]+$/,
-      "Username can only contain letters, numbers, and underscore."
+      "Username can only contain letters, numbers, and underscore.",
     ),
 
   password: z
@@ -50,8 +51,7 @@ export default function LoginForm() {
     },
   });
   const router = useRouter();
-
-  // 2. Define a submit handler ( Nơi gắn api)
+  const { setSessionToken } = useAppContext();
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       const payload = {
@@ -65,20 +65,42 @@ export default function LoginForm() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        }
+        },
       );
 
-      const raw = await res.text();
-      const data = raw ? JSON.parse(raw) : null;
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(data?.message || `Register failed (${res.status})`);
+        throw new Error(data?.message || `Login failed (${res.status})`);
       }
 
       console.log("Login success:", data);
       toast("Đăng nhập thành công!");
+      const resultFromNextServer = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+        }),
+      }).then(async (res) => {
+        const payload = await res.json();
+        const data = {
+          status: res.status,
+          payload,
+        };
+        if (!res.ok) {
+          throw data;
+        }
+        return data;
+      });
+      console.log("abvc", resultFromNextServer);
+      setSessionToken(resultFromNextServer.payload.accessToken);
+
       router.replace("/");
     } catch (error) {
       console.error("Login error:", error);
+      toast.error("Đăng nhập thất bại, vui lòng thử lại");
     }
   }
   return (

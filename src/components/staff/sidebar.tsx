@@ -1,5 +1,4 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -42,7 +41,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
       {/* Logo */}
       <div className="p-6">
         <div className="flex items-center gap-2">
-          <span className="text-2xl font-bold text-orange-400">F&B</span>
+          <span className="text-2xl font-bold text-amber-700">F&B</span>
           <span className="text-2xl font-bold text-gray-800">Coffee</span>
         </div>
       </div>
@@ -60,14 +59,14 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
-                    ? "text-orange-400 bg-orange-50"
+                    ? "text-amber-700 bg-amber-50"
                     : "text-gray-600 hover:bg-gray-50"
                 }`}
               >
                 <Icon size={20} />
                 <span className="text-sm font-medium">{item.label}</span>
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="ml-auto bg-orange-400 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  <span className="ml-auto bg-amber-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                     {item.badge}
                   </span>
                 )}
@@ -89,7 +88,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
-                    ? "text-orange-400 bg-orange-50"
+                    ? "text-amber-700 bg-amber-50"
                     : "text-gray-600 hover:bg-gray-50"
                 }`}
               >

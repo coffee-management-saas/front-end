@@ -5,8 +5,8 @@ import StaffHeader from "@/components/staff/staff-header";
 import type { ReactNode } from "react";
 
 export default function StaffShell({ children }: { children: ReactNode }) {
-  const sidebarWidth = 256; // w-64 = 16rem = 256px
-  const headerHeight = 72; // h-18 (tailwind không có h-18 default), dùng px
+  const sidebarWidth = 256;
+  const headerHeight = 72;
 
   return (
     <div className="min-h-screen bg-[#f6f7fb]">
@@ -37,7 +37,7 @@ export default function StaffShell({ children }: { children: ReactNode }) {
           paddingTop: headerHeight,
         }}
       >
-        <div className="p-6">{children}</div>
+        <div>{children}</div>
       </main>
     </div>
   );

@@ -71,11 +71,7 @@ export default function PhucLongHeader() {
                 <button className="p-2 hover:bg-gray-100 rounded-full transition">
                   <Mail className="w-6 h-6 text-gray-600" />
                 </button>
-                {/* <Link href="/verification">
-                  <button className="p-2 hover:bg-gray-100 rounded-full transition">
-                    <User className="w-6 h-6 text-gray-600" />
-                  </button>
-                </Link> */}
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   CreditCard,
   Heart,
@@ -10,30 +10,38 @@ import {
   LogOut,
   ChevronRight,
 } from "lucide-react";
+import envConfig from "@/config";
+import { useAppContext } from "@/app/AppProvider";
 
 interface ProfileData {
-  fullName: string;
-  phone: string;
-  gender: string;
-  idCard: string;
-  birthDate: string;
+  customerId: string;
+  username: string;
+  fullname: string;
+  rankId: string;
   email: string;
-  city: string;
-  district: string;
+  phone: string;
+  dob: string;
+  createdAt: string;
+  updatedAt: string;
+  status: string;
 }
 
 export default function ProfileForm() {
   const [activeTab, setActiveTab] = useState("personal-info");
   const [profile, setProfile] = useState<ProfileData>({
-    fullName: "Nguyễn Thị Hồng Ngọc",
-    phone: "0916693077",
-    gender: "Nữ",
-    idCard: "080304004817",
-    birthDate: "2004-11-21",
-    email: "nguyenngoccdh04@gmail.com",
-    city: "TPHCM",
-    district: "Long An",
+    customerId: "",
+    username: "",
+    fullname: "",
+    rankId: "",
+    email: "",
+    phone: "",
+    dob: "",
+    createdAt: "",
+    updatedAt: "",
+    status: "",
   });
+
+  const { sessionToken } = useAppContext();
 
   const menuItems = [
     {
@@ -91,6 +99,47 @@ export default function ProfileForm() {
     setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
+  useEffect(() => {
+    if (!sessionToken) return;
+
+    const fetchRequest = async () => {
+      try {
+        const res = await fetch(
+          `${envConfig.NEXT_PUBLIC_API_ENDPOINT}/customers/me`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${sessionToken}`,
+            },
+          },
+        );
+
+        const payload = await res.json();
+        if (!res.ok) throw { status: res.status, payload };
+
+        // payload đúng format BE trả về
+        setProfile({
+          customerId: String(payload?.customerId ?? ""),
+          username: String(payload?.username ?? ""),
+          fullname: String(payload?.fullname ?? ""),
+          rankId: String(payload?.rankId ?? ""),
+          email: String(payload?.email ?? ""),
+          phone: String(payload?.phone ?? ""),
+          dob: String(payload?.dob ?? ""),
+          createdAt: String(payload?.createdAt ?? ""),
+          updatedAt: String(payload?.updatedAt ?? ""),
+          status: String(payload?.status ?? ""),
+        });
+
+        console.log("customers/me:", payload);
+      } catch (err) {
+        console.error("Fetch /customers/me failed:", err);
+      }
+    };
+
+    fetchRequest();
+  }, [sessionToken]);
+
   return (
     <div className="flex gap-4 p-4">
       {/* Sidebar */}
@@ -126,21 +175,48 @@ export default function ProfileForm() {
       <div className="flex-1 pl-8 pr-8 pb-12 bg-white border border-gray-200 rounded-lg">
         <div className="p-4">
           <h2 className="text-2xl text-amber-700 mb-6">Thông tin cá nhân</h2>
+
           <form className="space-y-6">
             {/* Row 1 */}
             <div className="grid grid-cols-2 gap-8">
               <div>
                 <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Họ & tên
+                  Username
                 </label>
                 <input
                   type="text"
-                  value={profile.fullName}
+                  value={profile.username}
                   onChange={(e) =>
-                    handleInputChange("fullName", e.target.value)
+                    handleInputChange("username", e.target.value)
                   }
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500
- focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Fullname
+                </label>
+                <input
+                  type="text"
+                  value={profile.fullname}
+                  onChange={(e) =>
+                    handleInputChange("fullname", e.target.value)
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
+                />
+              </div>
+            </div>
+
+            {/* Row 2 */}
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Ngày sinh (dob)
+                </label>
+                <input
+                  value={profile.dob}
+                  onChange={(e) => handleInputChange("dob", e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
                 />
               </div>
               <div>
@@ -151,37 +227,7 @@ export default function ProfileForm() {
                   type="tel"
                   value={profile.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value)}
-                  className="w-full px-4 py-3 border text-black border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            {/* Row 2 */}
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Giới tính
-                </label>
-                <select
-                  value={profile.gender}
-                  onChange={(e) => handleInputChange("gender", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent appearance-none bg-white"
-                >
-                  <option value=""></option>
-                  <option value="male">Nam</option>
-                  <option value="female">Nữ</option>
-                  <option value="other">Khác</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Số CMND/CCCD
-                </label>
-                <input
-                  type="text"
-                  value={profile.idCard}
-                  onChange={(e) => handleInputChange("idCard", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
                 />
               </div>
             </div>
@@ -190,26 +236,26 @@ export default function ProfileForm() {
             <div className="grid grid-cols-2 gap-8">
               <div>
                 <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Ngày sinh
-                </label>
-                <input
-                  type="date"
-                  value={profile.birthDate}
-                  onChange={(e) =>
-                    handleInputChange("birthDate", e.target.value)
-                  }
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Email
                 </label>
                 <input
                   type="email"
                   value={profile.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Address
+                </label>
+                <input
+                  type="text"
+                  value={profile.fullname}
+                  onChange={(e) =>
+                    handleInputChange("fullname", e.target.value)
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
                 />
               </div>
             </div>
@@ -218,45 +264,31 @@ export default function ProfileForm() {
             <div className="grid grid-cols-2 gap-8">
               <div>
                 <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Tỉnh/Thành phố
+                  Hạng thành viên
                 </label>
-                <select
-                  value={profile.city}
-                  onChange={(e) => handleInputChange("city", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent appearance-none bg-white"
-                >
-                  <option value=""></option>
-                  <option value="hanoi">Hà Nội</option>
-                  <option value="hcm">Hồ Chí Minh</option>
-                  <option value="danang">Đà Nẵng</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Quận/Huyện
-                </label>
-                <select
-                  value={profile.district}
-                  onChange={(e) =>
-                    handleInputChange("district", e.target.value)
+                <input
+                  type="text"
+                  value={
+                    profile.rankId === "1"
+                      ? "Đồng"
+                      : profile.rankId === "2"
+                        ? "Bạc"
+                        : profile.rankId === "3"
+                          ? "Vàng"
+                          : "Chưa xác định"
                   }
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent appearance-none bg-white"
-                >
-                  <option value=""></option>
-                  <option value="district1">Quận 1</option>
-                  <option value="district2">Quận 2</option>
-                  <option value="district3">Quận 3</option>
-                </select>
+                  readOnly
+                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg cursor-not-allowed"
+                />
               </div>
             </div>
 
-            {/* Submit Button */}
             <div className="flex justify-end pt-4">
               <button
                 type="button"
-                className="px-8 py-3 bg-amber-700 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors"
+                className="px-8 py-3 text-sm bg-amber-700 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors"
               >
-                Lưu thông tin
+                Chỉnh sửa thông tin
               </button>
             </div>
           </form>

@@ -1,4 +1,4 @@
-import ProfileForm from "@/app/(user)/profile/components/profile-form";
+import ProfileForm from "@/app/(user)/profile/profile-form";
 import React from "react";
 
 function ProfilePage() {

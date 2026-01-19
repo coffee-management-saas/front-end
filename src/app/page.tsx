@@ -152,11 +152,8 @@ const Homepage: React.FC = () => {
       ref.current.scrollBy({ left: 200, behavior: "smooth" });
     }
   };
-  // landing page
-  // đặt ở đầu component
-  const [active, setActive] = useState(0);
 
-  // số card hiển thị theo màn hình (1 mobile, 2 tablet, 3 desktop)
+  const [active, setActive] = useState(0);
   const [perView, setPerView] = useState(1);
 
   useEffect(() => {
@@ -189,7 +186,7 @@ const Homepage: React.FC = () => {
         <div className="relative w-full">
           {/* Banner (chỉ 1 ảnh mỗi lần) */}
           <div className="relative w-full overflow-hidden">
-            <div className="relative w-full h-[180px] sm:h-[240px] md:h-[320px] lg:h-[400px]">
+            <div className="relative w-full h-45 sm:h-60 md:h-80 lg:h-100">
               <Image
                 src={newMenu[active]?.image || "/fallback.jpg"}
                 alt={newMenu[active]?.name || "banner"}
