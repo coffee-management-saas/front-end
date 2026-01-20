@@ -256,9 +256,13 @@ const Homepage: React.FC = () => {
                   <h3 className="text-xs font-semibold text-gray-800 mb-1 h-8 text-xs leading-tight">
                     {product.name}
                   </h3>
-                  <p className="text-base font-bold text-amber-700 mb-2">
+                  <p
+                    className="text-base font-bold text-amber-700 mb-2"
+                    suppressHydrationWarning
+                  >
                     {product.price.toLocaleString("vi-VN")} ₫
                   </p>
+
                   <button
                     onClick={handleAddToCart}
                     className="w-full bg-amber-700 hover:bg-amber-700 text-white font-semibold py-1 rounded-lg transition-colors duration-300 flex items-center justify-center gap-1 text-xs"

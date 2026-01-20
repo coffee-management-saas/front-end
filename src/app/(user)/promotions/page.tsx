@@ -1,4 +1,4 @@
-import SubscriptionCards from "@/app/(user)/supscription/supscription-form";
+import SubscriptionCards from "@/app/(user)/promotions/promotion-form";
 import React from "react";
 
 function ProfilePage() {

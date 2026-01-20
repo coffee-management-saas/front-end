@@ -227,7 +227,7 @@ export default function PhucLongHeader() {
             </li>
             <li>
               <Link
-                href="/supscription"
+                href="/promotions"
                 className="block py-3 hover:text-amber-700 transition border-b-2 border-transparent hover:border-amber-700"
               >
                 KHUYẾN MÃI
