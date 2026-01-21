@@ -2,10 +2,26 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import LayoutContent from "@/components/layout-content";
-
 import { Toaster } from "@/components/ui/sonner";
+
 import AppProvider from "@/app/AppProvider";
+import SlideSession from "@/components/slide-session";
 import { cookies } from "next/headers";
+
+// helper decode exp từ JWT ở server
+function getExpiresAtFromJwt(accessToken: string): string {
+  try {
+    const parts = accessToken.split(".");
+    if (parts.length < 2) return "";
+    const payload = JSON.parse(
+      Buffer.from(parts[1], "base64url").toString("utf8"),
+    );
+    if (!payload?.exp) return "";
+    return new Date(payload.exp * 1000).toISOString();
+  } catch {
+    return "";
+  }
+}
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,15 +44,24 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const cookieStore = await cookies();
-  const sessionToken = cookieStore.get("accessToken");
-  console.log("Root layout", cookieStore.get("accessToken"));
+  const accessToken = cookieStore.get("accessToken")?.value ?? "";
+  const refreshToken = cookieStore.get("refreshToken")?.value ?? "";
+  const expiresAt = accessToken ? getExpiresAtFromJwt(accessToken) : "";
+
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <LayoutContent>
-          <AppProvider initialAccessToken={sessionToken?.value}>
+          <AppProvider
+            initialTokens={{
+              accessToken,
+              refreshToken,
+              expiresAt,
+            }}
+          >
+            <SlideSession />
             {children}
           </AppProvider>
         </LayoutContent>

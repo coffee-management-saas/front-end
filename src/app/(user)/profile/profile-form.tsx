@@ -41,7 +41,7 @@ export default function ProfileForm() {
     status: "",
   });
 
-  const { sessionToken } = useAppContext();
+  const { accessToken } = useAppContext();
 
   const menuItems = [
     {
@@ -100,7 +100,7 @@ export default function ProfileForm() {
   };
 
   useEffect(() => {
-    if (!sessionToken) return;
+    if (!accessToken) return;
 
     const fetchRequest = async () => {
       try {
@@ -109,7 +109,7 @@ export default function ProfileForm() {
           {
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${sessionToken}`,
+              Authorization: `Bearer ${accessToken}`,
             },
           },
         );
@@ -138,7 +138,7 @@ export default function ProfileForm() {
     };
 
     fetchRequest();
-  }, [sessionToken]);
+  }, [accessToken]);
 
   return (
     <div className="flex gap-4 p-4">

@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 import {
   Card,
@@ -23,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import envConfig from "@/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+
 const formSchema = z.object({
   username: z
     .string()
@@ -30,7 +32,7 @@ const formSchema = z.object({
     .max(32, "Username must be at most 32 characters.")
     .regex(
       /^[a-zA-Z0-9_]+$/,
-      "Username can only contain letters, numbers, and underscore."
+      "Username can only contain letters, numbers, and underscore.",
     ),
 
   fullName: z
@@ -62,7 +64,11 @@ const formSchema = z.object({
     .min(8, "Password must be at least 8 characters.")
     .max(100, "Password must be at most 100 characters."),
 });
+
 export default function RegisterForm() {
+  const [loading, setLoading] = React.useState(false);
+  const [dobType, setDobType] = React.useState<"text" | "date">("text");
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -74,20 +80,24 @@ export default function RegisterForm() {
       address: "",
       dob: "",
     },
+    mode: "onTouched",
   });
-  const [dobType, setDobType] = React.useState<"text" | "date">("text");
 
   const router = useRouter();
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (loading) return;
+    setLoading(true);
+
     try {
       const payload = {
-        username: values.username,
-        fullname: values.fullName,
-        email: values.email,
-        phone: values.phone,
+        username: values.username.trim(),
+        fullname: values.fullName.trim(),
+        email: values.email.trim(),
+        phone: values.phone.trim(),
         dob: values.dob,
         password: values.password,
-        address: values.address,
+        address: values.address.trim(),
       };
 
       const res = await fetch(
@@ -96,21 +106,27 @@ export default function RegisterForm() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        }
+        },
       );
 
       const raw = await res.text();
       const data = raw ? JSON.parse(raw) : null;
+
       if (!res.ok) {
         throw new Error(data?.message || `Register failed (${res.status})`);
       }
 
-      console.log("Register success:", data);
+      toast.success("Đăng ký thành công!");
       router.replace("/login");
     } catch (error) {
-      console.error("Register error:", error);
+      console.error("Login error:", error);
+      toast.error("Đăng ký thất bại, vui lòng thử lại");
+    } finally {
+      setLoading(false);
     }
   }
+
+  const isSubmitDisabled = loading || !form.formState.isValid;
 
   return (
     <div className="h-screen w-screen overflow-hidden flex items-center justify-center p-4">
@@ -122,8 +138,10 @@ export default function RegisterForm() {
             width={72}
             height={72}
             className="h-16 w-16 rounded-full"
+            priority
           />
         </div>
+
         <CardHeader className="pt-0 pb-0 px-4 space-y-0">
           <CardTitle className="text-xl font-bold text-center">
             Đăng ký
@@ -135,7 +153,6 @@ export default function RegisterForm() {
 
         <CardContent className="pt-0 pb-2 px-4 overflow-y-auto max-h-[65vh]">
           <form id="form-rhf-demo" onSubmit={form.handleSubmit(onSubmit)}>
-            {/* Giảm khoảng cách giữa các field */}
             <FieldGroup className="space-y-0">
               {/* Username */}
               <Controller
@@ -156,8 +173,8 @@ export default function RegisterForm() {
                       autoComplete="username"
                       aria-invalid={fieldState.invalid}
                       className="h-10 text-base placeholder:text-sm"
+                      disabled={loading}
                     />
-
                     {fieldState.error && (
                       <FieldError errors={[fieldState.error]} />
                     )}
@@ -184,6 +201,7 @@ export default function RegisterForm() {
                       autoComplete="name"
                       aria-invalid={fieldState.invalid}
                       className="h-10 text-base placeholder:text-sm"
+                      disabled={loading}
                     />
                     {fieldState.error && (
                       <FieldError errors={[fieldState.error]} />
@@ -192,7 +210,7 @@ export default function RegisterForm() {
                 )}
               />
 
-              {/* Email + Password cùng 1 dòng */}
+              {/* Email + Password */}
               <div className="grid grid-cols-2 gap-1.5">
                 <Controller
                   name="email"
@@ -213,6 +231,7 @@ export default function RegisterForm() {
                         autoComplete="email"
                         aria-invalid={fieldState.invalid}
                         className="h-10 text-base placeholder:text-sm"
+                        disabled={loading}
                       />
                       {fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
@@ -240,6 +259,7 @@ export default function RegisterForm() {
                         autoComplete="new-password"
                         aria-invalid={fieldState.invalid}
                         className="h-10 text-base placeholder:text-sm"
+                        disabled={loading}
                       />
                       {fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
@@ -249,7 +269,7 @@ export default function RegisterForm() {
                 />
               </div>
 
-              {/* Phone + DOB on one row (giảm gap) */}
+              {/* Phone + DOB */}
               <div className="grid grid-cols-2 gap-1.5">
                 <Controller
                   name="phone"
@@ -270,6 +290,7 @@ export default function RegisterForm() {
                         autoComplete="tel"
                         aria-invalid={fieldState.invalid}
                         className="h-10 text-base placeholder:text-sm"
+                        disabled={loading}
                       />
                       {fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
@@ -295,12 +316,13 @@ export default function RegisterForm() {
                         type={dobType}
                         placeholder={dobType === "text" ? "dd/mm/yyyy" : ""}
                         className="h-10 text-base placeholder:text-sm"
-                        onFocus={() => setDobType("date")}
+                        onFocus={() => !loading && setDobType("date")}
                         onBlur={() => {
                           if (!field.value) setDobType("text");
                         }}
+                        autoComplete="bday"
+                        disabled={loading}
                       />
-
                       {fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
@@ -328,6 +350,7 @@ export default function RegisterForm() {
                       autoComplete="street-address"
                       aria-invalid={fieldState.invalid}
                       className="h-10 text-base placeholder:text-sm"
+                      disabled={loading}
                     />
                     {fieldState.error && (
                       <FieldError errors={[fieldState.error]} />
@@ -348,8 +371,11 @@ export default function RegisterForm() {
               type="submit"
               form="form-rhf-demo"
               className="h-8 px-10 text-sm bg-amber-700 hover:bg-amber-800 text-white"
+              disabled={isSubmitDisabled}
+              aria-disabled={isSubmitDisabled}
+              aria-busy={loading}
             >
-              Đăng kí ngay
+              {loading ? "Đang đăng ký..." : "Đăng kí ngay"}
             </Button>
           </Field>
         </CardFooter>

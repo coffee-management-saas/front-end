@@ -1,27 +1,55 @@
 "use client";
-import { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState } from "react";
 
-const AppContext = createContext({
-  sessionToken: "",
-  setSessionToken: (sessionToken: string) => {},
-});
+type Tokens = {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: string;
+};
+
+type AppContextType = {
+  tokens: Tokens;
+  setTokens: React.Dispatch<React.SetStateAction<Tokens>>;
+
+  // (tuỳ chọn) giữ lại API cũ cho tiện dùng
+  accessToken: string;
+  setAccessToken: (token: string) => void;
+};
+
+const AppContext = createContext<AppContextType | null>(null);
+
 export const useAppContext = () => {
   const context = useContext(AppContext);
-  if (!context) {
+  if (!context)
     throw new Error("useAppContext must be used within an AppProvider");
-  }
   return context;
 };
+
 export default function AppProvider({
   children,
-  initialAccessToken = "",
+  initialTokens,
 }: {
   children: React.ReactNode;
-  initialAccessToken?: string;
+  initialTokens?: Tokens;
 }) {
-  const [sessionToken, setSessionToken] = useState(initialAccessToken);
+  const [tokens, setTokens] = useState<Tokens>(
+    initialTokens ?? { accessToken: "", refreshToken: "", expiresAt: "" },
+  );
+
+  // giữ tương thích code cũ (setAccessToken)
+  const setAccessToken = (token: string) => {
+    setTokens((prev) => ({ ...prev, accessToken: token }));
+  };
+
   return (
-    <AppContext.Provider value={{ sessionToken, setSessionToken }}>
+    <AppContext.Provider
+      value={{
+        tokens,
+        setTokens,
+        accessToken: tokens.accessToken,
+        setAccessToken,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );

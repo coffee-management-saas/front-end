@@ -25,7 +25,7 @@ import envConfig from "@/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/app/AppProvider";
-
+import { getJwtExpiresAt } from "@/lib/utils";
 const formSchema = z.object({
   username: z
     .string()
@@ -35,7 +35,6 @@ const formSchema = z.object({
       /^[a-zA-Z0-9_]+$/,
       "Username can only contain letters, numbers, and underscore.",
     ),
-
   password: z
     .string()
     .min(8, "Password must be at least 8 characters.")
@@ -43,19 +42,27 @@ const formSchema = z.object({
 });
 
 export default function LoginForm() {
+  const [loading, setLoading] = React.useState(false);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       username: "",
       password: "",
     },
+    mode: "onTouched",
   });
+
   const router = useRouter();
-  const { setSessionToken } = useAppContext();
+  const { setTokens } = useAppContext();
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (loading) return;
+    setLoading(true);
+
     try {
       const payload = {
-        username: values.username,
+        username: values.username.trim(),
         password: values.password,
       };
 
@@ -69,14 +76,14 @@ export default function LoginForm() {
       );
 
       const data = await res.json();
-
+      const expiresAt = getJwtExpiresAt(data.accessToken);
       if (!res.ok) {
         throw new Error(data?.message || `Login failed (${res.status})`);
       }
 
-      console.log("Login success:", data);
-      toast("Đăng nhập thành công!");
-      const resultFromNextServer = await fetch("/api/auth", {
+      toast.success("Đăng nhập thành công!");
+
+      await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -85,24 +92,29 @@ export default function LoginForm() {
         }),
       }).then(async (res) => {
         const payload = await res.json();
-        const data = {
-          status: res.status,
-          payload,
-        };
-        if (!res.ok) {
-          throw data;
-        }
-        return data;
+        const resultFromNextServer = { status: res.status, payload };
+        if (!res.ok) throw resultFromNextServer;
+        return resultFromNextServer;
       });
-      console.log("abvc", resultFromNextServer);
-      setSessionToken(resultFromNextServer.payload.accessToken);
+
+      // setTokens phải lấy từ data (login backend), không phải từ /api/auth
+      setTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt,
+      });
 
       router.replace("/");
     } catch (error) {
       console.error("Login error:", error);
       toast.error("Đăng nhập thất bại, vui lòng thử lại");
+    } finally {
+      setLoading(false);
     }
   }
+
+  const isSubmitDisabled = loading || !form.formState.isValid;
+
   return (
     <Card className="w-full sm:max-w-sm p-0 max-h-[90vh] overflow-hidden">
       {/* Logo */}
@@ -113,6 +125,7 @@ export default function LoginForm() {
           width={72}
           height={72}
           className="h-16 w-16 rounded-full"
+          priority
         />
       </div>
 
@@ -130,7 +143,7 @@ export default function LoginForm() {
       <CardContent className="pt-0 pb-2 px-4 overflow-y-auto max-h-[65vh]">
         <form id="form-rhf-demo" onSubmit={form.handleSubmit(onSubmit)}>
           <FieldGroup className="space-y-0">
-            {/* Email */}
+            {/* Username */}
             <Controller
               name="username"
               control={form.control}
@@ -146,8 +159,8 @@ export default function LoginForm() {
                     autoComplete="username"
                     aria-invalid={fieldState.invalid}
                     className="h-10 text-base placeholder:text-sm"
+                    disabled={loading}
                   />
-
                   {fieldState.error && (
                     <FieldError errors={[fieldState.error]} />
                   )}
@@ -169,9 +182,10 @@ export default function LoginForm() {
                     id="password"
                     type="password"
                     placeholder="••••••••"
-                    autoComplete="new-password"
+                    autoComplete="current-password"
                     aria-invalid={fieldState.invalid}
                     className="h-10 text-base placeholder:text-sm"
+                    disabled={loading}
                   />
                   {fieldState.error && (
                     <FieldError errors={[fieldState.error]} />
@@ -190,8 +204,11 @@ export default function LoginForm() {
             type="submit"
             form="form-rhf-demo"
             className="h-8 px-10 text-sm bg-amber-700 hover:bg-amber-800 text-white"
+            disabled={isSubmitDisabled}
+            aria-disabled={isSubmitDisabled}
+            aria-busy={loading}
           >
-            Đăng nhập ngay
+            {loading ? "Đang đăng nhập..." : "Đăng nhập ngay"}
           </Button>
         </Field>
       </CardFooter>

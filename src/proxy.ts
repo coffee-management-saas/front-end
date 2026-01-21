@@ -4,15 +4,15 @@ import type { NextRequest } from "next/server";
 const privatePaths = ["/profile"];
 const authPaths = ["/login", "/register"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const sessionToken = request.cookies.get("sessionToken");
+  const accessToken = request.cookies.get("accessToken")?.value;
 
-  if (privatePaths.some((path) => pathname.startsWith(path)) && !sessionToken) {
+  if (privatePaths.some((path) => pathname.startsWith(path)) && !accessToken) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (authPaths.some((path) => pathname.startsWith(path)) && sessionToken) {
+  if (authPaths.some((path) => pathname.startsWith(path)) && accessToken) {
     return NextResponse.redirect(new URL("/profile", request.url));
   }
 
