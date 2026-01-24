@@ -53,19 +53,20 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <LayoutContent>
-          <AppProvider
-            initialTokens={{
-              accessToken,
-              refreshToken,
-              expiresAt,
-            }}
-          >
+        <AppProvider
+          initialTokens={{
+            accessToken,
+            refreshToken,
+            expiresAt,
+          }}
+        >
+          <LayoutContent>
             <SlideSession />
             {children}
-          </AppProvider>
-        </LayoutContent>
-        <Toaster />
+          </LayoutContent>
+
+          <Toaster />
+        </AppProvider>
       </body>
     </html>
   );

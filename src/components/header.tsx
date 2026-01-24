@@ -19,14 +19,30 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { useAppContext } from "@/app/AppProvider";
+import { logoutFromNextClientToNextServer } from "@/services/auth.service";
 
 export default function PhucLongHeader() {
   const [cart, setCart] = useState(2);
   const [user, setUser] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-
-  const handleLogout = () => {
-    setUser(null);
+  const router = useRouter();
+  const { setTokens } = useAppContext();
+  const handleLogout = async () => {
+    try {
+      await logoutFromNextClientToNextServer();
+      toast.success("Đăng xuất thành công");
+    } catch (e) {
+      console.error(e);
+      toast.error("Đăng xuất thất bại");
+    } finally {
+      // luôn clear state phía client
+      setUser(null);
+      setTokens({ accessToken: "", refreshToken: "", expiresAt: "" });
+      router.replace("/login");
+    }
   };
 
   return (
@@ -151,7 +167,10 @@ export default function PhucLongHeader() {
 
                     <DropdownMenuSeparator className="my-1" />
 
-                    <DropdownMenuItem className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-red-50">
+                    <DropdownMenuItem
+                      onClick={handleLogout}
+                      className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-red-50"
+                    >
                       <LogOut className="w-4 h-4 text-red-500 group-hover:text-red-600" />
                       <span className="ml-3 text-sm text-red-600">
                         Đăng xuất
