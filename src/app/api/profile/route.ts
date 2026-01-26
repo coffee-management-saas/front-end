@@ -1,13 +1,18 @@
 import { cookies } from "next/headers";
 import { ApiError } from "@/lib/utils";
-import { createPromotion, getPromotions } from "@/services/promotion.service";
+import { getMyProfile, updateMyProfile } from "@/services/profile.service";
+import { UpdateProfileBody } from "@/types/profile";
 
 export async function GET() {
   try {
     const cookieStore = await cookies();
     const accessToken = cookieStore.get("accessToken")?.value;
 
-    const data = await getPromotions(accessToken);
+    if (!accessToken) {
+      return Response.json({ message: "Unauthenticated" }, { status: 401 });
+    }
+
+    const data = await getMyProfile(accessToken);
     return Response.json(data, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {
@@ -20,8 +25,7 @@ export async function GET() {
     return Response.json({ message: "Server error" }, { status: 500 });
   }
 }
-
-export async function POST(req: Request) {
+export async function PUT(req: Request) {
   try {
     const cookieStore = await cookies();
     const accessToken = cookieStore.get("accessToken")?.value;
@@ -30,14 +34,15 @@ export async function POST(req: Request) {
       return Response.json({ message: "Unauthenticated" }, { status: 401 });
     }
 
-    const payload = await req.json().catch(() => null);
-
-    if (!payload) {
-      return Response.json({ message: "Thiếu payload" }, { status: 400 });
+    const body = (await req
+      .json()
+      .catch(() => null)) as UpdateProfileBody | null;
+    if (!body) {
+      return Response.json({ message: "Body không hợp lệ" }, { status: 400 });
     }
 
-    const data = await createPromotion(payload, accessToken);
-    return Response.json(data, { status: 201 });
+    const data = await updateMyProfile(accessToken, body);
+    return Response.json(data, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {
       return Response.json(
@@ -45,7 +50,6 @@ export async function POST(req: Request) {
         { status: err.status },
       );
     }
-
     return Response.json({ message: "Server error" }, { status: 500 });
   }
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import {
   Search,
   ShoppingCart,
@@ -11,7 +11,7 @@ import {
   LogOut,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,13 +23,19 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAppContext } from "@/app/AppProvider";
 import { logoutFromNextClientToNextServer } from "@/services/auth.service";
+import { Button } from "@/components/ui/button";
 
 export default function PhucLongHeader() {
-  const [cart, setCart] = useState(2);
-  const [user, setUser] = useState(null);
+  const [cart] = useState(2);
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
-  const { setTokens } = useAppContext();
+  const { tokens, setTokens } = useAppContext();
+
+  const isAuthenticated = useMemo(
+    () => Boolean(tokens?.accessToken),
+    [tokens?.accessToken],
+  );
+
   const handleLogout = async () => {
     try {
       await logoutFromNextClientToNextServer();
@@ -39,11 +45,13 @@ export default function PhucLongHeader() {
       toast.error("Đăng xuất thất bại");
     } finally {
       // luôn clear state phía client
-      setUser(null);
       setTokens({ accessToken: "", refreshToken: "", expiresAt: "" });
       router.replace("/login");
     }
   };
+
+  const handleLogin = () => router.push("/login");
+  const handleRegister = () => router.push("/register");
 
   return (
     <header className="bg-white shadow-sm fixed top-0 z-50 w-full">
@@ -72,22 +80,8 @@ export default function PhucLongHeader() {
 
           {/* Right Side Icons */}
           <div className="flex items-center gap-4 ml-auto">
-            {user ? (
-              <>
-                <span className="text-sm text-gray-700 hidden md:inline"></span>
-                <button
-                  onClick={handleLogout}
-                  className="text-sm text-amber-700 hover:text-amber-700 font-medium hidden md:inline"
-                >
-                  Đăng xuất
-                </button>
-              </>
-            ) : (
+            {isAuthenticated ? (
               <div className="flex items-center gap-3">
-                <button className="p-2 hover:bg-gray-100 rounded-full transition">
-                  <Mail className="w-6 h-6 text-gray-600" />
-                </button>
-
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -178,6 +172,35 @@ export default function PhucLongHeader() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLogin}
+                  className="
+    hidden sm:inline-flex
+    border-gray-100
+    text-amber-700
+    hover:bg-amber-50
+    hover:text-amber-900
+  "
+                >
+                  Đăng nhập
+                </Button>
+
+                <Button
+                  size="sm"
+                  onClick={handleRegister}
+                  className="
+    bg-amber-700
+    text-white
+    hover:bg-amber-900
+  "
+                >
+                  Đăng ký
+                </Button>
               </div>
             )}
 

@@ -1,33 +1,24 @@
-"use client";
-import React, { useEffect, useState } from "react";
+﻿"use client";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ChevronRight,
   CreditCard,
   Heart,
-  ShoppingCart,
-  MapPin,
-  Tag,
   HelpCircle,
   LogOut,
-  ChevronRight,
+  MapPin,
+  Pencil,
+  ShoppingCart,
+  Tag,
 } from "lucide-react";
-import envConfig from "@/config";
-import { useAppContext } from "@/app/AppProvider";
 
-interface ProfileData {
-  customerId: string;
-  username: string;
-  fullname: string;
-  rankId: string;
-  email: string;
-  phone: string;
-  dob: string;
-  createdAt: string;
-  updatedAt: string;
-  status: string;
-}
+import { ProfileData } from "@/types/profile";
 
 export default function ProfileForm() {
   const [activeTab, setActiveTab] = useState("personal-info");
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [originalProfile, setOriginalProfile] = useState<ProfileData | null>(null);
   const [profile, setProfile] = useState<ProfileData>({
     customerId: "",
     username: "",
@@ -35,13 +26,28 @@ export default function ProfileForm() {
     rankId: "",
     email: "",
     phone: "",
+    address: "",
     dob: "",
     createdAt: "",
     updatedAt: "",
     status: "",
   });
 
-  const { accessToken } = useAppContext();
+  const inputClasses =
+    "w-full px-4 py-3 border border-gray-200 text-gray-900 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
+
+  const rankLabel = useMemo(() => {
+    switch (profile.rankId) {
+      case "1":
+        return "Đồng";
+      case "2":
+        return "Bạc";
+      case "3":
+        return "Vàng";
+      default:
+        return "Chưa xếp hạng";
+    }
+  }, [profile.rankId]);
 
   const menuItems = [
     {
@@ -100,50 +106,71 @@ export default function ProfileForm() {
   };
 
   useEffect(() => {
-    if (!accessToken) return;
-
     const fetchRequest = async () => {
       try {
-        const res = await fetch(
-          `${envConfig.NEXT_PUBLIC_API_ENDPOINT}/customers/me`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-          },
-        );
+        const res = await fetch("/api/profile", {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+        });
 
         const payload = await res.json();
         if (!res.ok) throw { status: res.status, payload };
 
-        // payload đúng format BE trả về
-        setProfile({
-          customerId: String(payload?.customerId ?? ""),
-          username: String(payload?.username ?? ""),
-          fullname: String(payload?.fullname ?? ""),
-          rankId: String(payload?.rankId ?? ""),
-          email: String(payload?.email ?? ""),
-          phone: String(payload?.phone ?? ""),
-          dob: String(payload?.dob ?? ""),
-          createdAt: String(payload?.createdAt ?? ""),
-          updatedAt: String(payload?.updatedAt ?? ""),
-          status: String(payload?.status ?? ""),
-        });
-
-        console.log("customers/me:", payload);
+        setProfile(payload);
+        setOriginalProfile(payload);
       } catch (err) {
-        console.error("Fetch /customers/me failed:", err);
+        console.error("Fetch /api/profile failed:", err);
       }
     };
 
     fetchRequest();
-  }, [accessToken]);
+  }, []);
+
+  const handleStartEdit = () => {
+    setOriginalProfile(profile);
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    if (originalProfile) setProfile(originalProfile);
+    setIsEditing(false);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          fullname: profile.fullname,
+          phone: profile.phone,
+          address: profile.address,
+          dob: profile.dob,
+          email: profile.email,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw { status: res.status, data };
+
+      setProfile(data);
+      setOriginalProfile(data);
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Update profile failed:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="flex gap-4 p-4">
-      {/* Sidebar */}
-      <div className="w-80 bg-white border border-gray-200 rounded-lg p-4 ">
+      {/* Sidebar giữ layout cũ */}
+      <div className="w-80 bg-white border border-gray-200 rounded-lg p-4">
         <div className="space-y-1">
           {menuItems.map((item) => (
             <button
@@ -172,15 +199,54 @@ export default function ProfileForm() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 pl-8 pr-8 pb-12 bg-white border border-gray-200 rounded-lg">
-        <div className="p-4">
-          <h2 className="text-2xl text-amber-700 mb-6">Thông tin cá nhân</h2>
-
-          <form className="space-y-6">
-            {/* Row 1 */}
-            <div className="grid grid-cols-2 gap-8">
+      <div className="flex-1 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-6">
+          <form className="max-w-3xl mx-auto space-y-5">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
+                <p className="text-xs uppercase tracking-[0.08em] text-gray-500">
+                  Thông tin cơ bản
+                </p>
+                <h3 className="text-xl font-semibold text-gray-900">
+                  {profile.fullname || "Khách hàng"}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {isEditing ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition"
+                      disabled={isSaving}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      className="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 transition disabled:opacity-60"
+                      disabled={isSaving}
+                    >
+                      {isSaving ? "Đang lưu..." : "Lưu"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStartEdit}
+                    className="h-10 w-10 inline-flex items-center justify-center rounded-full border border-amber-200 bg-white text-amber-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                    aria-label="Chỉnh sửa thông tin"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-900">
                   Username
                 </label>
                 <input
@@ -189,12 +255,13 @@ export default function ProfileForm() {
                   onChange={(e) =>
                     handleInputChange("username", e.target.value)
                   }
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
+                  className={inputClasses}
+                  disabled={!isEditing}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Fullname
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-900">
+                  Họ và tên
                 </label>
                 <input
                   type="text"
@@ -202,94 +269,65 @@ export default function ProfileForm() {
                   onChange={(e) =>
                     handleInputChange("fullname", e.target.value)
                   }
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
+                  className={inputClasses}
+                  disabled={!isEditing}
                 />
               </div>
-            </div>
-
-            {/* Row 2 */}
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Ngày sinh (dob)
-                </label>
-                <input
-                  value={profile.dob}
-                  onChange={(e) => handleInputChange("dob", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Số điện thoại
-                </label>
-                <input
-                  type="tel"
-                  value={profile.phone}
-                  onChange={(e) => handleInputChange("phone", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
-                />
-              </div>
-            </div>
-
-            {/* Row 3 */}
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-900">
                   Email
                 </label>
                 <input
                   type="email"
                   value={profile.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
+                  className={inputClasses}
+                  disabled={!isEditing}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Address
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-900">
+                  Số điện thoại
+                </label>
+                <input
+                  type="tel"
+                  value={profile.phone}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
+                  className={inputClasses}
+                  disabled={!isEditing}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-900">
+                  Địa chỉ
                 </label>
                 <input
                   type="text"
-                  value={profile.fullname}
-                  onChange={(e) =>
-                    handleInputChange("fullname", e.target.value)
-                  }
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg"
+                  value={profile.address}
+                  onChange={(e) => handleInputChange("address", e.target.value)}
+                  className={inputClasses}
+                  disabled={!isEditing}
                 />
               </div>
-            </div>
-
-            {/* Row 4 */}
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-900">
+                  Ngày sinh (dob)
+                </label>
+                <input
+                  value={profile.dob}
+                  onChange={(e) => handleInputChange("dob", e.target.value)}
+                  className={inputClasses}
+                  disabled={!isEditing}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-900">
                   Hạng thành viên
                 </label>
-                <input
-                  type="text"
-                  value={
-                    profile.rankId === "1"
-                      ? "Đồng"
-                      : profile.rankId === "2"
-                        ? "Bạc"
-                        : profile.rankId === "3"
-                          ? "Vàng"
-                          : "Chưa xác định"
-                  }
-                  readOnly
-                  className="w-full px-4 py-3 border border-gray-300 text-black rounded-lg cursor-not-allowed"
-                />
+                <div className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-100 text-gray-700">
+                  {rankLabel}
+                </div>
               </div>
-            </div>
-
-            <div className="flex justify-end pt-4">
-              <button
-                type="button"
-                className="px-8 py-3 text-sm bg-amber-700 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors"
-              >
-                Chỉnh sửa thông tin
-              </button>
             </div>
           </form>
         </div>

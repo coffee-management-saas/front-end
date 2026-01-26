@@ -2,6 +2,7 @@
 
 import PhucLongHeader from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
+import Footer from "@/components/footer";
 
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -13,8 +14,8 @@ export default function LayoutContent({
 }) {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  // ẩn header với các route
-  const hideHeader =
+  // ẩn header/footer với các route
+  const hideShell =
     pathname.startsWith("/admin") ||
     pathname.startsWith("/staff") ||
     pathname === "/login" ||
@@ -23,9 +24,10 @@ export default function LayoutContent({
 
   if (!mounted) {
     return (
-      <div className={!hideHeader ? "pt-16" : ""}>
-        {!hideHeader && <PhucLongHeader />}
+      <div className={!hideShell ? "pt-16" : ""}>
+        {!hideShell && <PhucLongHeader />}
         {children}
+        {!hideShell && <Footer />}
       </div>
     );
   }
@@ -37,8 +39,9 @@ export default function LayoutContent({
       enableSystem
       disableTransitionOnChange
     >
-      {!hideHeader && <PhucLongHeader />}
-      <div className={!hideHeader ? "pt-16" : ""}>{children}</div>
+      {!hideShell && <PhucLongHeader />}
+      <div className={!hideShell ? "pt-16" : ""}>{children}</div>
+      {!hideShell && <Footer />}
     </ThemeProvider>
   );
 }

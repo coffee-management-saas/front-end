@@ -26,6 +26,33 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/app/AppProvider";
 import { getJwtExpiresAt } from "@/lib/utils";
+
+function getRoleFromAccessToken(token: string): string | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(
+      base64.length + ((4 - (base64.length % 4)) % 4),
+      "=",
+    );
+    const payload = JSON.parse(atob(padded));
+
+    const rawRole =
+      payload?.role ??
+      (Array.isArray(payload?.roles) ? payload.roles[0] : null) ??
+      (Array.isArray(payload?.authorities) ? payload.authorities[0] : null);
+
+    if (!rawRole) return null;
+
+    const normalized = String(rawRole).toUpperCase();
+    return normalized.startsWith("ROLE_") ? normalized.slice(5) : normalized;
+  } catch {
+    return null;
+  }
+}
 const formSchema = z.object({
   username: z
     .string()
@@ -104,7 +131,11 @@ export default function LoginForm() {
         expiresAt,
       });
 
-      router.replace("/");
+      const role = getRoleFromAccessToken(data.accessToken);
+      const destination =
+        role === "SHOP" ? "/staff" : role === "SYSTEM" ? "/admin" : "/";
+
+      router.replace(destination);
     } catch (error) {
       console.error("Login error:", error);
       toast.error("Đăng nhập thất bại, vui lòng thử lại");

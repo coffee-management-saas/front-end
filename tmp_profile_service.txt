@@ -1,0 +1,44 @@
+import envConfig from "@/config";
+import { ApiError } from "@/lib/utils";
+import { ProfileData } from "@/types/profile";
+
+async function parseJsonSafely<T>(res: Response): Promise<T | null> {
+  const raw = await res.text();
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new ApiError("BE trả về không phải JSON", 502, raw);
+  }
+}
+
+export async function getMyProfile(
+  accessToken: string,
+): Promise<ProfileData> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const url = `${base}/customers/me`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    cache: "no-store",
+  });
+
+  const data = await parseJsonSafely<ProfileData>(res);
+
+  if (!res.ok) {
+    throw new ApiError("Không lấy được hồ sơ", res.status, data);
+  }
+
+  if (!data) {
+    throw new ApiError("Dữ liệu hồ sơ trống", 500);
+  }
+
+  return data;
+}
+

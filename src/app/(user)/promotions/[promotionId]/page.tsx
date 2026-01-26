@@ -215,12 +215,12 @@ export default async function PromotionDetailPage({
                 Dùng mã: {promotion.promotionCode}
               </button>
 
-              <a
+              {/* <a
                 href="/promotions"
                 className="px-5 py-2.5 rounded-full bg-white/70 border border-white/70 text-slate-700 text-xs font-semibold shadow-lg transition hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
               >
                 Quay lại danh sách
-              </a>
+              </a> */}
             </div>
           </div>
 

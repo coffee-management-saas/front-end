@@ -20,16 +20,21 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
   const pathname = usePathname();
 
   const menuItems = [
-    { icon: Home, label: "Home page", href: "/staff" },
+    { icon: Home, label: "Quản lý", href: "/staff" },
     { icon: Menu, label: "Menu", href: "/staff/menu" },
-    { icon: ShoppingBag, label: "My orders", href: "/staff/order", badge: 0 },
-    { icon: Clock, label: "History", href: "/staff/history" },
+    {
+      icon: ShoppingBag,
+      label: "Trạng thái đơn",
+      href: "/staff/order",
+      badge: 0,
+    },
+    { icon: Clock, label: "Công thức", href: "/staff/recipe" },
   ];
 
   const bottomItems = [
-    { icon: Users, label: "Partners", href: "/partners" },
-    { icon: Settings, label: "Settings", href: "/settings" },
-    { icon: Heart, label: "Donate to shelter", href: "/donate" },
+    { icon: Users, label: "Nhân viên", href: "/staff/employees" },
+    { icon: Settings, label: "Cài đặt", href: "/settings" },
+    { icon: Heart, label: "Khuyến mãi", href: "/staff/promotion" },
   ];
 
   return (
@@ -100,7 +105,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
 
           <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors w-full">
             <LogOut size={20} />
-            <span className="text-sm font-medium">Log out</span>
+            <span className="text-sm font-medium">Đăng xuất</span>
           </button>
         </div>
       </nav>

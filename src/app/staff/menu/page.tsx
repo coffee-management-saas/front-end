@@ -1,550 +1,789 @@
-"use client";
+﻿"use client";
 
-import React, { useMemo, useState, useEffect } from "react";
 import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ShoppingCart, Minus, Plus } from "lucide-react";
+import {
+  BadgeDollarSign,
+  CreditCard,
+  Minus,
+  Plus,
+  QrCode,
+  Search,
+  ShoppingCart,
+  TicketPercent,
+  Timer,
+  Users,
+  Coffee,
+} from "lucide-react";
 
-type Category = "coffee" | "trasua" | "banh" | "nuocep" | "combo";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-interface MenuItem {
+type Category = "coffee" | "tea" | "cake" | "juice" | "combo";
+
+type MenuItem = {
   id: number;
   name: string;
+  description: string;
   price: number;
   image: string;
-  size: "Small" | "Large";
   category: Category;
-}
+  tags?: string[];
+  isNew?: boolean;
+};
 
-type SugarLevel = "50%" | "70%" | "100%";
-type IceLevel = "50%" | "70%" | "100%";
-
-interface CartItem extends MenuItem {
+type CartItem = MenuItem & {
   quantity: number;
-  sugar: SugarLevel;
-  ice: IceLevel;
-}
+  note?: string;
+  size: "S" | "M" | "L";
+  sugar: string;
+  ice: string;
+  tea: "Ít" | "Vừa" | "Nhiều";
+  toppings: string[];
+};
 
-const isImageUrl = (src: string) => /^https?:\/\//i.test(src);
-
-const TAB_OPTIONS: { label: string; value: Category }[] = [
-  { label: "Coffee", value: "coffee" },
-  { label: "Trà sữa", value: "trasua" },
-  { label: "Bánh", value: "banh" },
-  { label: "Nước ép", value: "nuocep" },
+const CATEGORIES: { label: string; value: Category }[] = [
+  { label: "Cà phê", value: "coffee" },
+  { label: "Trà & sữa", value: "tea" },
+  { label: "Bánh", value: "cake" },
+  { label: "Nước ép", value: "juice" },
   { label: "Combo", value: "combo" },
 ];
 
-const CoffeeShopUI = () => {
+const MENU: MenuItem[] = [
+  {
+    id: 1,
+    name: "Cold Brew Cam Sành",
+    description: "Ủ lạnh 18h, cam sành tươi, vị chua ngọt cân bằng",
+    price: 58000,
+    image:
+      "https://i.pinimg.com/736x/5e/fe/ef/5efeefde66fb51a9c3cf727336312d5d.jpg",
+    category: "coffee",
+    tags: ["Best seller"],
+  },
+  {
+    id: 2,
+    name: "Latte Hạnh Nhân",
+    description: "Sữa hạnh nhân, shot espresso đôi",
+    price: 65000,
+    image:
+      "https://i.pinimg.com/736x/eb/fa/73/ebfa73187f0aa58158d36d28b86a6532.jpg",
+    category: "coffee",
+  },
+  {
+    id: 3,
+    name: "Trà Ô Long Sữa Rang",
+    description: "Ô long rang, kem sữa, ít đường",
+    price: 52000,
+    image:
+      "https://i.pinimg.com/736x/51/c6/07/51c6075b5b11f4e0cafc153d698fbe8e.jpg",
+    category: "tea",
+    tags: ["Giảm ngọt"],
+  },
+  {
+    id: 4,
+    name: "Trà Đào Cam Sả",
+    description: "Đào ngâm, cam vàng, sả tươi",
+    price: 49000,
+    image:
+      "https://i.pinimg.com/1200x/4a/ad/3a/4aad3ab445759dc77d1d0f47818411a6.jpg",
+    category: "tea",
+    isNew: true,
+  },
+  {
+    id: 5,
+    name: "Mousse Matcha",
+    description: "Bánh mousse matcha đế chocolate",
+    price: 45000,
+    image:
+      "https://i.pinimg.com/736x/64/d7/2e/64d72e14084b39358fad5c4354c4f05f.jpg",
+    category: "cake",
+  },
+  {
+    id: 6,
+    name: "Cheesecake Caramel",
+    description: "Cheesecake béo nhẹ, sốt caramel muối",
+    price: 39000,
+    image:
+      "https://i.pinimg.com/736x/95/49/0c/95490c7ff1918c006114347b834d6faf.jpg",
+    category: "cake",
+  },
+  {
+    id: 7,
+    name: "Nước ép Dưa hấu",
+    description: "Ép lạnh, không thêm đường",
+    price: 42000,
+    image:
+      "https://i.pinimg.com/736x/4a/0a/0f/4a0a0f55f41ea855c05605765c71be32.jpg",
+    category: "juice",
+    tags: ["Healthy"],
+  },
+  {
+    id: 8,
+    name: "Combo 2 Ly Latte + 1 Bánh",
+    description: "Ưu đãi mang đi buổi sáng",
+    price: 129000,
+    image:
+      "https://i.pinimg.com/736x/5e/fe/ef/5efeefde66fb51a9c3cf727336312d5d.jpg",
+    category: "combo",
+  },
+];
+
+const TOPPINGS = [
+  "Trân châu",
+  "Thạch cà phê",
+  "Kem cheese",
+  "Pudding trứng",
+  "Hạt điều",
+];
+
+const formatVnd = (val: number) =>
+  val.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+
+const StaffPosPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const categoryFromUrl =
-    (searchParams.get("category") as Category) || "coffee";
+    (searchParams.get("category") as Category | null) || "coffee";
 
-  const [activeTab, setActiveTab] = useState<Category>(categoryFromUrl);
+  const [activeCategory, setActiveCategory] =
+    useState<Category>(categoryFromUrl);
+  const [search, setSearch] = useState("");
+  const [orderType, setOrderType] = useState<
+    "dine-in" | "take-away" | "delivery"
+  >("dine-in");
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [note, setNote] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const [customSize, setCustomSize] = useState<"S" | "M" | "L">("M");
+  const [customSugar, setCustomSugar] = useState("50%");
+  const [customIce, setCustomIce] = useState("50%");
+  const [customTea, setCustomTea] = useState<CartItem["tea"]>("Vừa");
+  const [customQty, setCustomQty] = useState(1);
+  const [customToppings, setCustomToppings] = useState<string[]>([]);
 
   useEffect(() => {
-    setActiveTab(categoryFromUrl);
+    setActiveCategory(categoryFromUrl);
   }, [categoryFromUrl]);
 
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-
-  const menuItems: MenuItem[] = [
-    {
-      id: 1,
-      name: "Cà Phê Đen Đá",
-      price: 35000,
-      image:
-        "https://i.pinimg.com/736x/eb/fa/73/ebfa73187f0aa58158d36d28b86a6532.jpg",
-      size: "Small",
-      category: "coffee",
-    },
-    {
-      id: 2,
-      name: "Cà phê Cappuccino",
-      price: 65000,
-      image:
-        "https://i.pinimg.com/1200x/81/92/7e/81927ee1cf8fcd7715530b0856cf553d.jpg",
-      size: "Small",
-      category: "coffee",
-    },
-    {
-      id: 3,
-      name: "Americano",
-      price: 65000,
-      image:
-        "https://i.pinimg.com/736x/94/38/65/943865d41a8675c959ddf82aef1667ec.jpg",
-      size: "Small",
-      category: "coffee",
-    },
-    {
-      id: 4,
-      name: "V60",
-      price: 65000,
-      image:
-        "https://i.pinimg.com/736x/14/02/15/1402155c47a8f20ca6bcd8275593d0be.jpg",
-      size: "Small",
-      category: "coffee",
-    },
-    // Ví dụ thêm món khác category
-    {
-      id: 5,
-      name: "Trà sữa Trân Châu",
-      price: 45000,
-      image:
-        "https://i.pinimg.com/736x/94/38/65/943865d41a8675c959ddf82aef1667ec.jpg",
-      size: "Small",
-      category: "trasua",
-    },
-    {
-      id: 6,
-      name: "Bánh Tiramisu",
-      price: 55000,
-      image:
-        "https://i.pinimg.com/736x/14/02/15/1402155c47a8f20ca6bcd8275593d0be.jpg",
-      size: "Small",
-      category: "banh",
-    },
-  ];
-
-  const [quantities, setQuantities] = useState<Record<number, number>>(() =>
-    Object.fromEntries(menuItems.map((m) => [m.id, 1])),
-  );
-
-  const [selectedSizes, setSelectedSizes] = useState<
-    Record<number, "Small" | "Large">
-  >(() => Object.fromEntries(menuItems.map((m) => [m.id, "Small"])));
-
-  const sugarOptions: SugarLevel[] = ["50%", "70%", "100%"];
-  const iceOptions: IceLevel[] = ["50%", "70%", "100%"];
-
-  const [selectedSugar, setSelectedSugar] = useState<
-    Record<number, SugarLevel>
-  >(() => Object.fromEntries(menuItems.map((m) => [m.id, "50%"])));
-
-  const [selectedIce, setSelectedIce] = useState<Record<number, IceLevel>>(() =>
-    Object.fromEntries(menuItems.map((m) => [m.id, "50%"])),
-  );
-
-  const onChangeTab = (next: Category) => {
-    setActiveTab(next);
-
+  const onChangeCategory = (cat: Category) => {
+    setActiveCategory(cat);
     const params = new URLSearchParams(searchParams.toString());
-    params.set("category", next);
-
+    params.set("category", cat);
     router.replace(`?${params.toString()}`, { scroll: false });
   };
 
-  const filteredMenuItems = useMemo(
-    () => menuItems.filter((m) => m.category === activeTab),
-    [menuItems, activeTab],
-  );
+  const filteredMenu = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    return MENU.filter(
+      (item) =>
+        item.category === activeCategory &&
+        (!keyword ||
+          item.name.toLowerCase().includes(keyword) ||
+          item.tags?.some((t) => t.toLowerCase().includes(keyword))),
+    );
+  }, [activeCategory, search]);
 
-  const updateQuantity = (id: number, delta: number) => {
-    setQuantities((prev) => ({
-      ...prev,
-      [id]: Math.max(1, (prev[id] || 1) + delta),
-    }));
+  const sameToppings = (a: string[], b: string[]) => {
+    if (a.length !== b.length) return false;
+    const sa = [...a].sort().join("|");
+    const sb = [...b].sort().join("|");
+    return sa === sb;
   };
 
   const addToCart = (item: MenuItem) => {
-    const size = selectedSizes[item.id] || "Small";
-    const sugar = selectedSugar[item.id] || "50%";
-    const ice = selectedIce[item.id] || "50%";
-    const qtyToAdd = quantities[item.id] || 1;
-
-    setCartItems((prev) => {
-      const existingIndex = prev.findIndex(
-        (ci) =>
-          ci.id === item.id &&
-          ci.size === size &&
-          ci.sugar === sugar &&
-          ci.ice === ice,
+    setCart((prev) => {
+      const existed = prev.find(
+        (c) =>
+          c.id === item.id &&
+          c.size === customSize &&
+          c.sugar === customSugar &&
+          c.ice === customIce &&
+          c.tea === customTea &&
+          sameToppings(c.toppings, customToppings),
       );
-
-      if (existingIndex >= 0) {
-        const next = [...prev];
-        next[existingIndex] = {
-          ...next[existingIndex],
-          quantity: next[existingIndex].quantity + qtyToAdd,
-        };
-        return next;
+      if (existed) {
+        return prev.map((c) =>
+          c.id === item.id &&
+          c.size === customSize &&
+          c.sugar === customSugar &&
+          c.ice === customIce &&
+          c.tea === customTea &&
+          sameToppings(c.toppings, customToppings)
+            ? { ...c, quantity: c.quantity + customQty }
+            : c,
+        );
       }
-
-      return [...prev, { ...item, size, sugar, ice, quantity: qtyToAdd }];
+      return [
+        ...prev,
+        {
+          ...item,
+          quantity: customQty,
+          size: customSize,
+          sugar: customSugar,
+          ice: customIce,
+          tea: customTea,
+          toppings: customToppings,
+        },
+      ];
     });
 
-    setQuantities((prev) => ({ ...prev, [item.id]: 1 }));
+    setCustomQty(1);
   };
 
-  const updateCartQuantity = (
+  const updateQty = (
     id: number,
-    size: "Small" | "Large",
-    sugar: SugarLevel,
-    ice: IceLevel,
+    size: CartItem["size"],
+    sugar: string,
+    ice: string,
+    tea: CartItem["tea"],
+    toppings: string[],
     delta: number,
   ) => {
-    setCartItems((prev) => {
-      return prev
-        .map((ci) => {
-          if (
-            ci.id === id &&
-            ci.size === size &&
-            ci.sugar === sugar &&
-            ci.ice === ice
-          ) {
-            return { ...ci, quantity: ci.quantity + delta };
-          }
-          return ci;
-        })
-        .filter((ci) => ci.quantity > 0);
-    });
+    setCart((prev) =>
+      prev
+        .map((c) =>
+          c.id === id &&
+          c.size === size &&
+          c.sugar === sugar &&
+          c.ice === ice &&
+          c.tea === tea &&
+          sameToppings(c.toppings, toppings)
+            ? { ...c, quantity: Math.max(0, c.quantity + delta) }
+            : c,
+        )
+        .filter((c) => c.quantity > 0),
+    );
   };
 
-  const hasCart = cartItems.length > 0;
-
-  const totalItems = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [cartItems],
-  );
-  const discount = hasCart ? 3000 : 0;
-  const total = totalItems - discount;
+  const subTotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const vat = Math.round(subTotal * 0.08);
+  const discount = subTotal >= 200_000 ? 15_000 : 0;
+  const total = Math.max(subTotal + vat - discount, 0);
 
   return (
-    <div className="flex min-h-screen bg-gray-50 items-start">
-      {/* Left Section - Menu */}
-      <div className="flex-1 min-w-0 p-6">
-        {/* Tabs -> query param */}
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {TAB_OPTIONS.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => onChangeTab(t.value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                activeTab === t.value
-                  ? "bg-amber-700 text-white shadow-sm"
-                  : "bg-white text-gray-600 hover:bg-gray-100"
-              }`}
+    <div className="max-w-6xl mx-auto grid grid-cols-12 gap-4">
+      {/* Left: menu */}
+      <div className="col-span-12 lg:col-span-8 space-y-5 p-4 md:p-6">
+        <header className="flex flex-wrap items-center gap-3 justify-between">
+          <div>
+            <p className="text-xl text-amber-700 font-semibold flex items-center gap-2">
+              <Coffee className="w-4 h-4" />
+              POS - Order tại quầy
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <Timer className="w-4 h-4" />
+            Ca hiện tại: 08:00 - 14:00
+            <span className="h-4 w-px bg-gray-200" />
+            <Users className="w-4 h-4" />
+            NV: Nguyen An
+          </div>
+        </header>
+
+        <div className="flex flex-wrap gap-2">
+          {/* Search */}
+          <div className="flex items-center gap-1.5 rounded-full bg-white px-2 py-1 shadow-sm border border-gray-100">
+            <Search className="w-3.5 h-3.5 text-gray-400" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm món hoặc tag..."
+              className="
+        h-7
+        border-0
+        shadow-none
+        focus-visible:ring-0
+        text-xs
+        min-w-[180px]
+        px-1
+      "
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 text-sm">
+          {CATEGORIES.map((cat) => (
+            <Button
+              key={cat.value}
+              size="sm"
+              variant={activeCategory === cat.value ? "default" : "outline"}
+              className="rounded-full h-8 px-3"
+              onClick={() => onChangeCategory(cat.value)}
             >
-              {t.label}
-            </button>
+              {cat.label}
+            </Button>
           ))}
         </div>
 
-        {/* Menu Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          {filteredMenuItems.map((item) => {
-            const currentSize = selectedSizes[item.id] || "Small";
-            const currentSugar = selectedSugar[item.id] || "50%";
-            const currentIce = selectedIce[item.id] || "50%";
-
-            const inCart = cartItems.some(
-              (ci) =>
-                ci.id === item.id &&
-                ci.size === currentSize &&
-                ci.sugar === currentSugar &&
-                ci.ice === currentIce,
-            );
-
-            const pillBase =
-              "px-2.5 py-1 rounded-full text-[11px] font-medium transition-all";
-            const pillActive = "bg-gray-800 text-white";
-            const pillIdle = "bg-gray-100 text-gray-600 hover:bg-gray-200";
-
-            return (
-              <div key={item.id} className="bg-white rounded-2xl p-4 shadow-sm">
-                <div className="flex gap-3">
-                  {/* Product Image  */}
-                  <div className="relative w-16 h-16 bg-linear-to-b from-amber-100 to-amber-200 rounded-xl shrink-0 overflow-hidden">
-                    {isImageUrl(item.image) ? (
-                      <Image
-                        src={item.image}
-                        alt={item.name}
-                        fill
-                        sizes="64px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-3xl">
-                        {item.image}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-gray-800 truncate">
-                        {item.name}
-                      </h3>
-                      <span className="text-amber-700 text-sm font-semibold shrink-0">
-                        {item.price.toLocaleString("vi-VN")}đ
-                      </span>
-                    </div>
-
-                    {/* Size */}
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[11px] text-gray-600 w-10">
-                        Size
-                      </span>
-                      <button
-                        onClick={() =>
-                          setSelectedSizes((prev) => ({
-                            ...prev,
-                            [item.id]: "Small",
-                          }))
-                        }
-                        className={`${pillBase} ${
-                          currentSize === "Small" ? pillActive : pillIdle
-                        }`}
-                      >
-                        Small
-                      </button>
-                      <button
-                        onClick={() =>
-                          setSelectedSizes((prev) => ({
-                            ...prev,
-                            [item.id]: "Large",
-                          }))
-                        }
-                        className={`${pillBase} ${
-                          currentSize === "Large" ? pillActive : pillIdle
-                        }`}
-                      >
-                        Large
-                      </button>
-                    </div>
-
-                    {/* Sugar */}
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[11px] text-gray-600 w-10">
-                        Đường
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {sugarOptions.map((opt) => (
-                          <button
-                            key={opt}
-                            onClick={() =>
-                              setSelectedSugar((prev) => ({
-                                ...prev,
-                                [item.id]: opt,
-                              }))
-                            }
-                            className={`${pillBase} ${
-                              currentSugar === opt ? pillActive : pillIdle
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Ice */}
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[11px] text-gray-600 w-10">Đá</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {iceOptions.map((opt) => (
-                          <button
-                            key={opt}
-                            onClick={() =>
-                              setSelectedIce((prev) => ({
-                                ...prev,
-                                [item.id]: opt,
-                              }))
-                            }
-                            className={`${pillBase} ${
-                              currentIce === opt ? pillActive : pillIdle
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Qty + Add */}
-                <div className="flex items-center gap-3 mt-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateQuantity(item.id, -1)}
-                      className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-                    >
-                      <Minus className="w-3.5 h-3.5 text-gray-600" />
-                    </button>
-                    <span className="w-6 text-center text-sm font-medium text-gray-800">
-                      {quantities[item.id] || 1}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+          {filteredMenu.map((item) => (
+            <Card
+              key={item.id}
+              className="h-full flex flex-col overflow-hidden border-amber-100 shadow-sm hover:shadow-md transition gap-2 py-2"
+            >
+              <div
+                className="relative w-full aspect-[3/4] cursor-pointer"
+                onClick={() => {
+                  setSelectedItem(item);
+                  setCustomSize("M");
+                  setCustomSugar("50%");
+                  setCustomIce("50%");
+                  setCustomTea("Vừa");
+                  setCustomQty(1);
+                  setCustomToppings([]);
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <Image
+                  src={item.image}
+                  alt={item.name}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  className="object-cover"
+                />
+                <div className="absolute left-2 top-2 flex flex-col gap-1 items-start">
+                  {item.isNew && (
+                    <span className="rounded-full bg-amber-700 px-3 py-1 text-[10px] font-semibold text-white shadow-sm">
+                      New
                     </span>
-                    <button
-                      onClick={() => updateQuantity(item.id, 1)}
-                      className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+                  )}
+                  {item.tags?.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-full bg-white/85 px-2.5 py-[5px] text-[10px] font-semibold text-amber-800 shadow"
                     >
-                      <Plus className="w-3.5 h-3.5 text-gray-600" />
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => addToCart(item)}
-                    className={`flex-1 py-2 rounded-full text-sm font-medium transition-colors ${
-                      inCart
-                        ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        : "bg-amber-700 hover:bg-amber-800 text-white"
-                    }`}
-                  >
-                    {inCart ? "Add more" : "Add to Cart"}
-                  </button>
+                      {t}
+                    </span>
+                  ))}
                 </div>
               </div>
-            );
-          })}
+
+              <CardHeader className="px-2 pt-0 pb-1">
+                <CardTitle className="text-xs leading-snug line-clamp-2 min-h-[30px]">
+                  {item.name}
+                </CardTitle>
+                <p className="text-[10px] text-gray-600 line-clamp-2 min-h-[26px]">
+                  {item.description}
+                </p>
+              </CardHeader>
+
+              <CardContent className="mt-auto space-y-1.5 px-2 pb-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-amber-800">
+                    {formatVnd(item.price)}
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setCustomSize("M");
+                      setCustomSugar("50%");
+                      setCustomIce("50%");
+                      setCustomTea("Vừa");
+                      setCustomQty(1);
+                      addToCart(item);
+                    }}
+                    size="sm"
+                    className="rounded-full h-8 px-2 text-[11px]"
+                  >
+                    Thêm
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
 
-      {/* Right Section - Cart */}
-      <div className="w-64 bg-white px-4 py-5 shadow-lg flex flex-col h-fit self-start mt-16 rounded-3xl mx-6">
-        {hasCart ? (
-          <>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-semibold text-gray-800">Cart</h2>
-              <span className="text-[11px] text-gray-300">Order #3243</span>
-            </div>
+      {/* Right: cart & payment */}
+      <div className="col-span-12 lg:col-span-4 bg-white border border-amber-100 rounded-2xl shadow-sm px-4 lg:px-5 py-6 sticky top-4 max-h-[calc(100vh-48px)] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-stone-900 flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5 text-amber-700" />
+            Đơn hiện tại
+          </h2>
+          <span className="text-xs text-gray-500 bg-amber-50 px-2 py-1 rounded-full border border-amber-100">
+            POS-#A123
+          </span>
+        </div>
 
-            {/* Delivery Options */}
-            <div className="flex gap-2 mb-4">
-              <button className="px-3 py-1.5 rounded-full bg-gray-800 text-white text-[11px] font-medium">
-                Delivery
-              </button>
-              <button className="px-3 py-1.5 rounded-full bg-white text-gray-400 text-[11px] font-medium border border-gray-200">
-                Dine in
-              </button>
-              <button className="px-3 py-1.5 rounded-full bg-white text-gray-400 text-[11px] font-medium border border-gray-200">
-                Take away
-              </button>
-            </div>
-
-            {/* Cart Items */}
-            <div className="space-y-3">
-              {cartItems.map((item) => (
-                <div
-                  key={`${item.id}-${item.size}-${item.sugar}-${item.ice}`}
-                  className="bg-gray-50 rounded-2xl p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="relative w-11 h-11 rounded-xl bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
-                      {isImageUrl(item.image) ? (
-                        <Image
-                          src={item.image}
-                          alt={item.name}
-                          fill
-                          sizes="44px"
-                          className="object-cover"
-                        />
-                      ) : (
-                        <span className="text-lg">{item.image}</span>
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-medium text-black truncate">
-                        {item.name}
-                      </h3>
-                      <p className="text-[11px] text-black mt-0.5 truncate">
-                        {item.size} • Đường: {item.sugar} • Đá: {item.ice}
-                      </p>
-                    </div>
+        {cart.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/40 p-6 text-center">
+            <p className="font-semibold text-stone-900">Chưa có món</p>
+            <p className="text-sm text-gray-600">
+              Chọn món bên trái để bắt đầu.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {cart.map((item) => (
+              <div
+                key={`${item.id}-${item.size}-${item.sugar}-${item.ice}-${item.tea}-${[...item.toppings].sort().join("-")}`}
+                className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative h-14 w-14 overflow-hidden rounded-lg bg-amber-50">
+                    <Image
+                      src={item.image}
+                      alt={item.name}
+                      fill
+                      sizes="56px"
+                      className="object-cover"
+                    />
                   </div>
-
-                  <div className="mt-2.5 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-black">
-                      {item.price.toLocaleString("vi-VN")}đ
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-stone-900 line-clamp-1">
+                      {item.name}
+                    </p>
+                    <p className="text-[11px] text-gray-600 line-clamp-1">
+                      Size {item.size} • Đường {item.sugar} • Đá {item.ice} •
+                      Trà {item.tea}
+                    </p>
+                    <p className="text-sm font-semibold text-amber-800">
+                      {formatVnd(item.price)}
+                    </p>
+                    {item.toppings.length > 0 && (
+                      <p className="text-[11px] text-gray-500 line-clamp-1">
+                        Topping: {item.toppings.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        updateQty(
+                          item.id,
+                          item.size,
+                          item.sugar,
+                          item.ice,
+                          item.tea,
+                          item.toppings,
+                          -1,
+                        )
+                      }
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="w-6 text-center text-sm font-semibold text-stone-900">
+                      {item.quantity}
                     </span>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() =>
-                          updateCartQuantity(
-                            item.id,
-                            item.size,
-                            item.sugar,
-                            item.ice,
-                            -1,
-                          )
-                        }
-                        className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-                        title="Giảm / xoá"
-                      >
-                        <Minus className="w-3.5 h-3.5 text-black" />
-                      </button>
-
-                      <span className="w-4 text-center text-sm font-semibold text-black">
-                        {item.quantity}
-                      </span>
-
-                      <button
-                        onClick={() =>
-                          updateCartQuantity(
-                            item.id,
-                            item.size,
-                            item.sugar,
-                            item.ice,
-                            1,
-                          )
-                        }
-                        className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
-                        title="Tăng"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-black" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() =>
+                        updateQty(
+                          item.id,
+                          item.size,
+                          item.sugar,
+                          item.ice,
+                          item.tea,
+                          item.toppings,
+                          1,
+                        )
+                      }
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-700 text-white hover:bg-amber-800"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Summary */}
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-[11px]">
-                <span className="text-black">Items</span>
-                <span className="text-black font-medium">
-                  {totalItems.toLocaleString("vi-VN")}đ
-                </span>
               </div>
-
-              <div className="flex justify-between text-[11px]">
-                <span className="text-black">Discounts</span>
-                <span className="text-black font-medium">
-                  -{discount.toLocaleString("vi-VN")}đ
-                </span>
-              </div>
-
-              <div className="flex justify-between text-[11px] pt-2">
-                <span className="text-black">Total</span>
-                <span className="text-amber-700 font-semibold">
-                  {total.toLocaleString("vi-VN")}đ
-                </span>
-              </div>
-            </div>
-
-            <button className="mt-4 w-full rounded-full bg-amber-700 hover:bg-amber-800 text-white py-2.5 text-sm font-medium">
-              Place an order
-            </button>
-          </>
-        ) : (
-          <div className="flex flex-col items-center justify-center text-center py-10">
-            <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
-              <ShoppingCart className="w-6 h-6 text-black" />
-            </div>
-            <p className="text-sm text-black font-medium">Empty cart</p>
-            <p className="text-xs text-black mt-1">Add items to order.</p>
+            ))}
           </div>
         )}
+
+        <div className="mt-4 space-y-3">
+          <Card className="border-amber-100 bg-amber-50/60">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                <TicketPercent className="w-4 h-4" />
+                Ghi chú & thông tin khách
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Input
+                placeholder="Tên khách"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                className="bg-white"
+              />
+              <Input
+                placeholder="SĐT / Mã thành viên"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                className="bg-white"
+              />
+              <Textarea
+                placeholder="Ghi chú cho barista (ít đá, không ống hút...)"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="bg-white"
+              />
+              {/* Order type */}
+              <div className="flex items-center bg-white rounded-full shadow-sm border border-gray-200 px-1 py-1">
+                {(["dine-in", "take-away", "delivery"] as const).map((type) => {
+                  const active = orderType === type;
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => setOrderType(type)}
+                      className={`px-4 py-2 text-xs font-semibold rounded-full transition-all ${
+                        active
+                          ? "bg-amber-700 text-white shadow-sm"
+                          : "text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      {type === "dine-in" && "Tại chỗ"}
+                      {type === "take-away" && "Mang đi"}
+                      {type === "delivery" && "Giao tận nơi"}
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-2 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex justify-between text-sm text-gray-700">
+              <span>Tạm tính</span>
+              <span className="font-semibold text-stone-900">
+                {formatVnd(subTotal)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-700">
+              <span>VAT 8%</span>
+              <span className="font-semibold text-stone-900">
+                {formatVnd(vat)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-700">
+              <span>Giảm</span>
+              <span className="font-semibold text-amber-700">
+                -{formatVnd(discount)}
+              </span>
+            </div>
+            <div className="h-px bg-gray-100 my-1" />
+            <div className="flex justify-between text-base font-bold text-amber-800">
+              <span>Tổng thanh toán</span>
+              <span>{formatVnd(total)}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <Button className="h-10 text-xs gap-1.5" variant="outline">
+              <BadgeDollarSign className="w-3.5 h-3.5" />
+              Tiền mặt
+            </Button>
+            <Button className="h-10 text-xs gap-1.5" variant="outline">
+              <CreditCard className="w-3.5 h-3.5" />
+              Thẻ
+            </Button>
+            <Button className="h-10 text-xs gap-1.5" variant="outline">
+              <QrCode className="w-3.5 h-3.5" />
+              QR
+            </Button>
+          </div>
+
+          <Button className="w-full h-12 text-base">
+            In hóa đơn & Thanh toán
+          </Button>
+
+          <Button variant="outline" className="w-full h-11 text-sm">
+            Lưu nháp / gửi bếp
+          </Button>
+        </div>
       </div>
+
+      {/* Modal tùy chọn */}
+      <Dialog
+        open={Boolean(selectedItem)}
+        onOpenChange={(open) => !open && setSelectedItem(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tùy chỉnh món</DialogTitle>
+          </DialogHeader>
+
+          {selectedItem && (
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <div className="relative h-20 w-20 rounded-lg overflow-hidden">
+                  <Image
+                    src={selectedItem.image}
+                    alt={selectedItem.name}
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                  />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-stone-900">
+                    {selectedItem.name}
+                  </p>
+                  <p className="text-sm text-gray-600 line-clamp-2">
+                    {selectedItem.description}
+                  </p>
+                  <p className="text-base font-semibold text-amber-800 mt-1">
+                    {formatVnd(selectedItem.price)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {(["S", "M", "L"] as const).map((sz) => (
+                  <Button
+                    key={sz}
+                    variant={customSize === sz ? "default" : "outline"}
+                    onClick={() => setCustomSize(sz)}
+                    className="h-9 text-sm"
+                  >
+                    Size {sz}
+                  </Button>
+                ))}
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-stone-900 mb-1">
+                  Đường
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {["0%", "30%", "50%", "70%", "100%"].map((opt) => (
+                    <Button
+                      key={opt}
+                      variant={customSugar === opt ? "default" : "outline"}
+                      size="sm"
+                      className="h-8"
+                      onClick={() => setCustomSugar(opt)}
+                    >
+                      {opt}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-stone-900 mb-1">Đá</p>
+                <div className="flex flex-wrap gap-2">
+                  {["0%", "30%", "50%", "70%", "100%"].map((opt) => (
+                    <Button
+                      key={opt}
+                      variant={customIce === opt ? "default" : "outline"}
+                      size="sm"
+                      className="h-8"
+                      onClick={() => setCustomIce(opt)}
+                    >
+                      {opt}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-stone-900 mb-1">
+                  Lượng trà
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(["Ít", "Vừa", "Nhiều"] as const).map((opt) => (
+                    <Button
+                      key={opt}
+                      variant={customTea === opt ? "default" : "outline"}
+                      size="sm"
+                      className="h-8"
+                      onClick={() => setCustomTea(opt)}
+                    >
+                      {opt}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <p className="text-sm font-semibold text-stone-900">Số lượng</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCustomQty((q) => Math.max(1, q - 1))}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="w-8 text-center text-sm font-semibold text-stone-900">
+                    {customQty}
+                  </span>
+                  <button
+                    onClick={() => setCustomQty((q) => Math.min(20, q + 1))}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-700 text-white hover:bg-amber-800"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-stone-900 mb-1">
+                  Topping
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {TOPPINGS.map((tp) => {
+                    const active = customToppings.includes(tp);
+                    return (
+                      <Button
+                        key={tp}
+                        variant={active ? "default" : "outline"}
+                        size="sm"
+                        className="h-8"
+                        onClick={() =>
+                          setCustomToppings((prev) =>
+                            prev.includes(tp)
+                              ? prev.filter((t) => t !== tp)
+                              : [...prev, tp],
+                          )
+                        }
+                      >
+                        {tp}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-2">
+            <Button
+              variant="outline"
+              onClick={() => setSelectedItem(null)}
+              className="h-10"
+            >
+              Hủy
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedItem) {
+                  addToCart(selectedItem);
+                }
+                setSelectedItem(null);
+              }}
+              className="h-10"
+            >
+              Thêm vào giỏ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
-export default CoffeeShopUI;
+export default StaffPosPage;

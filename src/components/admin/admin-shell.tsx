@@ -1,9 +1,9 @@
 "use client";
 
-import Sidebar from "@/components/staff/sidebar";
+import AdminSidebar from "@/components/admin/sidebar";
 import type { ReactNode } from "react";
 
-export default function StaffShell({ children }: { children: ReactNode }) {
+export default function AdminShell({ children }: { children: ReactNode }) {
   const sidebarWidth = 256;
 
   return (
@@ -13,7 +13,7 @@ export default function StaffShell({ children }: { children: ReactNode }) {
         className="fixed left-0 top-0 h-screen"
         style={{ width: sidebarWidth }}
       >
-        <Sidebar isOpen />
+        <AdminSidebar isOpen />
       </div>
 
       {/* Main content (center) */}
