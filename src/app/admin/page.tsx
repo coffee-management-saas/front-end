@@ -18,10 +18,30 @@ type StatCard = {
 };
 
 const statCards: StatCard[] = [
-  { label: "Doanh thu hôm nay", value: "12,5M ₫", change: 12.6, icon: ArrowUpRight },
-  { label: "Doanh thu tuần", value: "68,4M ₫", change: 8.3, icon: ArrowUpRight },
-  { label: "Doanh thu tháng", value: "252,1M ₫", change: 5.1, icon: ArrowUpRight },
-  { label: "Tỉ lệ dùng voucher", value: "18%", change: -1.4, icon: TicketPercent },
+  {
+    label: "Doanh thu hôm nay",
+    value: "12,5M ₫",
+    change: 12.6,
+    icon: ArrowUpRight,
+  },
+  {
+    label: "Doanh thu tuần",
+    value: "68,4M ₫",
+    change: 8.3,
+    icon: ArrowUpRight,
+  },
+  {
+    label: "Doanh thu tháng",
+    value: "252,1M ₫",
+    change: 5.1,
+    icon: ArrowUpRight,
+  },
+  {
+    label: "Tỉ lệ dùng voucher",
+    value: "18%",
+    change: -1.4,
+    icon: TicketPercent,
+  },
 ];
 
 const opsCards = [
@@ -65,10 +85,26 @@ const categoryShare = [
 ];
 
 const alerts = [
-  { title: "Món bị tắt", desc: "Phin sữa đặc hết nguyên liệu • CN Quận 3", tone: "amber" },
-  { title: "Nguyên liệu sắp hết", desc: "Syrup caramel còn 8% • Kiosk Q1", tone: "amber" },
-  { title: "Đơn huỷ tăng", desc: "Tăng 18% trong 1h qua • App delivery", tone: "red" },
-  { title: "Đánh giá xấu", desc: "3 review 2★ trong 1h • cần check quy trình", tone: "red" },
+  {
+    title: "Món bị tắt",
+    desc: "Phin sữa đặc hết nguyên liệu • CN Quận 3",
+    tone: "amber",
+  },
+  {
+    title: "Nguyên liệu sắp hết",
+    desc: "Syrup caramel còn 8% • Kiosk Q1",
+    tone: "amber",
+  },
+  {
+    title: "Đơn huỷ tăng",
+    desc: "Tăng 18% trong 1h qua • App delivery",
+    tone: "red",
+  },
+  {
+    title: "Đánh giá xấu",
+    desc: "3 review 2★ trong 1h • cần check quy trình",
+    tone: "red",
+  },
 ];
 
 export default function AdminDashboardPage() {
@@ -76,7 +112,9 @@ export default function AdminDashboardPage() {
     <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
       <div>
         <p className="text-sm text-gray-500">Tổng quan</p>
-        <h1 className="text-2xl font-semibold text-stone-900">Dashboard cửa hàng</h1>
+        <h1 className="text-2xl font-semibold text-stone-900">
+          Dashboard cửa hàng
+        </h1>
       </div>
 
       {/* Stat cards */}
@@ -91,13 +129,21 @@ export default function AdminDashboardPage() {
             >
               <div className="space-y-1">
                 <p className="text-sm text-gray-600">{card.label}</p>
-                <p className="text-2xl font-bold text-stone-900">{card.value}</p>
+                <p className="text-2xl font-bold text-stone-900">
+                  {card.value}
+                </p>
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    positive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+                    positive
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-600"
                   }`}
                 >
-                  {positive ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                  {positive ? (
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  ) : (
+                    <ArrowDownRight className="w-3.5 h-3.5" />
+                  )}
                   {Math.abs(card.change)}%
                 </span>
               </div>
@@ -121,13 +167,21 @@ export default function AdminDashboardPage() {
             >
               <div className="space-y-1">
                 <p className="text-sm text-gray-600">{card.label}</p>
-                <p className="text-2xl font-bold text-stone-900">{card.value}</p>
+                <p className="text-2xl font-bold text-stone-900">
+                  {card.value}
+                </p>
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    positive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+                    positive
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-600"
                   }`}
                 >
-                  {positive ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                  {positive ? (
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  ) : (
+                    <ArrowDownRight className="w-3.5 h-3.5" />
+                  )}
                   {Math.abs(card.change)}%
                 </span>
               </div>
@@ -145,7 +199,9 @@ export default function AdminDashboardPage() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-sm text-gray-500">Doanh thu tuần</p>
-              <p className="text-base font-semibold text-stone-900">Thứ 2 - Chủ nhật</p>
+              <p className="text-base font-semibold text-stone-900">
+                Thứ 2 - Chủ nhật
+              </p>
             </div>
             <span className="text-xs text-gray-500">Đơn vị: triệu ₫</span>
           </div>
@@ -153,13 +209,18 @@ export default function AdminDashboardPage() {
             {revenueWeek.map((d) => {
               const height = (d.amount / 15) * 100; // scale to 15m max
               return (
-                <div key={d.day} className="flex-1 flex flex-col items-center gap-2">
+                <div
+                  key={d.day}
+                  className="flex-1 flex flex-col items-center gap-2"
+                >
                   <div
                     className="w-full rounded-t-lg bg-gradient-to-t from-amber-600 to-amber-400 shadow-[0_6px_16px_rgba(0,0,0,0.08)]"
                     style={{ height: `${height}%` }}
                   />
                   <p className="text-xs text-gray-600">{d.day}</p>
-                  <p className="text-[11px] text-gray-500">{d.amount.toFixed(1)}</p>
+                  <p className="text-[11px] text-gray-500">
+                    {d.amount.toFixed(1)}
+                  </p>
                 </div>
               );
             })}
@@ -170,7 +231,9 @@ export default function AdminDashboardPage() {
         <div className="rounded-2xl border border-amber-100 bg-white shadow-sm p-4 space-y-3">
           <div>
             <p className="text-sm text-gray-500">Cơ cấu doanh thu</p>
-            <p className="text-base font-semibold text-stone-900">Theo nhóm sản phẩm</p>
+            <p className="text-base font-semibold text-stone-900">
+              Theo nhóm sản phẩm
+            </p>
           </div>
           <div className="space-y-2">
             {categoryShare.map((c) => (
@@ -238,12 +301,17 @@ export default function AdminDashboardPage() {
           </div>
           <div className="divide-y">
             {topItems.map((item) => (
-              <div key={item.name} className="flex items-center justify-between py-3">
+              <div
+                key={item.name}
+                className="flex items-center justify-between py-3"
+              >
                 <div>
                   <p className="font-semibold text-stone-900">{item.name}</p>
                   <p className="text-xs text-gray-600">{item.qty} ly</p>
                 </div>
-                <p className="text-sm font-semibold text-amber-800">{item.revenue.toFixed(2)} M₫</p>
+                <p className="text-sm font-semibold text-amber-800">
+                  {item.revenue.toFixed(2)} M₫
+                </p>
               </div>
             ))}
           </div>
@@ -255,7 +323,9 @@ export default function AdminDashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-500">Cảnh báo vận hành</p>
-            <p className="text-base font-semibold text-stone-900">Cần xử lý sớm</p>
+            <p className="text-base font-semibold text-stone-900">
+              Cần xử lý sớm
+            </p>
           </div>
           <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-full border border-amber-100">
             {alerts.length} mục

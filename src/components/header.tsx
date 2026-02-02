@@ -1,8 +1,8 @@
 ﻿"use client";
+
 import {
   Search,
   ShoppingCart,
-  Mail,
   User,
   ShoppingBag,
   Heart,
@@ -11,7 +11,7 @@ import {
   LogOut,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,10 +24,17 @@ import { toast } from "sonner";
 import { useAppContext } from "@/app/AppProvider";
 import { logoutFromNextClientToNextServer } from "@/services/auth.service";
 import { Button } from "@/components/ui/button";
+import { ProductCategoriesResponse, ProductCategory } from "@/types/catagories";
 
 export default function PhucLongHeader() {
   const [cart] = useState(2);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // ✅ categories state
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [catLoading, setCatLoading] = useState(false);
+  const [catError, setCatError] = useState<string | null>(null);
+
   const router = useRouter();
   const { tokens, setTokens } = useAppContext();
 
@@ -35,6 +42,38 @@ export default function PhucLongHeader() {
     () => Boolean(tokens?.accessToken),
     [tokens?.accessToken],
   );
+
+  useEffect(() => {
+    const run = async () => {
+      setCatLoading(true);
+      setCatError(null);
+      try {
+        const qs = new URLSearchParams({ page: "0", size: "10" });
+        const res = await fetch(`/api/categories?${qs.toString()}`, {
+          cache: "no-store",
+        });
+
+        const data = (await res.json()) as ProductCategoriesResponse;
+
+        if (!res.ok || data?.code !== 200) {
+          throw new Error(data?.message || "Load categories failed");
+        }
+
+        const items: ProductCategory[] = (data?.data ?? []).filter(
+          (c) => !c.status || c.status === "ACTIVE",
+        );
+
+        setCategories(items);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Load categories failed";
+        setCatError(msg);
+      } finally {
+        setCatLoading(false);
+      }
+    };
+
+    run();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -44,7 +83,6 @@ export default function PhucLongHeader() {
       console.error(e);
       toast.error("Đăng xuất thất bại");
     } finally {
-      // luôn clear state phía client
       setTokens({ accessToken: "", refreshToken: "", expiresAt: "" });
       router.replace("/login");
     }
@@ -59,12 +97,12 @@ export default function PhucLongHeader() {
         <div className="flex items-center gap-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-12 h-12 bg-amber-700 rounded-full flex items-center justify-center cursor-pointer">
+            <div className="w-12 h-12 bg-[#693916]  rounded-full flex items-center justify-center cursor-pointer">
               <span className="text-white font-bold text-xs">F&B</span>
             </div>
           </Link>
 
-          {/* Search Bar sát logo */}
+          {/* Search Bar */}
           <div className="flex-1 max-w-md">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -88,7 +126,7 @@ export default function PhucLongHeader() {
                       type="button"
                       className="p-2 rounded-full transition hover:bg-green-50"
                     >
-                      <User className="w-6 h-6 text-amber-700" />
+                      <User className="w-6 h-6 text-[#693916]" />
                     </button>
                   </DropdownMenuTrigger>
 
@@ -101,8 +139,8 @@ export default function PhucLongHeader() {
                       className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
                     >
                       <Link href="/profile" className="flex items-center gap-3">
-                        <User className="w-4 h-4 text-gray-500 group-hover:text-amber-700" />
-                        <span className="text-sm text-gray-700 group-hover:text-amber-700">
+                        <User className="w-4 h-4 text-gray-500 group-hover:text-[#693916]" />
+                        <span className="text-sm text-gray-700 group-hover:text-[#693916]">
                           Thông tin cá nhân
                         </span>
                       </Link>
@@ -113,8 +151,8 @@ export default function PhucLongHeader() {
                       className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
                     >
                       <Link href="/orders" className="flex items-center gap-3">
-                        <ShoppingBag className="w-4 h-4 text-gray-500 group-hover:text-amber-700" />
-                        <span className="text-sm text-gray-700 group-hover:text-amber-700">
+                        <ShoppingBag className="w-4 h-4 text-gray-500 group-hover:text-[#693916]" />
+                        <span className="text-sm text-gray-700 group-hover:text-[#693916]">
                           Đơn hàng
                         </span>
                       </Link>
@@ -128,8 +166,8 @@ export default function PhucLongHeader() {
                         href="/favorites"
                         className="flex items-center gap-3"
                       >
-                        <Heart className="w-4 h-4 text-gray-500 group-hover:text-amber-700" />
-                        <span className="text-sm text-gray-700 group-hover:text-amber-700">
+                        <Heart className="w-4 h-4 text-gray-500 group-hover:text-[#693916]" />
+                        <span className="text-sm text-gray-700 group-hover:text-[#693916]">
                           Sản phẩm yêu thích
                         </span>
                       </Link>
@@ -140,8 +178,8 @@ export default function PhucLongHeader() {
                       className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
                     >
                       <Link href="/members" className="flex items-center gap-3">
-                        <Users className="w-4 h-4 text-gray-500 group-hover:text-amber-700" />
-                        <span className="text-sm text-gray-700 group-hover:text-amber-700">
+                        <Users className="w-4 h-4 text-gray-500 group-hover:text-[#693916]" />
+                        <span className="text-sm text-gray-700 group-hover:text-[#693916]">
                           Khách hàng thành viên
                         </span>
                       </Link>
@@ -152,8 +190,8 @@ export default function PhucLongHeader() {
                       className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
                     >
                       <Link href="/points" className="flex items-center gap-3">
-                        <Star className="w-4 h-4 text-gray-500 group-hover:text-amber-700" />
-                        <span className="text-sm text-gray-700 group-hover:text-amber-700">
+                        <Star className="w-4 h-4 text-gray-500 group-hover:text-[#693916]" />
+                        <span className="text-sm text-gray-700 group-hover:text-[#693916]">
                           Điểm và hạng
                         </span>
                       </Link>
@@ -179,13 +217,7 @@ export default function PhucLongHeader() {
                   variant="outline"
                   size="sm"
                   onClick={handleLogin}
-                  className="
-    hidden sm:inline-flex
-    border-gray-100
-    text-amber-700
-    hover:bg-amber-50
-    hover:text-amber-900
-  "
+                  className="hidden sm:inline-flex border-gray-100 text-[#693916] hover:bg-amber-50 hover:text-[#693916]"
                 >
                   Đăng nhập
                 </Button>
@@ -193,11 +225,7 @@ export default function PhucLongHeader() {
                 <Button
                   size="sm"
                   onClick={handleRegister}
-                  className="
-    bg-amber-700
-    text-white
-    hover:bg-amber-900
-  "
+                  className="bg-[#693916] text-white hover:bg-[#693916]"
                 >
                   Đăng ký
                 </Button>
@@ -205,7 +233,7 @@ export default function PhucLongHeader() {
             )}
 
             <button className="relative p-2 hover:bg-gray-100 rounded-full transition">
-              <ShoppingCart className="w-6 h-6 text-amber-700" />
+              <ShoppingCart className="w-6 h-6 text-[#693916]" />
               {cart > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-medium">
                   {cart}
@@ -219,66 +247,83 @@ export default function PhucLongHeader() {
       {/* Navigation Menu */}
       <nav className="border-t border-gray-200">
         <div className="container mx-auto px-4">
-          <ul className="flex items-center justify-center gap-8 text-sm font-medium text-gray-700">
+          <ul className="flex items-center justify-center gap-8 text-sm font-medium text-[#693916]">
             <li>
               <Link
                 href="/"
-                className="block py-3 hover:text-amber-700 transition border-b-2 border-transparent hover:border-amber-700"
+                className="block py-3 hover:text-[#876F60] transition border-b-2 border-transparent hover:border-[#876F60]"
               >
                 TRANG CHỦ
               </Link>
             </li>
+
             <li>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="block py-3 hover:text-amber-700 transition border-b-2 border-transparent hover:border-amber-700 focus:outline-none">
+                  <button className="block py-3 hover:text-[#876F60] transition border-b-2 border-transparent hover:border-[#876F60] focus:outline-none">
                     MENU
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-48">
-                  <DropdownMenuItem asChild>
-                    <Link href="/menu/beverages">ĐỒ UỐNG </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/menu/cake">BÁNH</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/menu/combo">COMBO</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/menu/best-seller">BEST SELLERS</Link>
-                  </DropdownMenuItem>
+
+                <DropdownMenuContent className="w-56">
+                  {catLoading && (
+                    <div className="px-3 py-2 text-sm text-gray-500">
+                      Đang tải danh mục...
+                    </div>
+                  )}
+
+                  {catError && (
+                    <div className="px-3 py-2 text-sm text-red-600">
+                      {catError}
+                    </div>
+                  )}
+
+                  {!catLoading &&
+                    !catError &&
+                    categories.map((c) => (
+                      <DropdownMenuItem key={c.id} asChild>
+                        <Link
+                          href={`/menu?categoryId=${encodeURIComponent(String(c.id))}`}
+                        >
+                          {c.name}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </li>
+
             <li>
               <a
                 href="#"
-                className="block py-3 hover:text-amber-700 transition border-b-2 border-transparent hover:border-amber-700"
+                className="block py-3 hover:text-[#876F60] transition border-b-2 border-transparent hover:border-[#876F60]"
               >
                 SẢN PHẨM ĐÓNG GÓI
               </a>
             </li>
+
             <li>
               <a
                 href="#"
-                className="block py-3 hover:text-amber-700 transition border-b-2 border-transparent hover:border-amber-700"
+                className="block py-3 hover:text-[#876F60] transition border-b-2 border-transparent hover:border-[#876F60]"
               >
                 VỀ CHÚNG TÔI
               </a>
             </li>
+
             <li>
               <Link
                 href="/promotions"
-                className="block py-3 hover:text-amber-700 transition border-b-2 border-transparent hover:border-amber-700"
+                className="block py-3 hover:text-[#876F60] transition border-b-2 border-transparent hover:border-[#876F60]"
               >
                 KHUYẾN MÃI
               </Link>
             </li>
+
             <li>
               <a
                 href="#"
-                className="block py-3 hover:text-amber-700 transition border-b-2 border-transparent hover:border-amber-700"
+                className="block py-3 hover:text-[#876F60] transition border-b-2 border-transparent hover:border-[#876F60]"
               >
                 HỘI VIÊN
               </a>

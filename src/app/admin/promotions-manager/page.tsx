@@ -1,6 +1,6 @@
 "use client";
-
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { Eye, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Promotion } from "@/types/promotion";
 
@@ -24,6 +24,12 @@ const emptyForm: FormState = {
   imageUrl: "",
   shopId: 1,
 };
+
+const FALLBACK_IMAGE =
+  "https://i.pinimg.com/736x/5e/fe/ef/5efeefde66fb51a9c3cf727336312d5d.jpg";
+
+const canUseImage = (url?: string | null) =>
+  !!url && (/^https?:\/\//.test(url) || url.startsWith("data:image"));
 
 export default function PromotionsManagerPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -187,7 +193,10 @@ export default function PromotionsManagerPage() {
       v && v.trim() ? new Date(v).toISOString() : undefined;
 
     const status =
-      data.status || data.promotionStatus || currentSelected?.status || "ACTIVE";
+      data.status ||
+      data.promotionStatus ||
+      currentSelected?.status ||
+      "ACTIVE";
 
     const shopId = data.shopId ?? currentSelected?.shopId ?? 1;
 
@@ -221,7 +230,7 @@ export default function PromotionsManagerPage() {
         </div>
         <button
           onClick={openCreate}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-lg shadow hover:bg-amber-700 transition"
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#876F60] rounded-lg shadow hover:bg-[#876F60] transition"
         >
           <Plus className="w-4 h-4" />
           Thêm mới
@@ -239,70 +248,72 @@ export default function PromotionsManagerPage() {
           <h2 className="text-lg font-semibold text-gray-900">
             Danh sách khuyến mãi
           </h2>
-          <button
-            onClick={fetchPromotions}
-            className="text-sm text-amber-700 hover:underline"
-            disabled={loading}
-          >
-            {loading ? "Đang tải..." : "Tải lại"}
-          </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-gradient-to-r from-[#c3b3a9] to-[#c3b3a9]">
               <tr>
-                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
                   Mã
                 </th>
-                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
+                  Hình
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
                   Tên
                 </th>
-                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
                   Loại
                 </th>
-                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
                   Trạng thái
                 </th>
-                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
                   Giá trị
                 </th>
-                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
                   Thời gian
                 </th>
-                <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                <th className="px-4 py-3 text-right font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-200">
               {promotions.map((item) => (
-                <tr key={item.promotionId} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 font-semibold text-gray-900">
+                <tr key={item.promotionId} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-semibold text-slate-900">
                     {item.promotionCode}
                   </td>
-                  <td className="px-4 py-2 text-gray-800">
+                  <td className="px-4 py-3">
+                    <PromoImageCell
+                      url={item.imageUrl}
+                      alt={item.promotionName}
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-slate-900 font-semibold">
                     {item.promotionName}
                   </td>
-                  <td className="px-4 py-2 text-gray-700">
+                  <td className="px-4 py-3 text-[#693916] font-medium">
                     {item.promotionType}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-3">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ring-1 ${
                         item.promotionStatus === "ACTIVE"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-gray-100 text-gray-700"
+                          ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                          : "bg-slate-100 text-slate-700 ring-slate-200"
                       }`}
                     >
                       {item.promotionStatus}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-gray-700">
+                  <td className="px-4 py-3 text-[#693916] font-medium">
                     {item.discountType === "PERCENTAGE"
                       ? `${item.discountValue}%`
                       : `${item.discountValue.toLocaleString()}đ`}
                   </td>
-                  <td className="px-4 py-2 text-gray-600">
+                  <td className="px-4 py-3 text-slate-600">
                     {item.startDate?.slice(0, 10)} →{" "}
                     {item.endDate?.slice(0, 10)}
                   </td>
@@ -310,21 +321,21 @@ export default function PromotionsManagerPage() {
                     <div className="inline-flex items-center gap-2">
                       <button
                         onClick={() => handleView(item)}
-                        className="p-2 rounded-md border border-gray-200 hover:bg-gray-50"
+                        className="p-2 rounded-md border border-[#876F60] bg-white text-[#693916] hover:bg-amber-50 hover:shadow transition"
                         aria-label="Xem"
                       >
                         <Eye className="w-4 h-4 text-gray-700" />
                       </button>
                       <button
                         onClick={() => handleEdit(item)}
-                        className="p-2 rounded-md border border-gray-200 hover:bg-gray-50"
+                        className="p-2 rounded-md border border-[#876F60] bg-white text-[#693916] hover:bg-amber-50 hover:shadow transition"
                         aria-label="Chỉnh sửa"
                       >
-                        <Pencil className="w-4 h-4 text-amber-700" />
+                        <Pencil className="w-4 h-4 text-[#693916]" />
                       </button>
                       <button
                         onClick={() => handleDelete(item)}
-                        className="p-2 rounded-md border border-red-200 text-red-600 hover:bg-red-50"
+                        className="p-2 rounded-md border border-red-200 text-red-600 bg-white hover:bg-red-50 hover:shadow transition"
                         aria-label="Xóa"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -336,7 +347,7 @@ export default function PromotionsManagerPage() {
               {!promotions.length && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-4 py-6 text-center text-gray-500 text-sm"
                   >
                     {loading ? "Đang tải..." : "Chưa có khuyến mãi"}
@@ -373,37 +384,48 @@ export default function PromotionsManagerPage() {
 
             <div className="overflow-y-auto">
               {modalMode === "view" && selected && (
-                <div className="px-5 py-4 grid sm:grid-cols-2 gap-4 text-sm text-gray-800">
-                  <Detail label="Mã" value={selected.promotionCode} />
-                  <Detail label="Tên" value={selected.promotionName} />
-                  <Detail label="Loại" value={selected.promotionType} />
-                  <Detail label="Trạng thái" value={selected.promotionStatus} />
-                  <Detail
-                    label="Giá trị"
-                    value={
-                      selected.discountType === "PERCENTAGE"
-                        ? `${selected.discountValue}%`
-                        : `${selected.discountValue.toLocaleString()}đ`
-                    }
-                  />
-                  <Detail
-                    label="Giảm tối đa"
-                    value={`${selected.maxDiscountAmount.toLocaleString()}đ`}
-                  />
-                  <Detail
-                    label="Tối thiểu đơn"
-                    value={`${selected.minimumSpent.toLocaleString()}đ`}
-                  />
-                  <Detail label="Số lượng" value={selected.quantity} />
-                  <Detail
-                    label="Giới hạn / user"
-                    value={selected.usageLimitPerUser}
-                  />
-                  <Detail
-                    label="Thời gian"
-                    value={`${selected.startDate?.slice(0, 10)} → ${selected.endDate?.slice(0, 10)}`}
-                  />
-                </div>
+                <>
+                  <div className="px-5 pt-4">
+                    <PromotionHeroImage
+                      url={selected.imageUrl}
+                      alt={selected.promotionName}
+                    />
+                  </div>
+                  <div className="px-5 pb-4 grid sm:grid-cols-2 gap-4 text-sm text-gray-800">
+                    <Detail label="Mã" value={selected.promotionCode} />
+                    <Detail label="Tên" value={selected.promotionName} />
+                    <Detail label="Loại" value={selected.promotionType} />
+                    <Detail
+                      label="Trạng thái"
+                      value={selected.promotionStatus}
+                    />
+                    <Detail
+                      label="Giá trị"
+                      value={
+                        selected.discountType === "PERCENTAGE"
+                          ? `${selected.discountValue}%`
+                          : `${selected.discountValue.toLocaleString()}đ`
+                      }
+                    />
+                    <Detail
+                      label="Giảm tối đa"
+                      value={`${selected.maxDiscountAmount.toLocaleString()}đ`}
+                    />
+                    <Detail
+                      label="Tối thiểu đơn"
+                      value={`${selected.minimumSpent.toLocaleString()}đ`}
+                    />
+                    <Detail label="Số lượng" value={selected.quantity} />
+                    <Detail
+                      label="Giới hạn / user"
+                      value={selected.usageLimitPerUser}
+                    />
+                    <Detail
+                      label="Thời gian"
+                      value={`${selected.startDate?.slice(0, 10)} → ${selected.endDate?.slice(0, 10)}`}
+                    />
+                  </div>
+                </>
               )}
 
               {(modalMode === "create" || modalMode === "edit") && (
@@ -516,7 +538,7 @@ export default function PromotionsManagerPage() {
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 transition disabled:opacity-60"
+                      className="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-[#876F60] hover:bg-[#876F60] transition disabled:opacity-60"
                       disabled={saving}
                     >
                       {saving
@@ -561,6 +583,38 @@ export default function PromotionsManagerPage() {
   );
 }
 
+function PromoImageCell({ url, alt }: { url?: string | null; alt: string }) {
+  const src = canUseImage(url) ? (url as string) : FALLBACK_IMAGE;
+
+  return (
+    <div className="relative h-12 w-12 overflow-hidden rounded-md bg-gray-100 border border-gray-200">
+      <Image src={src} alt={alt} fill className="object-cover" sizes="48px" />
+    </div>
+  );
+}
+
+function PromotionHeroImage({
+  url,
+  alt,
+}: {
+  url?: string | null;
+  alt: string;
+}) {
+  const src = canUseImage(url) ? (url as string) : FALLBACK_IMAGE;
+
+  return (
+    <div className="relative w-full aspect-[16/9] overflow-hidden rounded-xl bg-gray-100 border border-gray-200">
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        className="object-cover"
+        sizes="(max-width: 768px) 100vw, 560px"
+      />
+    </div>
+  );
+}
+
 function Input({
   label,
   ...rest
@@ -570,7 +624,7 @@ function Input({
       <label className="block text-sm font-medium text-gray-800">{label}</label>
       <input
         {...rest}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-amber-500 focus:ring-amber-500"
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#876F60] focus:ring-[#876F60]"
       />
     </div>
   );
@@ -589,7 +643,7 @@ function Select({
       <label className="block text-sm font-medium text-gray-800">{label}</label>
       <select
         {...rest}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-amber-500 focus:ring-amber-500"
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#876F60] focus:ring-[#876F60]"
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
@@ -621,7 +675,7 @@ function NumberInput({
         step={step ?? 1}
         value={value ?? 0}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-amber-500 focus:ring-amber-500"
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#876F60] focus:ring-[#876F60]"
       />
     </div>
   );

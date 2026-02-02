@@ -13,14 +13,12 @@ interface Product {
   isBestSeller?: boolean;
   badge?: string;
 }
-const FALLBACK_IMAGES = [
-  "https://i.pinimg.com/736x/5e/fe/ef/5efeefde66fb51a9c3cf727336312d5d.jpg",
-  "https://i.pinimg.com/736x/95/49/0c/95490c7ff1918c006114347b834d6faf.jpg",
-  "https://i.pinimg.com/1200x/4a/ad/3a/4aad3ab445759dc77d1d0f47818411a6.jpg",
-  "https://i.pinimg.com/1200x/4a/0a/0f/4a0a0f55f41ea855c05605765c71be32.jpg",
-  "https://i.pinimg.com/736x/51/c6/07/51c6075b5b11f4e0cafc153d698fbe8e.jpg",
-  "https://i.pinimg.com/736x/64/d7/2e/64d72e14084b39358fad5c4354c4f05f.jpg",
-];
+const canUseImage = (url: string | undefined | null) => {
+  if (!url) return false;
+  // allow absolute http(s) or root-relative paths; block other invalid strings to avoid URL constructor errors
+  return /^https?:\/\//.test(url) || url.startsWith("/");
+};
+
 const Homepage: React.FC = () => {
   const [cart, setCart] = useState(0);
   const bestSellerRef = useRef<HTMLDivElement>(null);
@@ -122,8 +120,9 @@ const Homepage: React.FC = () => {
 
   const [active, setActive] = useState(0);
   const [perView, setPerView] = useState(1);
-  const handleViewPromotion = (id: number) => {
-    router.push(`/promotions/${id}`);
+  const handleViewPromotion = (id: number, name: string) => {
+    const slug = toPromotionSlug(name, id);
+    router.push(`/promotions/${slug}`);
   };
 
   useEffect(() => {
@@ -155,9 +154,11 @@ const Homepage: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        const res = await fetch("api/promotion", {
+        const res = await fetch("/api/promotion", {
           method: "GET",
           headers: { Accept: "application/json" },
+          credentials: "same-origin",
+          cache: "no-store",
           signal: controller.signal,
         });
 
@@ -203,13 +204,14 @@ const Homepage: React.FC = () => {
       id: p.promotionId,
       name: p.promotionName || p.promotionCode,
       code: p.promotionCode,
-      image: FALLBACK_IMAGES[idx % FALLBACK_IMAGES.length],
-      status: p.promotionStatus,
+      image: p.imageUrl,
+
+      status: p.status ?? p.promotionStatus,
     }));
   }, [promotions]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pt-7">
       {/* Main Content cho các sản phẩm mới - landing page */}
       <main className="w-full pt-7">
         <div className="relative w-full">
@@ -347,12 +349,19 @@ const Homepage: React.FC = () => {
                 className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex-shrink-0 w-48"
               >
                 <div className="relative bg-gray-100 h-32 flex items-center justify-center">
-                  <Image
-                    src={item.image}
-                    alt={item.name}
-                    fill
-                    className="object-cover rounded-lg"
-                  />
+                  {canUseImage(item.image) ? (
+                    <Image
+                      src={item.image as string}
+                      alt={item.name}
+                      fill
+                      className="object-cover rounded-lg"
+                      sizes="192px"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-[11px] text-gray-500">
+                      Không có hình ảnh
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-2">
@@ -367,7 +376,7 @@ const Homepage: React.FC = () => {
                   </p>
 
                   <button
-                    onClick={() => handleViewPromotion(item.id)}
+                    onClick={() => handleViewPromotion(item.id, item.name)}
                     className="w-full bg-amber-700 hover:bg-amber-800 text-white font-semibold py-1 rounded-lg transition-colors duration-300 flex items-center justify-center gap-1 text-xs"
                   >
                     Xem ngay
@@ -401,3 +410,14 @@ const Homepage: React.FC = () => {
 };
 
 export default Homepage;
+
+function toPromotionSlug(name: string, id: number) {
+  const base = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+
+  return `${base || "khuyen-mai"}-${id}`;
+}

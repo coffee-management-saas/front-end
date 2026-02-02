@@ -18,7 +18,9 @@ export default function ProfileForm() {
   const [activeTab, setActiveTab] = useState("personal-info");
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [originalProfile, setOriginalProfile] = useState<ProfileData | null>(null);
+  const [originalProfile, setOriginalProfile] = useState<ProfileData | null>(
+    null,
+  );
   const [profile, setProfile] = useState<ProfileData>({
     customerId: "",
     username: "",
@@ -201,7 +203,7 @@ export default function ProfileForm() {
       {/* Main Content */}
       <div className="flex-1 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-6">
-          <form className="max-w-3xl mx-auto space-y-5">
+          <form className="space-y-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.08em] text-gray-500">

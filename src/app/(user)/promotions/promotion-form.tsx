@@ -1,18 +1,16 @@
-"use client";
+﻿"use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { Promotion } from "@/types/promotion";
 import { useRouter } from "next/navigation";
 
-const FALLBACK_IMAGES = [
-  "https://i.pinimg.com/736x/5e/fe/ef/5efeefde66fb51a9c3cf727336312d5d.jpg",
-  "https://i.pinimg.com/736x/95/49/0c/95490c7ff1918c006114347b834d6faf.jpg",
-  "https://i.pinimg.com/1200x/4a/ad/3a/4aad3ab445759dc77d1d0f47818411a6.jpg",
-  "https://i.pinimg.com/1200x/4a/0a/0f/4a0a0f55f41ea855c05605765c71be32.jpg",
-  "https://i.pinimg.com/736x/51/c6/07/51c6075b5b11f4e0cafc153d698fbe8e.jpg",
-  "https://i.pinimg.com/736x/64/d7/2e/64d72e14084b39358fad5c4354c4f05f.jpg",
-];
+const canUseImage = (url: string | undefined | null) => {
+  if (!url) return false;
+
+  return /^https?:\/\//.test(url) || url.startsWith("/");
+};
 
 const SubscriptionCards: React.FC = () => {
   const [cart, setCart] = useState(0);
@@ -30,7 +28,7 @@ const SubscriptionCards: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        const res = await fetch("api/promotion", {
+        const res = await fetch("/api/promotion", {
           method: "GET",
           headers: { Accept: "application/json" },
           signal: controller.signal,
@@ -79,13 +77,14 @@ const SubscriptionCards: React.FC = () => {
       id: p.promotionId,
       name: p.promotionName || p.promotionCode,
       code: p.promotionCode,
-      image: FALLBACK_IMAGES[idx % FALLBACK_IMAGES.length],
+      image: p.imageUrl,
       status: p.promotionStatus,
     }));
   }, [promotions]);
 
-  const handleViewPromotion = (id: number) => {
-    router.push(`/promotions/${id}`);
+  const handleViewPromotion = (id: number, name: string) => {
+    const slug = toPromotionSlug(name, id);
+    router.push(`/promotions/${slug}`);
   };
 
   const scrollLeft = (ref: React.RefObject<HTMLDivElement | null>) => {
@@ -100,7 +99,7 @@ const SubscriptionCards: React.FC = () => {
     <div className="min-h-screen">
       <main className="container mx-auto px-2 py-4 pt-1">
         <div className="text-center mb-12 mt-6">
-          <h1 className="text-2xl md:text-2xl font-bold text-amber-700 mb-2">
+          <h1 className="text-2xl md:text-2xl font-bold text-[#693916] mb-2">
             TIN TỨC & KHUYẾN MÃI
           </h1>
 
@@ -127,40 +126,52 @@ const SubscriptionCards: React.FC = () => {
               <div className="text-gray-600">Chưa có khuyến mãi.</div>
             )}
 
-            {itemsForUI.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex-shrink-0 w-48"
-              >
-                <div className="relative bg-gray-100 h-32 flex items-center justify-center">
-                  <Image
-                    src={item.image}
-                    alt={item.name}
-                    fill
-                    className="object-cover rounded-lg"
-                  />
-                </div>
-
-                <div className="p-2">
-                  {/* Tên khuyến mãi */}
-                  <h3 className="text-xs font-semibold text-gray-800 mb-1 h-5 leading-tight line-clamp-2">
-                    {item.name}
-                  </h3>
-
-                  {/* Mã khuyến mãi (thông tin phụ) */}
-                  <p className="text-[11px] text-gray-600 mb-2 truncate">
-                    MÃ CODE: {item.code}
-                  </p>
-
-                  <button
-                    onClick={() => handleViewPromotion(item.id)}
-                    className="w-full bg-amber-700 hover:bg-amber-800 text-white font-semibold py-1 rounded-lg transition-colors duration-300 flex items-center justify-center gap-1 text-xs"
+            {itemsForUI.map((item) => {
+              const slug = toPromotionSlug(item.name, item.id);
+              return (
+                <div
+                  key={item.id}
+                  className="bg-white rounded-2xl shadow-soft overflow-hidden hover:shadow-card-hover transition-shadow duration-300 flex-shrink-0 w-[220px]"
+                >
+                  <Link
+                    href={`/promotions/${slug}`}
+                    className="relative block bg-gray-100 h-56"
+                    aria-label={`Xem khuyen mai ${item.name}`}
                   >
-                    Xem ngay
-                  </button>
+                    {canUseImage(item.image) ? (
+                      <Image
+                        src={item.image as string}
+                        alt={item.name}
+                        fill
+                        className="object-cover"
+                        sizes="220px"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-[11px] text-gray-500">
+                        Không có hình ảnh
+                      </div>
+                    )}
+                  </Link>
+
+                  <div className="p-4">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-1 line-clamp-2">
+                      {item.name}
+                    </h3>
+
+                    <p className="text-xs text-gray-600 mb-3 truncate">
+                      Mã CODE: {item.code}
+                    </p>
+
+                    <button
+                      onClick={() => handleViewPromotion(item.id, item.name)}
+                      className="w-full bg-[#693916] hover:bg-[#693a19] text-white font-semibold py-2 rounded-lg transition-colors duration-300 flex items-center justify-center gap-1 text-sm"
+                    >
+                      Xem ngay
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <button
@@ -172,17 +183,19 @@ const SubscriptionCards: React.FC = () => {
           </button>
         </div>
       </main>
-
-      {/* <button className="fixed bottom-8 right-8 w-16 h-16 bg-amber-700 hover:bg-amber-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110">
-        <ShoppingCart className="w-8 h-8" />
-        {cart > 0 && (
-          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-sm w-7 h-7 rounded-full flex items-center justify-center font-bold">
-            {cart}
-          </span>
-        )}
-      </button> */}
     </div>
   );
 };
 
 export default SubscriptionCards;
+
+function toPromotionSlug(name: string, id: number) {
+  const base = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+
+  return `${base || "khuyen-mai"}-${id}`;
+}

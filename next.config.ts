@@ -8,8 +8,12 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "i.pinimg.com",
       },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
     ],
-    domains: ["i.pinimg.com", "s3-hcmc02.higiocloud.vn"],
+    domains: ["i.pinimg.com", "s3-hcmc02.higiocloud.vn", "images.unsplash.com"],
   },
 };
 

@@ -6,7 +6,7 @@ import {
   updatePromotionById,
 } from "@/services/promotion.service";
 
-type Ctx = { params?: { promotionId?: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
 function extractIdFromUrl(req: Request) {
   try {
@@ -18,16 +18,14 @@ function extractIdFromUrl(req: Request) {
   }
 }
 
-function getParamId(req: Request, ctx?: Ctx) {
-  return (
-    ctx?.params?.promotionId?.toString().trim() ||
-    extractIdFromUrl(req).trim()
-  );
+async function getParamId(req: Request, ctx: Ctx) {
+  const params = await ctx.params;
+  return params.id.toString().trim() || extractIdFromUrl(req).trim();
 }
 
 export async function GET(req: Request, ctx: Ctx) {
   try {
-    const promotionId = getParamId(req, ctx);
+    const promotionId = await getParamId(req, ctx);
     if (!promotionId) {
       return Response.json({ message: "Thiếu promotionId" }, { status: 400 });
     }
@@ -69,7 +67,7 @@ export async function PUT(req: Request, ctx: Ctx) {
       return Response.json({ message: "Thiếu payload" }, { status: 400 });
     }
 
-    const promotionId = getParamId(req, ctx);
+    const promotionId = await getParamId(req, ctx);
     if (!promotionId) {
       return Response.json({ message: "Thiếu promotionId" }, { status: 400 });
     }
@@ -102,7 +100,7 @@ export async function DELETE(req: Request, ctx: Ctx) {
       return Response.json({ message: "Unauthenticated" }, { status: 401 });
     }
 
-    const promotionId = getParamId(req, ctx);
+    const promotionId = await getParamId(req, ctx);
 
     if (!promotionId) {
       return Response.json({ message: "Thiếu promotionId" }, { status: 400 });

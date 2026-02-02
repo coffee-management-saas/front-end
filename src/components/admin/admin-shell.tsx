@@ -23,7 +23,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           marginLeft: sidebarWidth,
         }}
       >
-        <div className="p-4 md:p-6">{children}</div>
+        <div className="p-4 ">{children}</div>
       </main>
     </div>
   );
