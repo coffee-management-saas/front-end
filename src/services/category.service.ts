@@ -1,7 +1,11 @@
 // src/services/category.service.ts
 import envConfig from "@/config";
 import { ApiError } from "@/lib/utils";
-import { ProductCategoriesResponse, ProductCategory } from "@/types/catagories";
+import {
+  DeleteResponse,
+  ProductCategoriesResponse,
+  ProductCategory,
+} from "@/types/catagories";
 
 async function parseJsonSafely(res: Response): Promise<unknown> {
   const raw = await res.text();
@@ -44,10 +48,8 @@ function toCategory(x: unknown): ProductCategory {
   return {
     id: toNumber(o.id ?? o.categoryId, 0),
     name: toString(o.name ?? o.categoryName, ""),
-    description: toOptionalString(o.description),
     status: toOptionalString(o.status),
     createdAt: toOptionalString(o.createdAt),
-    updatedAt: toOptionalString(o.updatedAt),
   };
 }
 
@@ -68,7 +70,6 @@ function hasDataArray(
 }
 
 function normalizeCategories(payload: unknown): ProductCategoriesResponse {
-  // Case 1: BE returns array directly
   if (Array.isArray(payload)) {
     return {
       code: 200,
@@ -84,7 +85,6 @@ function normalizeCategories(payload: unknown): ProductCategoriesResponse {
     };
   }
 
-  // Case 2: BE returns { code, status, message, data: [], meta }
   if (hasDataArray(payload)) {
     return {
       code: toNumber(payload.code, 200),
@@ -95,7 +95,6 @@ function normalizeCategories(payload: unknown): ProductCategoriesResponse {
     };
   }
 
-  // Fallback
   return {
     code: 200,
     status: "OK",
@@ -104,7 +103,82 @@ function normalizeCategories(payload: unknown): ProductCategoriesResponse {
     meta: { currentPage: 1, size: 0, lastPage: 1, totalElements: 0 },
   };
 }
+function normalizeDelete(payload: unknown): DeleteResponse {
+  if (isRecord(payload)) {
+    return {
+      code: toNumber(payload.code, 200),
+      status: toString(payload.status, "OK"),
+      message: toString(payload.message, "Deleted successfully"),
+      data: null,
+    };
+  }
+  return {
+    code: 200,
+    status: "OK",
+    message: "Deleted successfully",
+    data: null,
+  };
+}
+function hasDataObject(
+  payload: unknown,
+): payload is Record<string, unknown> & { data: unknown } {
+  return isRecord(payload) && "data" in payload;
+}
 
+function normalizeCreateCategory(payload: unknown) {
+  if (hasDataObject(payload)) {
+    return {
+      code: toNumber(payload.code, 201),
+      status: toString(payload.status, "CREATED"),
+      message: toString(payload.message, ""),
+      data: payload.data ? toCategory(payload.data) : null,
+    };
+  }
+
+  if (isRecord(payload) && ("id" in payload || "name" in payload)) {
+    return {
+      code: 201,
+      status: "CREATED",
+      message: "Create category successfully",
+      data: toCategory(payload),
+    };
+  }
+
+  return {
+    code: 502,
+    status: "BAD_GATEWAY",
+    message: "Invalid create category response",
+    data: null,
+  };
+}
+
+function normalizeUpdateCategory(payload: unknown) {
+  if (hasDataObject(payload)) {
+    return {
+      code: toNumber(payload.code, 200),
+      status: toString(payload.status, "OK"),
+      message: toString(payload.message, ""),
+      data: payload.data ? toCategory(payload.data) : null,
+    };
+  }
+
+  // fallback nếu BE trả thẳng object category
+  if (isRecord(payload) && ("id" in payload || "name" in payload)) {
+    return {
+      code: 200,
+      status: "OK",
+      message: "Update category successfully",
+      data: toCategory(payload),
+    };
+  }
+
+  return {
+    code: 502,
+    status: "BAD_GATEWAY",
+    message: "Invalid update category response",
+    data: null,
+  };
+}
 export async function getProductCategories(params: {
   page?: number;
   size?: number;
@@ -128,4 +202,129 @@ export async function getProductCategories(params: {
   }
 
   return normalizeCategories(payload);
+}
+// DELETE
+export async function deleteProductCategoryById(
+  id: number,
+): Promise<DeleteResponse> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/product/categories/${id}`;
+
+  const res = await fetch(beUrl, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonSafely(res);
+
+  if (!res.ok) {
+    throw new ApiError("BE error", res.status, payload);
+  }
+
+  const normalized = normalizeDelete(payload);
+
+  if (normalized.code !== 200) {
+    throw new ApiError(
+      normalized.message || "Delete category failed",
+      400,
+      normalized,
+    );
+  }
+
+  return normalized;
+}
+
+// PUT
+export async function updateProductCategoryById(
+  id: number,
+  body: {
+    name?: string;
+    status?: string;
+    createdAt?: string;
+  },
+) {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/product/categories/${id}`;
+
+  const res = await fetch(beUrl, {
+    method: "PUT",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonSafely(res);
+
+  if (!res.ok) {
+    throw new ApiError("BE error", res.status, payload);
+  }
+
+  const normalized = normalizeUpdateCategory(payload);
+
+  if (normalized.code !== 200) {
+    throw new ApiError(
+      normalized.message || "Update category failed",
+      400,
+      normalized,
+    );
+  }
+
+  if (!normalized.data?.id) {
+    throw new ApiError(
+      normalized.message || "Update category failed (missing data)",
+      400,
+      normalized,
+    );
+  }
+
+  return normalized;
+}
+//POST
+export async function createProductCategory(body: {
+  name: string;
+  status?: string;
+  createdAt?: string;
+}) {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/product/categories`;
+
+  const res = await fetch(beUrl, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonSafely(res);
+
+  if (!res.ok) {
+    throw new ApiError("BE error", res.status, payload);
+  }
+
+  const normalized = normalizeCreateCategory(payload);
+
+  if (normalized.code !== 201 && normalized.code !== 200) {
+    throw new ApiError(
+      normalized.message || "Create category failed",
+      400,
+      normalized,
+    );
+  }
+
+  if (!normalized.data?.id) {
+    throw new ApiError(
+      normalized.message || "Create category failed (missing data)",
+      400,
+      normalized,
+    );
+  }
+
+  return normalized;
 }

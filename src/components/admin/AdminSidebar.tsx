@@ -1,8 +1,7 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon, ShoppingBag } from "lucide-react";
 import {
   Coffee,
   LayoutDashboard,
@@ -11,6 +10,7 @@ import {
   Users,
   Settings,
   LogOut,
+  ShoppingBagIcon,
 } from "lucide-react";
 
 import {
@@ -35,8 +35,9 @@ type MenuItem = {
 const menuItems: MenuItem[] = [
   { title: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { title: "Danh mục", href: "/admin/categories-manager", icon: FolderTree },
-  { title: "Khuyến mãi", href: "/admin/promotions-manager", icon: FolderTree },
-  { title: "Sản phẩm", href: "/products", icon: Package },
+  { title: "Khuyến mãi", href: "/admin/promotions-manager", icon: Package },
+  { title: "Sản phẩm", href: "/admin/products-manager", icon: Coffee },
+  { title: "Toppings", href: "/admin/toppings-manager", icon: ShoppingBagIcon },
   { title: "Nhân viên", href: "/admin/employees-manager", icon: Users },
   { title: "Cài đặt", href: "/settings", icon: Settings },
 ];
@@ -49,7 +50,8 @@ export function AdminSidebar() {
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
+    if (href === "/admin") return pathname === "/admin";
+    return pathname === href || pathname.startsWith(`${href}/`);
   };
 
   return (
@@ -74,7 +76,7 @@ export function AdminSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="py-4">
+      <SidebarContent className="py-4 bg-[#F9F7F5]">
         <SidebarGroup>
           <SidebarGroupLabel className="px-4 text-sidebar-foreground/50 text-xs uppercase tracking-wider mb-2">
             Menu chính
@@ -114,9 +116,7 @@ export function AdminSidebar() {
         <button
           type="button"
           className="flex items-center gap-3 w-full py-2.5 px-3 rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-          onClick={() => {
-            // TODO: gắn logic logout ở đây (vd: next-auth signOut() hoặc xóa token)
-          }}
+          onClick={() => {}}
         >
           <LogOut className="w-5 h-5" />
           <span>Đăng xuất</span>

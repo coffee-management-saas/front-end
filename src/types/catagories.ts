@@ -1,12 +1,8 @@
-// src/types/category.ts
-
 export type ProductCategory = {
   id: number;
   name: string;
-  description?: string;
   status?: string;
   createdAt?: string;
-  updatedAt?: string;
 };
 
 export type CategoryMeta = {
@@ -23,14 +19,16 @@ export type ProductCategoriesResponse = {
   data: ProductCategory[];
   meta: CategoryMeta;
 };
-//UI type mẫu
 export interface Category {
   id: string;
   name: string;
-  description: string;
-  image?: string;
   productCount: number;
   status: "active" | "inactive";
   createdAt: Date;
-  updatedAt: Date;
 }
+export type DeleteResponse = {
+  code: number;
+  status: string;
+  message: string;
+  data: null;
+};

@@ -10,37 +10,50 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Category } from "@/types/catagories";
 
-interface CategoryDialogProps {
+export type ToppingDialogItem = {
+  id: string;
+  name: string;
+  price: number;
+  status: "active" | "inactive";
+};
+
+interface ToppingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  category?: Category | null;
-  onSave: (category: Partial<Category>) => void;
+  topping?: ToppingDialogItem | null;
+  onSave: (topping: Partial<ToppingDialogItem>) => void;
   mode: "view" | "edit" | "create";
 }
 
-export function CategoryDialog({
+const formatPrice = (price: number) => `${price.toLocaleString("vi-VN")} VND`;
+
+export function ToppingDialog({
   open,
   onOpenChange,
-  category,
+  topping,
   onSave,
   mode,
-}: CategoryDialogProps) {
-  type FormData = { name: string; status: "active" | "inactive" };
+}: ToppingDialogProps) {
+  type FormData = {
+    name: string;
+    price: number;
+    status: "active" | "inactive";
+  };
   const [formData, setFormData] = useState<FormData>(() => {
-    if (mode === "create" || !category) {
-      return { name: "", status: "active" };
+    if (mode === "create" || !topping) {
+      return { name: "", price: 0, status: "active" };
     }
     return {
-      name: category.name ?? "",
-      status: category.status ?? "active",
+      name: topping.name ?? "",
+      price: Number(topping.price ?? 0),
+      status: topping.status ?? "active",
     };
   });
 
   const handleSave = () => {
     onSave({
-      ...category,
+      ...topping,
       ...formData,
     });
     onOpenChange(false);
@@ -49,28 +62,48 @@ export function CategoryDialog({
   const isViewMode = mode === "view";
   const title =
     mode === "create"
-      ? "Thêm danh mục mới"
+      ? "Thêm topping mới"
       : mode === "edit"
-        ? "Chỉnh sửa danh mục"
-        : "Chi tiết danh mục";
+        ? "Chỉnh sửa topping"
+        : "Chi tiết topping";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-card">
+      <DialogContent className="sm:max-w-[520px] bg-card">
         <DialogHeader>
           <DialogTitle className="text-xl">{title}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 py-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Tên danh mục</Label>
+            <Label htmlFor="name">Tên topping</Label>
             <Input
               id="name"
               value={formData.name}
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
-              placeholder="Nhập tên danh mục..."
+              placeholder="Nhập tên topping..."
+              disabled={isViewMode}
+              className="bg-background"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="price">Giá topping (₫)</Label>
+            <Input
+              id="price"
+              type="number"
+              min="0"
+              step="1000"
+              value={Number.isFinite(formData.price) ? formData.price : 0}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  price: Number(e.target.value) || 0,
+                })
+              }
+              placeholder="Nhập giá topping..."
               disabled={isViewMode}
               className="bg-background"
             />
@@ -95,21 +128,12 @@ export function CategoryDialog({
             />
           </div>
 
-          {category && isViewMode && (
+          {topping && isViewMode && (
             <div className="pt-4 border-t border-border space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Số sản phẩm:</span>
-                <span className="font-medium">{category.productCount}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Ngày tạo:</span>
+                <span className="text-muted-foreground">Giá hiện tại:</span>
                 <span className="font-medium">
-                  {category.createdAt.toLocaleDateString("vi-VN")}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">
-                  Cập nhật lần cuối:
+                  {formatPrice(topping.price)}
                 </span>
               </div>
             </div>
@@ -130,7 +154,7 @@ export function CategoryDialog({
                 onClick={handleSave}
                 className="bg-primary hover:bg-primary/90"
               >
-                {mode === "create" ? "Thêm danh mục" : "Lưu thay đổi"}
+                {mode === "create" ? "Thêm topping" : "Lưu thay đổi"}
               </Button>
             </>
           )}

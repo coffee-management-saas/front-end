@@ -1,691 +1,1005 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import Image from "next/image";
-import { Eye, Pencil, Plus, Trash2, X } from "lucide-react";
-import { Promotion } from "@/types/promotion";
+﻿"use client";
+import { useEffect, useMemo, useState } from "react";
+import { Eye, Pencil, Plus, Search, Tag, Trash2 } from "lucide-react";
+import { DeleteConfirmDialog } from "@/components/admin/DeleteConfirmDialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { toast } from "sonner";
+import type { Promotion } from "@/types/promotion";
+import {
+  deletePromotionById,
+  getPromotionById,
+  getPromotions,
+  uploadPromotionImage,
+  updatePromotionById,
+} from "@/services/promotion.service";
 
-type FormState = Partial<Promotion>;
-type ModalMode = "create" | "edit" | "view" | "delete" | null;
+type PromotionStatus = "active" | "inactive" | "expired" | "deleted";
 
-const emptyForm: FormState = {
-  promotionCode: "",
-  promotionName: "",
-  promotionType: "ORDER",
-  discountType: "PERCENTAGE",
-  discountValue: 0,
-  minimumSpent: 0,
-  quantity: 0,
-  maxDiscountAmount: 0,
-  usageLimitPerUser: 0,
-  startDate: "",
-  endDate: "",
-  promotionStatus: "ACTIVE",
-  status: "ACTIVE",
-  imageUrl: "",
-  shopId: 1,
+type PromotionRow = {
+  id: string;
+  name: string;
+  code: string;
+  type: Promotion["promotionType"];
+  discountType: Promotion["discountType"];
+  discountValue: number;
+  imageUrl?: string;
+  startDate: string;
+  endDate: string;
+  status: PromotionStatus;
 };
 
-const FALLBACK_IMAGE =
-  "https://i.pinimg.com/736x/5e/fe/ef/5efeefde66fb51a9c3cf727336312d5d.jpg";
+type PromotionFormState = {
+  promotionName: string;
+  promotionCode: string;
+  promotionType: Promotion["promotionType"];
+  minimumSpent: string;
+  quantity: string;
+  discountType: Promotion["discountType"];
+  discountValue: string;
+  maxDiscountAmount: string;
+  usageLimitPerUser: string;
+  startDate: string;
+  endDate: string;
+  promotionStatus: Promotion["promotionStatus"];
+  imageUrl: string;
+};
 
-const canUseImage = (url?: string | null) =>
-  !!url && (/^https?:\/\//.test(url) || url.startsWith("data:image"));
+const mapStatus = (status?: string): PromotionStatus => {
+  switch (status?.toUpperCase()) {
+    case "ACTIVE":
+      return "active";
+    case "INACTIVE":
+      return "inactive";
+    case "EXPIRED":
+      return "expired";
+    case "DELETED":
+      return "deleted";
+    default:
+      return "inactive";
+  }
+};
+
+const formatNumber = (n: number) => new Intl.NumberFormat("vi-VN").format(n);
+const formatDateOnly = (input?: string) => {
+  if (!input) return "—";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return input;
+  return d.toLocaleDateString("vi-VN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+};
+
+const formatDateTime = (input?: string) => {
+  if (!input) return "—";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return input;
+  return d.toLocaleString("vi-VN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const toLocalDateTimeInput = (input?: string) => {
+  if (!input) return "";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const toIsoOrUndefined = (input: string) => {
+  if (!input) return undefined;
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return input;
+  return d.toISOString();
+};
+
+const typeLabel = (type?: string) => {
+  if (type === "ORDER") return "Đơn hàng";
+  if (type === "PRODUCT") return "Sản phẩm";
+  return "Khác";
+};
+
+const statusLabel = (status: PromotionStatus) => {
+  switch (status) {
+    case "active":
+      return "Đang áp dụng";
+    case "inactive":
+      return "Tạm ngưng";
+    case "expired":
+      return "Hết hạn";
+    default:
+      return "Đã xóa";
+  }
+};
+
+const statusBadgeClass = (status: PromotionStatus) => {
+  switch (status) {
+    case "active":
+      return "admin-badge admin-badge-active";
+    case "inactive":
+      return "admin-badge admin-badge-inactive";
+    case "expired":
+      return "admin-badge bg-amber-100 text-amber-700 border-amber-200";
+    default:
+      return "admin-badge bg-slate-100 text-slate-600 border-slate-200";
+  }
+};
+
+const mapPromotion = (p: Promotion): PromotionRow => {
+  const rawStatus = p.status ?? p.promotionStatus;
+  return {
+    id: String(p.promotionId),
+    name: p.promotionName || p.promotionCode || `#${p.promotionId}`,
+    code: p.promotionCode ?? "",
+    type: p.promotionType,
+    discountType: p.discountType ?? "PERCENTAGE",
+    discountValue: p.discountValue ?? 0,
+    imageUrl: p.imageUrl ?? "",
+    startDate: p.startDate,
+    endDate: p.endDate,
+    status: mapStatus(rawStatus),
+  };
+};
+
+const formatMoney = (n: number) => `${formatNumber(n)} đ`;
+
+const formatPercent = (value: number) =>
+  `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(
+    value * 100,
+  )}%`;
+
+const formatDiscountValue = (
+  type: Promotion["discountType"],
+  value: number,
+) => {
+  if (type === "PERCENTAGE") return formatPercent(value);
+  return formatMoney(value);
+};
+
+const createFormState = (promotion: Promotion): PromotionFormState => ({
+  promotionName: promotion.promotionName ?? "",
+  promotionCode: promotion.promotionCode ?? "",
+  promotionType: promotion.promotionType ?? "ORDER",
+  minimumSpent: String(promotion.minimumSpent ?? 0),
+  quantity: String(promotion.quantity ?? 0),
+  discountType: promotion.discountType ?? "PERCENTAGE",
+  discountValue: String(promotion.discountValue ?? 0),
+  maxDiscountAmount: String(promotion.maxDiscountAmount ?? 0),
+  usageLimitPerUser: String(promotion.usageLimitPerUser ?? 0),
+  startDate: toLocalDateTimeInput(promotion.startDate),
+  endDate: toLocalDateTimeInput(promotion.endDate),
+  promotionStatus: promotion.promotionStatus ?? "INACTIVE",
+  imageUrl: promotion.imageUrl ?? "",
+});
 
 export default function PromotionsManagerPage() {
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [modalMode, setModalMode] = useState<ModalMode>(null);
-  const [selected, setSelected] = useState<Promotion | null>(null);
-
-  const modalWidthClass =
-    modalMode === "delete"
-      ? "max-w-sm"
-      : modalMode === "create" || modalMode === "edit"
-        ? "max-w-lg"
-        : "max-w-md";
+  const [promotions, setPromotions] = useState<PromotionRow[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewPromotion, setViewPromotion] = useState<Promotion | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editForm, setEditForm] = useState<PromotionFormState | null>(null);
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImageUploading, setEditImageUploading] = useState(false);
+  const [selectedPromotion, setSelectedPromotion] =
+    useState<PromotionRow | null>(null);
 
   useEffect(() => {
-    fetchPromotions();
+    const run = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const data = await getPromotions();
+
+        if (!Array.isArray(data)) {
+          throw new Error("Dữ liệu promotions không đúng định dạng");
+        }
+
+        const items = data
+          .filter((p) => mapStatus(p.status ?? p.promotionStatus) !== "deleted")
+          .map(mapPromotion);
+
+        setPromotions(items);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Load promotions failed";
+        setLoadError(msg);
+        toast.error(msg);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    run();
   }, []);
 
-  const fetchPromotions = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/promotion", { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Load promotions failed");
-      const normalized: Promotion[] = Array.isArray(data)
-        ? data.map((p: Promotion) => ({
-            ...p,
-            promotionStatus: p.promotionStatus ?? p.status ?? "ACTIVE",
-            status: p.status ?? p.promotionStatus ?? "ACTIVE",
-          }))
-        : [];
-
-      setPromotions(normalized);
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Không tải được danh sách";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onChange = (field: keyof FormState, value: string | number) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
-
-  const openCreate = () => {
-    setForm(emptyForm);
-    setEditingId(null);
-    setSelected(null);
-    setModalMode("create");
-  };
-
-  const handleView = (item: Promotion) => {
-    setSelected(item);
-    setModalMode("view");
-  };
-
-  const handleEdit = (item: Promotion) => {
-    setEditingId(item.promotionId);
-    setSelected(item);
-    setForm({
-      promotionCode: item.promotionCode,
-      promotionName: item.promotionName,
-      promotionType: item.promotionType,
-      discountType: item.discountType,
-      discountValue: item.discountValue,
-      minimumSpent: item.minimumSpent,
-      quantity: item.quantity,
-      maxDiscountAmount: item.maxDiscountAmount,
-      usageLimitPerUser: item.usageLimitPerUser,
-      startDate: item.startDate?.slice(0, 10),
-      endDate: item.endDate?.slice(0, 10),
-      promotionStatus: item.promotionStatus,
-      status: item.status ?? item.promotionStatus,
-      imageUrl: item.imageUrl ?? "",
-      shopId: item.shopId,
+  const filteredPromotions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return promotions;
+    return promotions.filter((promo) => {
+      return (
+        promo.name.toLowerCase().includes(q) ||
+        promo.code.toLowerCase().includes(q)
+      );
     });
-    setModalMode("edit");
-  };
+  }, [promotions, searchQuery]);
 
-  const handleDelete = (item: Promotion) => {
-    setSelected(item);
-    setModalMode("delete");
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!selected) return;
-    setSaving(true);
+  const handleView = async (promotion: PromotionRow) => {
+    setViewDialogOpen(true);
+    setViewLoading(true);
+    setViewPromotion(null);
     try {
-      const res = await fetch(`/api/promotion/${selected.promotionId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.message || "Xóa thất bại");
-      }
+      const data = await getPromotionById(promotion.id);
+      setViewPromotion(data);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Load promotion failed";
+      toast.error(msg);
+      setViewDialogOpen(false);
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  const handleEdit = async (promotion: PromotionRow) => {
+    setSelectedPromotion(promotion);
+    setEditDialogOpen(true);
+    setEditLoading(true);
+    setEditForm(null);
+    setEditImageFile(null);
+    try {
+      const data = await getPromotionById(promotion.id);
+      setEditForm(createFormState(data));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Load promotion failed";
+      toast.error(msg);
+      setEditDialogOpen(false);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDelete = (promotion: PromotionRow) => {
+    setSelectedPromotion(promotion);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedPromotion) return;
+
+    try {
+      await deletePromotionById(selectedPromotion.id);
+
       setPromotions((prev) =>
-        prev.filter((p) => p.promotionId !== selected.promotionId),
+        prev.filter((p) => p.id !== selectedPromotion.id),
       );
-      closeModal();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Xóa thất bại";
-      setError(msg);
+      toast.success(`Đã xóa khuyến mãi "${selectedPromotion.name}"`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Delete promotion failed";
+      toast.error(msg);
     } finally {
-      setSaving(false);
+      setDeleteDialogOpen(false);
+      setSelectedPromotion(null);
     }
   };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
+  const handleCreate = () => {
+    toast.info("Chưa hỗ trợ tạo mới khuyến mãi");
+  };
+  const handleUpdate = async () => {
+    if (!selectedPromotion || !editForm) return;
+    setEditSaving(true);
     try {
-      const payload = buildPayloadForApi(form, selected, editingId);
-
-      const res = await fetch(
-        editingId ? `/api/promotion/${editingId}` : "/api/promotion",
-        {
-          method: editingId ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Lưu thất bại");
-
-      if (editingId) {
-        setPromotions((prev) =>
-          prev.map((p) => (p.promotionId === editingId ? data : p)),
-        );
-      } else {
-        setPromotions((prev) => [data, ...prev]);
+      let uploadedImageUrl = editForm.imageUrl.trim() || undefined;
+      if (editImageFile) {
+        setEditImageUploading(true);
+        try {
+          const uploadRes = await uploadPromotionImage(
+            selectedPromotion.id,
+            editImageFile,
+          );
+          const imageUrl =
+            uploadRes &&
+            typeof uploadRes === "object" &&
+            "imageUrl" in uploadRes
+              ? uploadRes.imageUrl
+              : (uploadRes as Promotion | null)?.imageUrl;
+          if (imageUrl) {
+            uploadedImageUrl = imageUrl;
+            setEditForm((prev) => (prev ? { ...prev, imageUrl } : prev));
+          }
+          setEditImageFile(null);
+        } finally {
+          setEditImageUploading(false);
+        }
       }
-      closeModal();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Lưu thất bại";
-      setError(msg);
+
+      const payload = {
+        promotionName: editForm.promotionName.trim(),
+        promotionCode: editForm.promotionCode.trim(),
+        promotionType: editForm.promotionType,
+        minimumSpent: Number(editForm.minimumSpent) || 0,
+        quantity: Number(editForm.quantity) || 0,
+        discountType: editForm.discountType,
+        discountValue: Number(editForm.discountValue) || 0,
+        maxDiscountAmount: Number(editForm.maxDiscountAmount) || 0,
+        usageLimitPerUser: Number(editForm.usageLimitPerUser) || 0,
+        startDate: toIsoOrUndefined(editForm.startDate),
+        endDate: toIsoOrUndefined(editForm.endDate),
+        promotionStatus: editForm.promotionStatus,
+        imageUrl: uploadedImageUrl,
+      };
+
+      const data = await updatePromotionById(selectedPromotion.id, payload);
+
+      const updatedRow = mapPromotion(data);
+      setPromotions((prev) =>
+        prev.map((p) => (p.id === updatedRow.id ? updatedRow : p)),
+      );
+      toast.success(`Đã cập nhật khuyến mãi "${updatedRow.name}"`);
+      setEditDialogOpen(false);
+      setSelectedPromotion(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Update promotion failed";
+      toast.error(msg);
     } finally {
-      setSaving(false);
+      setEditSaving(false);
     }
   };
 
-  const closeModal = () => {
-    setModalMode(null);
-    setSelected(null);
-    setEditingId(null);
-    setForm(emptyForm);
-  };
-
-  const buildPayloadForApi = (
-    data: FormState,
-    currentSelected: Promotion | null,
-    currentEditingId: number | null,
-  ) => {
-    const toIso = (v?: string) =>
-      v && v.trim() ? new Date(v).toISOString() : undefined;
-
-    const status =
-      data.status ||
-      data.promotionStatus ||
-      currentSelected?.status ||
-      "ACTIVE";
-
-    const shopId = data.shopId ?? currentSelected?.shopId ?? 1;
-
-    return {
-      promotionName: data.promotionName ?? "",
-      promotionCode: data.promotionCode ?? "",
-      promotionType: data.promotionType ?? "ORDER",
-      minimumSpent: Number(data.minimumSpent ?? 0),
-      quantity: Number(data.quantity ?? 0),
-      imageUrl: data.imageUrl ?? "",
-      discountType: data.discountType ?? "PERCENTAGE",
-      discountValue: Number(data.discountValue ?? 0),
-      maxDiscountAmount: Number(data.maxDiscountAmount ?? 0),
-      usageLimitPerUser: Number(data.usageLimitPerUser ?? 0),
-      status,
-      startDate: toIso(data.startDate),
-      endDate: toIso(data.endDate),
-      shopId,
-      // giữ nguyên các field BE không yêu cầu sẽ bị bỏ qua
-      promotionId: currentEditingId ?? undefined,
-    };
-  };
+  const activeCount = promotions.filter((p) => p.status === "active").length;
+  const inactiveCount = promotions.filter(
+    (p) => p.status === "inactive",
+  ).length;
+  const expiredCount = promotions.filter((p) => p.status === "expired").length;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Quản lý khuyến mãi
-          </h1>
-        </div>
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#876F60] rounded-lg shadow hover:bg-[#876F60] transition"
-        >
-          <Plus className="w-4 h-4" />
-          Thêm mới
-        </button>
-      </div>
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
-          {error}
-        </div>
-      )}
-
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Danh sách khuyến mãi
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-gradient-to-r from-[#c3b3a9] to-[#c3b3a9]">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
-                  Mã
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
-                  Hình
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
-                  Tên
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
-                  Loại
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
-                  Trạng thái
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
-                  Giá trị
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
-                  Thời gian
-                </th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-800 uppercase text-[11px] tracking-wide">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {promotions.map((item) => (
-                <tr key={item.promotionId} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-semibold text-slate-900">
-                    {item.promotionCode}
-                  </td>
-                  <td className="px-4 py-3">
-                    <PromoImageCell
-                      url={item.imageUrl}
-                      alt={item.promotionName}
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-slate-900 font-semibold">
-                    {item.promotionName}
-                  </td>
-                  <td className="px-4 py-3 text-[#693916] font-medium">
-                    {item.promotionType}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ring-1 ${
-                        item.promotionStatus === "ACTIVE"
-                          ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                          : "bg-slate-100 text-slate-700 ring-slate-200"
-                      }`}
-                    >
-                      {item.promotionStatus}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-[#693916] font-medium">
-                    {item.discountType === "PERCENTAGE"
-                      ? `${item.discountValue}%`
-                      : `${item.discountValue.toLocaleString()}đ`}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {item.startDate?.slice(0, 10)} →{" "}
-                    {item.endDate?.slice(0, 10)}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <div className="inline-flex items-center gap-2">
-                      <button
-                        onClick={() => handleView(item)}
-                        className="p-2 rounded-md border border-[#876F60] bg-white text-[#693916] hover:bg-amber-50 hover:shadow transition"
-                        aria-label="Xem"
-                      >
-                        <Eye className="w-4 h-4 text-gray-700" />
-                      </button>
-                      <button
-                        onClick={() => handleEdit(item)}
-                        className="p-2 rounded-md border border-[#876F60] bg-white text-[#693916] hover:bg-amber-50 hover:shadow transition"
-                        aria-label="Chỉnh sửa"
-                      >
-                        <Pencil className="w-4 h-4 text-[#693916]" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item)}
-                        className="p-2 rounded-md border border-red-200 text-red-600 bg-white hover:bg-red-50 hover:shadow transition"
-                        aria-label="Xóa"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!promotions.length && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-4 py-6 text-center text-gray-500 text-sm"
-                  >
-                    {loading ? "Đang tải..." : "Chưa có khuyến mãi"}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {modalMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div
-            className={`w-full ${modalWidthClass} max-h-[80vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden`}
+    <>
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Khuyến mãi</h1>
+            <p className="text-muted-foreground mt-1">
+              Quản lý các chương trình khuyến mãi của quán
+            </p>
+          </div>
+          <Button
+            onClick={handleCreate}
+            className="bg-primary hover:bg-primary/90"
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {modalMode === "view"
-                  ? "Xem khuyến mãi"
-                  : modalMode === "edit"
-                    ? "Chỉnh sửa khuyến mãi"
-                    : modalMode === "delete"
-                      ? "Xóa khuyến mãi"
-                      : "Thêm khuyến mãi"}
-              </h3>
-              <button
-                className="p-2 rounded-full hover:bg-gray-100"
-                onClick={closeModal}
-              >
-                <X className="w-4 h-4" />
-              </button>
+            <Plus className="w-4 h-4 mr-2" />
+            Thêm danh mục
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Tag className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{promotions.length}</p>
+                <p className="text-sm text-muted-foreground">Tổng khuyến mãi</p>
+              </div>
             </div>
+          </div>
 
-            <div className="overflow-y-auto">
-              {modalMode === "view" && selected && (
-                <>
-                  <div className="px-5 pt-4">
-                    <PromotionHeroImage
-                      url={selected.imageUrl}
-                      alt={selected.promotionName}
-                    />
-                  </div>
-                  <div className="px-5 pb-4 grid sm:grid-cols-2 gap-4 text-sm text-gray-800">
-                    <Detail label="Mã" value={selected.promotionCode} />
-                    <Detail label="Tên" value={selected.promotionName} />
-                    <Detail label="Loại" value={selected.promotionType} />
-                    <Detail
-                      label="Trạng thái"
-                      value={selected.promotionStatus}
-                    />
-                    <Detail
-                      label="Giá trị"
-                      value={
-                        selected.discountType === "PERCENTAGE"
-                          ? `${selected.discountValue}%`
-                          : `${selected.discountValue.toLocaleString()}đ`
-                      }
-                    />
-                    <Detail
-                      label="Giảm tối đa"
-                      value={`${selected.maxDiscountAmount.toLocaleString()}đ`}
-                    />
-                    <Detail
-                      label="Tối thiểu đơn"
-                      value={`${selected.minimumSpent.toLocaleString()}đ`}
-                    />
-                    <Detail label="Số lượng" value={selected.quantity} />
-                    <Detail
-                      label="Giới hạn / user"
-                      value={selected.usageLimitPerUser}
-                    />
-                    <Detail
-                      label="Thời gian"
-                      value={`${selected.startDate?.slice(0, 10)} → ${selected.endDate?.slice(0, 10)}`}
-                    />
-                  </div>
-                </>
-              )}
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4 ">
+              <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
+                <Tag className="w-6 h-6 text-success" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{activeCount}</p>
+                <p className="text-sm text-muted-foreground">Đang áp dụng</p>
+              </div>
+            </div>
+          </div>
 
-              {(modalMode === "create" || modalMode === "edit") && (
-                <form
-                  onSubmit={handleSubmit}
-                  className="px-5 py-4 grid md:grid-cols-2 gap-4"
-                >
-                  <Input
-                    label="Mã KM"
-                    required
-                    value={form.promotionCode}
-                    onChange={(e) => onChange("promotionCode", e.target.value)}
-                  />
-                  <Input
-                    label="Tên KM"
-                    required
-                    value={form.promotionName}
-                    onChange={(e) => onChange("promotionName", e.target.value)}
-                  />
-                  <Select
-                    label="Loại KM"
-                    value={form.promotionType}
-                    onChange={(e) => onChange("promotionType", e.target.value)}
-                    options={[
-                      { value: "ORDER", label: "Theo đơn hàng" },
-                      { value: "PRODUCT", label: "Theo sản phẩm" },
-                    ]}
-                  />
-                  <Select
-                    label="Trạng thái"
-                    value={form.promotionStatus}
-                    onChange={(e) =>
-                      onChange("promotionStatus", e.target.value)
-                    }
-                    options={[
-                      { value: "ACTIVE", label: "ACTIVE" },
-                      { value: "INACTIVE", label: "INACTIVE" },
-                    ]}
-                  />
-                  <Select
-                    label="Kiểu giảm"
-                    value={form.discountType}
-                    onChange={(e) => onChange("discountType", e.target.value)}
-                    options={[
-                      { value: "PERCENTAGE", label: "% Phần trăm" },
-                      { value: "FIXED_AMOUNT", label: "Số tiền cố định" },
-                    ]}
-                  />
-                  <NumberInput
-                    label="Giá trị giảm"
-                    value={form.discountValue}
-                    step={0.01}
-                    onChange={(v) => onChange("discountValue", v)}
-                  />
-                  <Input
-                    label="Ảnh (imageUrl)"
-                    value={form.imageUrl}
-                    onChange={(e) => onChange("imageUrl", e.target.value)}
-                    placeholder="https://..."
-                  />
-                  <NumberInput
-                    label="Giảm tối đa"
-                    value={form.maxDiscountAmount}
-                    step={0.01}
-                    onChange={(v) => onChange("maxDiscountAmount", v)}
-                  />
-                  <NumberInput
-                    label="Tối thiểu đơn"
-                    value={form.minimumSpent}
-                    onChange={(v) => onChange("minimumSpent", v)}
-                  />
-                  <NumberInput
-                    label="Số lượng"
-                    value={form.quantity}
-                    onChange={(v) => onChange("quantity", v)}
-                  />
-                  <NumberInput
-                    label="Giới hạn / user"
-                    value={form.usageLimitPerUser}
-                    onChange={(v) => onChange("usageLimitPerUser", v)}
-                  />
-                  <NumberInput
-                    label="Shop ID"
-                    value={form.shopId}
-                    onChange={(v) => onChange("shopId", v)}
-                  />
-                  <Input
-                    label="Ngày bắt đầu"
-                    type="date"
-                    value={form.startDate}
-                    required
-                    onChange={(e) => onChange("startDate", e.target.value)}
-                  />
-                  <Input
-                    label="Ngày kết thúc"
-                    type="date"
-                    value={form.endDate}
-                    required
-                    onChange={(e) => onChange("endDate", e.target.value)}
-                  />
-
-                  <div className="md:col-span-2 flex justify-end gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition"
-                      disabled={saving}
-                    >
-                      Hủy
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-[#876F60] hover:bg-[#876F60] transition disabled:opacity-60"
-                      disabled={saving}
-                    >
-                      {saving
-                        ? "Đang lưu..."
-                        : editingId
-                          ? "Cập nhật"
-                          : "Thêm mới"}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {modalMode === "delete" && selected && (
-                <div className="px-5 py-5 space-y-4">
-                  <p className="text-sm text-gray-800">
-                    Bạn chắc chắn muốn xóa khuyến mãi{" "}
-                    <strong>{selected.promotionName}</strong>?
-                  </p>
-                  <div className="flex justify-end gap-3">
-                    <button
-                      className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition"
-                      onClick={closeModal}
-                      disabled={saving}
-                    >
-                      Hủy
-                    </button>
-                    <button
-                      className="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-60"
-                      onClick={handleConfirmDelete}
-                      disabled={saving}
-                    >
-                      Xóa
-                    </button>
-                  </div>
-                </div>
-              )}
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4 ">
+              <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
+                <Tag className="w-6 h-6 text-accent" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{inactiveCount}</p>
+                <p className="text-sm text-muted-foreground">Tạm ngưng</p>
+              </div>
+            </div>
+          </div>
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+                <Tag className="w-6 h-6 text-destructive" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{expiredCount}</p>
+                <p className="text-sm text-muted-foreground">Hết hạn</p>
+              </div>
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
 
-function PromoImageCell({ url, alt }: { url?: string | null; alt: string }) {
-  const src = canUseImage(url) ? (url as string) : FALLBACK_IMAGE;
+        <div className="admin-card">
+          <div className="p-4 border-b border-border">
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm kiếm theo tên hoặc mã..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-background"
+              />
+            </div>
+          </div>
 
-  return (
-    <div className="relative h-12 w-12 overflow-hidden rounded-md bg-gray-100 border border-gray-200">
-      <Image src={src} alt={alt} fill className="object-cover" sizes="48px" />
-    </div>
-  );
-}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="font-semibold">
+                    Tên khuyến mãi
+                  </TableHead>
+                  <TableHead className="font-semibold text-center">
+                    Ảnh
+                  </TableHead>
+                  <TableHead className="font-semibold">Mã</TableHead>
+                  <TableHead className="font-semibold text-center">
+                    Loại Áp dụng
+                  </TableHead>
 
-function PromotionHeroImage({
-  url,
-  alt,
-}: {
-  url?: string | null;
-  alt: string;
-}) {
-  const src = canUseImage(url) ? (url as string) : FALLBACK_IMAGE;
+                  <TableHead className="font-semibold text-center">
+                    Giá trị giảm
+                  </TableHead>
+                  <TableHead className="font-semibold">Ngày bắt đầu</TableHead>
+                  <TableHead className="font-semibold">Ngày kết thúc</TableHead>
+                  <TableHead className="font-semibold text-center">
+                    Trạng thái
+                  </TableHead>
+                  <TableHead className="font-semibold text-right">
+                    Thao tác
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
 
-  return (
-    <div className="relative w-full aspect-[16/9] overflow-hidden rounded-xl bg-gray-100 border border-gray-200">
-      <Image
-        src={src}
-        alt={alt}
-        fill
-        className="object-cover"
-        sizes="(max-width: 768px) 100vw, 560px"
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={9}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      Đang tải khuyến mãi...
+                    </TableCell>
+                  </TableRow>
+                ) : loadError ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={9}
+                      className="text-center py-10 text-destructive"
+                    >
+                      {loadError}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredPromotions.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={9}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      Không tìm thấy khuyến mãi nào
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredPromotions.map((promotion) => (
+                    <TableRow key={promotion.id} className="admin-table-row">
+                      <TableCell className="font-medium">
+                        {promotion.name}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {promotion.imageUrl ? (
+                          <img
+                            src={promotion.imageUrl}
+                            alt={promotion.name}
+                            className="h-10 w-10 rounded-md object-cover mx-auto"
+                            loading="lazy"
+                          />
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {promotion.code}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {typeLabel(promotion.type)}
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        {formatDiscountValue(
+                          promotion.discountType,
+                          promotion.discountValue,
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDateOnly(promotion.startDate)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDateOnly(promotion.endDate)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className={statusBadgeClass(promotion.status)}>
+                          {statusLabel(promotion.status)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleView(promotion)}
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(promotion)}
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(promotion)}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </div>
+
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={confirmDelete}
+        itemName={selectedPromotion?.name || ""}
+        title="Xác nhận xóa khuyến mãi"
+        description={
+          selectedPromotion?.name
+            ? `Bạn có chắc chắn muốn xóa khuyến mãi "${selectedPromotion.name}"? Hành động này không thể hoàn tác.`
+            : "Bạn có chắc chắn muốn xóa khuyến mãi này? Hành động này không thể hoàn tác."
+        }
+        confirmLabel="Xóa khuyến mãi"
       />
-    </div>
-  );
-}
 
-function Input({
-  label,
-  ...rest
-}: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
-  return (
-    <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-800">{label}</label>
-      <input
-        {...rest}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#876F60] focus:ring-[#876F60]"
-      />
-    </div>
-  );
-}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Chi tiết khuyến mãi</DialogTitle>
+          </DialogHeader>
 
-function Select({
-  label,
-  options,
-  ...rest
-}: {
-  label: string;
-  options: { value: string; label: string }[];
-} & React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-800">{label}</label>
-      <select
-        {...rest}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#876F60] focus:ring-[#876F60]"
-      >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
+          {viewLoading || !viewPromotion ? (
+            <div className="text-sm text-muted-foreground">
+              Đang tải dữ liệu khuyến mãi...
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              <div className="flex items-start gap-4">
+                {viewPromotion.imageUrl ? (
+                  <img
+                    src={viewPromotion.imageUrl}
+                    alt={viewPromotion.promotionName}
+                    className="h-20 w-20 rounded-lg object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="h-20 w-20 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+                    —
+                  </div>
+                )}
+                <div className="grid gap-1">
+                  <p className="text-lg font-semibold">
+                    {viewPromotion.promotionName || viewPromotion.promotionCode}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Mã: {viewPromotion.promotionCode || "—"}
+                  </p>
+                </div>
+              </div>
 
-function NumberInput({
-  label,
-  value,
-  onChange,
-  step,
-}: {
-  label: string;
-  value?: number;
-  step?: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-800">{label}</label>
-      <input
-        type="number"
-        min={0}
-        step={step ?? 1}
-        value={value ?? 0}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#876F60] focus:ring-[#876F60]"
-      />
-    </div>
-  );
-}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Loại áp dụng</p>
+                  <p className="font-medium">
+                    {typeLabel(viewPromotion.promotionType)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Kiểu giảm giá</p>
+                  <p className="font-medium">
+                    {viewPromotion.discountType === "PERCENTAGE"
+                      ? "Phần trăm"
+                      : "Giá trị cố định"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Trạng thái</p>
+                  <p className="font-medium">
+                    {statusLabel(
+                      mapStatus(
+                        viewPromotion.status ?? viewPromotion.promotionStatus,
+                      ),
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Giá trị giảm</p>
+                  <p className="font-medium">
+                    {formatDiscountValue(
+                      viewPromotion.discountType,
+                      viewPromotion.discountValue,
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Giảm tối đa</p>
+                  <p className="font-medium">
+                    {formatMoney(viewPromotion.maxDiscountAmount || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Giá trị đơn tối thiểu
+                  </p>
+                  <p className="font-medium">
+                    {formatMoney(viewPromotion.minimumSpent || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Số lượng</p>
+                  <p className="font-medium">
+                    {formatNumber(viewPromotion.quantity || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Giới hạn / khách
+                  </p>
+                  <p className="font-medium">
+                    {formatNumber(viewPromotion.usageLimitPerUser || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Ngày bắt đầu</p>
+                  <p className="font-medium">
+                    {formatDateOnly(viewPromotion.startDate)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Ngày kết thúc</p>
+                  <p className="font-medium">
+                    {formatDateOnly(viewPromotion.endDate)}
+                  </p>
+                </div>
 
-function Detail({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="text-sm font-semibold text-gray-900">{value ?? "—"}</p>
-    </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Ngày tạo</p>
+                  <p className="font-medium">
+                    {formatDateTime(viewPromotion.createdDate)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Cập nhật lúc</p>
+                  <p className="font-medium">
+                    {formatDateTime(viewPromotion.updatedDate)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setViewDialogOpen(false)}>
+              Đóng
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Chỉnh sửa khuyến mãi</DialogTitle>
+          </DialogHeader>
+
+          {editLoading || !editForm ? (
+            <div className="text-sm text-muted-foreground">
+              Đang tải dữ liệu khuyến mãi...
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Tên khuyến mãi</label>
+                <Input
+                  value={editForm.promotionName}
+                  onChange={(e) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, promotionName: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Mã khuyến mãi</label>
+                <Input
+                  value={editForm.promotionCode}
+                  onChange={(e) =>
+                    setEditForm((prev) =>
+                      prev ? { ...prev, promotionCode: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Loại áp dụng</label>
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={editForm.promotionType}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              promotionType: e.target
+                                .value as Promotion["promotionType"],
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    <option value="ORDER">Đơn hàng</option>
+                    <option value="PRODUCT">Sản phẩm</option>
+                  </select>
+                </div>
+
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Trạng thái</label>
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={editForm.promotionStatus}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              promotionStatus: e.target
+                                .value as Promotion["promotionStatus"],
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    <option value="ACTIVE">Đang áp dụng</option>
+                    <option value="INACTIVE">Tạm ngưng</option>
+                    <option value="EXPIRED">Hết hạn</option>
+                    <option value="DELETED">Đã xóa</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Giá trị đơn tối thiểu
+                  </label>
+                  <Input
+                    type="number"
+                    value={editForm.minimumSpent}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, minimumSpent: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Số lượng</label>
+                  <Input
+                    type="number"
+                    value={editForm.quantity}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, quantity: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Kiểu giảm giá</label>
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={editForm.discountType}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              discountType: e.target
+                                .value as Promotion["discountType"],
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    <option value="PERCENTAGE">Phần trăm</option>
+                    <option value="FIXED_AMOUNT">Giá trị cố định</option>
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Giá trị giảm</label>
+                  <Input
+                    type="number"
+                    value={editForm.discountValue}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev
+                          ? { ...prev, discountValue: e.target.value }
+                          : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Giảm tối đa</label>
+                  <Input
+                    type="number"
+                    value={editForm.maxDiscountAmount}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev
+                          ? { ...prev, maxDiscountAmount: e.target.value }
+                          : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Giới hạn / khách
+                  </label>
+                  <Input
+                    type="number"
+                    value={editForm.usageLimitPerUser}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev
+                          ? { ...prev, usageLimitPerUser: e.target.value }
+                          : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Ngày bắt đầu</label>
+                  <Input
+                    type="datetime-local"
+                    value={editForm.startDate}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, startDate: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Ngày kết thúc</label>
+                  <Input
+                    type="datetime-local"
+                    value={editForm.endDate}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, endDate: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Tải ảnh mới</label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    setEditImageFile(e.target.files?.[0] ?? null)
+                  }
+                />
+                {editImageFile ? (
+                  <p className="text-xs text-muted-foreground">
+                    Đã chọn: {editImageFile.name}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setEditDialogOpen(false)}
+              disabled={editSaving || editImageUploading}
+            >
+              Hủy
+            </Button>
+            <Button
+              onClick={handleUpdate}
+              disabled={editSaving || editLoading || editImageUploading}
+            >
+              {editImageUploading
+                ? "Đang tải ảnh..."
+                : editSaving
+                  ? "Đang lưu..."
+                  : "Lưu thay đổi"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

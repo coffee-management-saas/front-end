@@ -1,4 +1,4 @@
-import {
+﻿import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -13,24 +13,38 @@ interface DeleteConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
-  categoryName: string;
+  itemName?: string;
+  categoryName?: string;
+  title?: string;
+  description?: string;
+  confirmLabel?: string;
 }
 
 export function DeleteConfirmDialog({
   open,
   onOpenChange,
   onConfirm,
+  itemName,
   categoryName,
+  title,
+  description,
+  confirmLabel,
 }: DeleteConfirmDialogProps) {
+  const resolvedItemName = itemName ?? categoryName;
+  const resolvedTitle = title ?? "Xác nhận xóa";
+  const resolvedDescription =
+    description ??
+    `Bạn có chắc chắn muốn xóa${
+      resolvedItemName ? ` "${resolvedItemName}"` : ""
+    }? Hành động này không thể hoàn tác.`;
+  const resolvedConfirmLabel = confirmLabel ?? "Xóa";
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="bg-card">
         <AlertDialogHeader>
-          <AlertDialogTitle>Xác nhận xóa danh mục</AlertDialogTitle>
-          <AlertDialogDescription>
-            Bạn có chắc chắn muốn xóa danh mục? Hành động này không thể hoàn tác
-            và sẽ ảnh hưởng đến các sản phẩm trong danh mục này.
-          </AlertDialogDescription>
+          <AlertDialogTitle>{resolvedTitle}</AlertDialogTitle>
+          <AlertDialogDescription>{resolvedDescription}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Hủy</AlertDialogCancel>
@@ -38,7 +52,7 @@ export function DeleteConfirmDialog({
             onClick={onConfirm}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            Xóa danh mục
+            {resolvedConfirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
