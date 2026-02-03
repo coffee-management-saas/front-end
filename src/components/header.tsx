@@ -2,7 +2,6 @@
 
 import {
   Search,
-  ShoppingCart,
   User,
   ShoppingBag,
   Heart,
@@ -27,7 +26,6 @@ import { Button } from "@/components/ui/button";
 import { ProductCategoriesResponse, ProductCategory } from "@/types/catagories";
 
 export default function PhucLongHeader() {
-  const [cart] = useState(2);
   const [searchQuery, setSearchQuery] = useState("");
 
   // ✅ categories state
@@ -231,15 +229,6 @@ export default function PhucLongHeader() {
                 </Button>
               </div>
             )}
-
-            <button className="relative p-2 hover:bg-gray-100 rounded-full transition">
-              <ShoppingCart className="w-6 h-6 text-[#693916]" />
-              {cart > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-medium">
-                  {cart}
-                </span>
-              )}
-            </button>
           </div>
         </div>
       </div>

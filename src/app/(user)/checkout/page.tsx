@@ -1,10 +1,12 @@
 "use client";
-
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { OrderResponse } from "@/types/order";
+import { getOrderById } from "@/services/order.service";
 import {
   ArrowRight,
+  ArrowLeft,
   Clock3,
   Coffee,
   Gift,
@@ -15,6 +17,8 @@ import {
   Trash2,
   Truck,
   MapPin,
+  TicketPercent,
+  CheckCircle2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,103 +29,27 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useCart } from "@/contexts/CartContext";
+import type { Promotion } from "@/types/promotion";
+import { useAppContext } from "@/app/AppProvider";
+import { getMyProfile, updateMyProfile } from "@/services/profile.service";
+import { toast } from "sonner";
+import { createOrder } from "@/services/order.service";
+import type { CreateOrderRequest } from "@/types/order";
 
 type DeliveryMethod = "delivery" | "pickup";
-
-type CartItem = {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  image: string;
-  quantity: number;
-  size: "S" | "M" | "L";
-  ice: string;
-  sugar: string;
-  tags?: string[];
-  note?: string;
-};
-
-type Suggestion = {
-  id: number;
-  name: string;
-  price: number;
-  image: string;
-  accent?: string;
-};
-
-const INITIAL_ITEMS: CartItem[] = [
-  {
-    id: 1,
-    name: "Cold Brew Cam Sành",
-    description: "Ủ lạnh 18h, mix cam sành tươi, vị chua ngọt cân bằng",
-    price: 58000,
-    image:
-      "https://i.pinimg.com/736x/5e/fe/ef/5efeefde66fb51a9c3cf727336312d5d.jpg",
-    quantity: 1,
-    size: "M",
-    ice: "70%",
-    sugar: "50%",
-    tags: ["Best seller", "Fresh"],
-    note: "Để riêng đá",
-  },
-  {
-    id: 2,
-    name: "Trà Ô Long Sữa Rang",
-    description: "Ô long rang, kem sữa mượt, topping trân châu đen",
-    price: 52000,
-    image:
-      "https://i.pinimg.com/736x/51/c6/07/51c6075b5b11f4e0cafc153d698fbe8e.jpg",
-    quantity: 2,
-    size: "L",
-    ice: "50%",
-    sugar: "30%",
-    tags: ["Ít đường"],
-  },
-  {
-    id: 3,
-    name: "Bánh Mousse Matcha",
-    description: "Mousse vị matcha, đế chocolate, ngọt nhẹ",
-    price: 45000,
-    image:
-      "https://i.pinimg.com/736x/64/d7/2e/64d72e14084b39358fad5c4354c4f05f.jpg",
-    quantity: 1,
-    size: "M",
-    ice: "0%",
-    sugar: "100%",
-    tags: ["Ăn kèm"],
-  },
-];
-
-const SUGGESTIONS: Suggestion[] = [
-  {
-    id: 101,
-    name: "Trà Đào Cam Sả",
-    price: 49000,
-    image:
-      "https://i.pinimg.com/1200x/4a/ad/3a/4aad3ab445759dc77d1d0f47818411a6.jpg",
-    accent: "Mát lạnh",
-  },
-  {
-    id: 102,
-    name: "Cheesecake Caramel",
-    price: 39000,
-    image:
-      "https://i.pinimg.com/736x/95/49/0c/95490c7ff1918c006114347b834d6faf.jpg",
-    accent: "Thêm ngọt",
-  },
-  {
-    id: 103,
-    name: "Hạt điều rang bơ",
-    price: 35000,
-    image:
-      "https://i.pinimg.com/736x/4a/0a/0f/4a0a0f55f41ea855c05605765c71be32.jpg",
-    accent: "Ăn vặt",
-  },
-];
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("vi-VN", {
@@ -136,127 +64,305 @@ const STEP_ITEMS = [
   { title: "Hoàn tất", caption: "Xác nhận & nhận hóa đơn" },
 ];
 
-export default function CheckoutPage() {
-  const [items, setItems] = useState<CartItem[]>(INITIAL_ITEMS);
-  const [deliveryMethod, setDeliveryMethod] =
-    useState<DeliveryMethod>("delivery");
-  const [voucherCode, setVoucherCode] = useState("WELCOME10");
-  const [appliedVoucher, setAppliedVoucher] = useState<string | null>(
-    "WELCOME10",
-  );
+const CheckoutContent = () => {
+  const router = useRouter();
+  const { items, updateQuantity, removeItem, totalPrice, clearCart } = useCart();
+  const { accessToken } = useAppContext();
+
+  const [currentStep, setCurrentStep] = useState(0);
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("delivery");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "momo">("cash");
+  const [voucherCode, setVoucherCode] = useState("");
+  const [appliedVoucher, setAppliedVoucher] = useState<Promotion | null>(null);
   const [note, setNote] = useState("");
+  const [address, setAddress] = useState("");
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
+  const [successOrder, setSuccessOrder] = useState<OrderResponse | null>(null);
+
+  useEffect(() => {
+    if (accessToken) {
+      const fetchProfile = async () => {
+        setIsLoadingProfile(true);
+        try {
+          const profile = await getMyProfile(accessToken);
+          if (profile.address) {
+            setAddress(profile.address);
+          }
+        } catch (error) {
+          console.error("Failed to load profile", error);
+        } finally {
+          setIsLoadingProfile(false);
+        }
+      };
+      fetchProfile();
+    }
+  }, [accessToken]);
+
+  const searchParams = useSearchParams();
+  const [paymentStatus, setPaymentStatus] = useState<"success" | "failed" | null>(null);
+
+  useEffect(() => {
+    const resultCode = searchParams.get("resultCode");
+    const orderId = searchParams.get("orderId");
+    const message = searchParams.get("message");
+
+    if (resultCode !== null) {
+      if (resultCode === "0") {
+        setPaymentStatus("success");
+        setCurrentStep(2);
+        if (orderId && accessToken) {
+          getOrderById(accessToken, Number(orderId))
+            .then(order => {
+              setSuccessOrder(order);
+              setCreatedOrderId(order.orderId);
+            })
+            .catch(err => console.error("Failed to fetch momo order details", err));
+        }
+
+        toast.success("Thanh toán MoMo thành công!");
+        clearCart();
+      } else {
+        setPaymentStatus("failed");
+        toast.error(`Thanh toán thất bại: ${message}`);
+      }
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [searchParams, clearCart]);
+
+  const [isUpdatingAddress, setIsUpdatingAddress] = useState(false);
+
+  const handleUpdateAddress = async () => {
+    if (!accessToken) return;
+    if (!address.trim()) {
+      toast.error("Vui lòng nhập địa chỉ");
+      return;
+    }
+
+    try {
+      setIsUpdatingAddress(true);
+      await updateMyProfile(accessToken, { address: address });
+      toast.success("Đã cập nhật địa chỉ thành công!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Cập nhật địa chỉ thất bại");
+    } finally {
+      setIsUpdatingAddress(false);
+    }
+  };
+
+  const handlePlaceOrder = async () => {
+    if (items.length === 0) {
+      toast.error("Giỏ hàng đang trống");
+      return;
+    }
+
+    setIsPlacingOrder(true);
+    try {
+      const payload: CreateOrderRequest = {
+        orderType: "ONLINE",
+        orderItems: items.map((item) => ({
+          productVariantId: item.variantId,
+          quantity: item.quantity,
+          toppingItems: item.toppings.map((t) => ({
+            toppingId: t.id,
+            quantity: t.quantity,
+          })),
+        })),
+        promotionCode: appliedVoucher?.promotionCode,
+        paymentGateway: paymentMethod.toUpperCase(),
+        returnUrl: window.location.href,
+      };
+
+      if (!accessToken) {
+        toast.error("Vui lòng đăng nhập để đặt hàng");
+        return;
+      }
+
+      const res = await createOrder(accessToken, payload);
+
+      setCreatedOrderId(res.orderId);
+      setSuccessOrder(res); // Save for success step
+
+      if (paymentMethod === "momo" && res.payUrl) {
+        window.location.href = res.payUrl;
+        return; // Stop execution to wait for redirect
+      }
+
+      toast.success("Đặt hàng thành công!");
+      clearCart();
+
+      // If just cash or no payUrl, just show success
+      setCurrentStep(2);
+      window.scrollTo(0, 0);
+
+    } catch (error) {
+      console.error("Checkout Error:", error);
+      toast.error(error instanceof Error ? error.message : "Đặt hàng thất bại");
+    } finally {
+      setIsPlacingOrder(false);
+    }
+  };
+
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [tempSelectedVoucher, setTempSelectedVoucher] = useState<Promotion | null>(null);
+  const [isPromoDialogOpen, setIsPromoDialogOpen] = useState(false);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
   const freeShipThreshold = 150_000;
 
-  const totals = useMemo(() => {
-    const subtotal = items.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0,
-    );
+  useEffect(() => {
+    const controller = new AbortController();
 
+    const fetchPromotions = async () => {
+      try {
+        setPromoLoading(true);
+        setPromoError(null);
+
+        const res = await fetch("/api/promotion", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          credentials: "same-origin",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        const text = await res.text();
+        const payload: unknown = text ? JSON.parse(text) : null;
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch promotions");
+        }
+
+        if (!Array.isArray(payload)) {
+          throw new Error("Invalid promotions format");
+        }
+
+        setPromotions(payload as Promotion[]);
+      } catch (e: unknown) {
+        const isAbortError = e instanceof DOMException && e.name === "AbortError";
+        if (isAbortError) return;
+
+        setPromoError(e instanceof Error ? e.message : String(e));
+        setPromotions([]);
+      } finally {
+        setPromoLoading(false);
+      }
+    };
+
+    fetchPromotions();
+    return () => controller.abort();
+  }, []);
+
+  const totals = useMemo(() => {
+    const subtotal = totalPrice;
     const shipping = deliveryMethod === "delivery" ? 15000 : 0;
-    const voucherDiscount = appliedVoucher
-      ? Math.min(subtotal * 0.1, 40000)
-      : 0;
+
+    let voucherDiscount = 0;
+    if (appliedVoucher) {
+      if (appliedVoucher.discountType === "PERCENTAGE") {
+        voucherDiscount = Math.min(
+          (subtotal * (appliedVoucher.discountValue || 0)) / 100,
+          40000
+        );
+      } else if (appliedVoucher.discountType === "FIXED_AMOUNT") {
+        voucherDiscount = appliedVoucher.discountValue || 0;
+      }
+    }
+
     const total = Math.max(subtotal + shipping - voucherDiscount, 0);
 
     return { subtotal, shipping, voucherDiscount, total };
-  }, [items, deliveryMethod, appliedVoucher]);
-
-  const handleQuantityChange = (id: number, delta: number) => {
-    setItems((prev) =>
-      prev
-        .map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                quantity: Math.min(Math.max(item.quantity + delta, 1), 10),
-              }
-            : item,
-        )
-        .filter((item) => item.quantity > 0),
-    );
-  };
-
-  const handleRemoveItem = (id: number) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
-  };
+  }, [totalPrice, deliveryMethod, appliedVoucher]);
 
   const handleApplyVoucher = () => {
-    setAppliedVoucher(
-      voucherCode.trim() ? voucherCode.trim().toUpperCase() : null,
+    const code = voucherCode.trim().toUpperCase();
+    if (!code) {
+      setAppliedVoucher(null);
+      return;
+    }
+
+    const promo = promotions.find(
+      (p) => p.promotionCode.toUpperCase() === code && p.status === "ACTIVE"
     );
-  };
 
-  const handleAddSuggestion = (suggestion: Suggestion) => {
-    setItems((prev) => {
-      const exist = prev.find((item) => item.id === suggestion.id);
-
-      if (exist) {
-        return prev.map((item) =>
-          item.id === suggestion.id
-            ? { ...item, quantity: Math.min(item.quantity + 1, 10) }
-            : item,
-        );
-      }
-
-      return [
-        ...prev,
-        {
-          id: suggestion.id,
-          name: suggestion.name,
-          description: suggestion.accent || "Món kèm",
-          price: suggestion.price,
-          image: suggestion.image,
-          quantity: 1,
-          size: "M",
-          ice: "100%",
-          sugar: "100%",
-          tags: ["Thêm mới"],
-        },
-      ];
-    });
+    if (promo) {
+      setAppliedVoucher(promo);
+    } else {
+      setAppliedVoucher(null);
+      alert("Mã khuyến mãi không hợp lệ hoặc đã hết hạn");
+    }
   };
 
   const remainingForFreeShip = Math.max(freeShipThreshold - totals.subtotal, 0);
   const isEmpty = items.length === 0;
 
   return (
-    <div className="min-h-screen bg-white via-white to-white pt-10">
+    <div className="min-h-screen bg-white pt-10">
       <div className="container mx-auto px-4 lg:px-8 py-10 space-y-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
+            <div className="flex items-center gap-3 mb-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (currentStep > 0) {
+                    setCurrentStep(prev => prev - 1);
+                  } else {
+                    router.back();
+                  }
+                }}
+                className="gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Quay lại
+              </Button>
+            </div>
             <p className="text-sm font-medium text-amber-800">
               Đơn hàng hôm nay
             </p>
             <h1 className="text-3xl font-semibold text-stone-900 mt-1">
-              Giỏ hàng của bạn
+              Thanh toán
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              Kiểm tra món, chọn ưu đãi, ghi chú nhanh trước khi thanh toán.
+              {currentStep === 0
+                ? "Kiểm tra món, chọn ưu đãi, ghi chú nhanh trước khi thanh toán."
+                : currentStep === 1
+                  ? "Chọn hình thức thanh toán và hoàn tất đơn hàng."
+                  : "Đơn hàng đã được ghi nhận thành công!"}
             </p>
           </div>
 
           <div className="flex items-center gap-3">
             {STEP_ITEMS.map((step, idx) => {
-              const isActive = idx === 0;
+              const isActive = idx === currentStep;
+              const isCompleted = idx < currentStep;
               return (
                 <div key={step.title} className="flex items-center gap-3">
                   <div
                     className={cn(
-                      "rounded-full px-3 py-2 border shadow-sm",
+                      "rounded-full px-3 py-2 border shadow-sm transition-all duration-300",
                       isActive
-                        ? "border-amber-200 bg-white text-amber-800"
-                        : "border-gray-200 bg-white text-gray-500",
+                        ? "border-amber-200 bg-amber-50 text-amber-800 ring-2 ring-amber-100"
+                        : isCompleted
+                          ? "border-green-200 bg-green-50 text-green-700"
+                          : "border-gray-200 bg-white text-gray-400",
                     )}
                   >
                     <p className="text-xs font-semibold leading-tight">
                       Bước {idx + 1}
                     </p>
-                    <p className="text-xs">{step.title}</p>
+                    <p className="text-xs font-bold">{step.title}</p>
                   </div>
                   {idx < STEP_ITEMS.length - 1 && (
-                    <div className="h-px w-6 bg-gradient-to-r from-amber-300 to-gray-200" />
+                    <div className={cn(
+                      "h-px w-6",
+                      isCompleted ? "bg-green-300" : "bg-gray-200"
+                    )} />
                   )}
                 </div>
               );
@@ -264,348 +370,606 @@ export default function CheckoutPage() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className={cn(
+          "grid gap-6 transition-all duration-500",
+          currentStep === 2 ? "grid-cols-1 max-w-2xl mx-auto" : "grid-cols-1 lg:grid-cols-3"
+        )}>
           <div className="lg:col-span-2 space-y-5">
-            <Card className="border-amber-100 bg-white/80 shadow-sm">
-              <CardHeader className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl">
-                      Phương thức nhận hàng
-                    </CardTitle>
+            {currentStep === 0 ? (
+              <>
+                <Card className="border-amber-100 bg-white/80 shadow-sm transition-all">
+                  <CardHeader className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-xl">
+                          Phương thức nhận hàng
+                        </CardTitle>
+                        <CardDescription>
+                          Chọn cách nhận phù hợp nhất cho đơn của bạn.
+                        </CardDescription>
+                      </div>
+                      <div className="hidden md:flex items-center gap-2 text-xs text-amber-800 font-semibold">
+                        <ShieldCheck className="w-4 h-4" />
+                        Đảm bảo nhiệt độ & niêm phong
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryMethod("delivery")}
+                        className={cn(
+                          "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
+                          deliveryMethod === "delivery"
+                            ? "border-amber-300 bg-amber-50/60 shadow-sm"
+                            : "border-gray-200 hover:border-amber-200 hover:bg-amber-50/40",
+                        )}
+                      >
+                        <span className="mt-0.5 rounded-full bg-amber-100 p-2 text-amber-800">
+                          <Truck className="w-4 h-4" />
+                        </span>
+                        <div>
+                          <p className="font-semibold text-stone-900">
+                            Giao tận nơi
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Phí ship linh hoạt, giao nhanh 25-35 phút.
+                          </p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryMethod("pickup")}
+                        className={cn(
+                          "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
+                          deliveryMethod === "pickup"
+                            ? "border-amber-300 bg-amber-50/60 shadow-sm"
+                            : "border-gray-200 hover:border-amber-200 hover:bg-amber-50/40",
+                        )}
+                      >
+                        <span className="mt-0.5 rounded-full bg-amber-100 p-2 text-amber-800">
+                          <Coffee className="w-4 h-4" />
+                        </span>
+                        <div>
+                          <p className="font-semibold text-stone-900">
+                            Nhận tại cửa hàng
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Giữ nhiệt 2h, miễn phí. Chọn quầy gần bạn nhất.
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+
+                    {deliveryMethod === "delivery" && (
+                      <div className="space-y-2 mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <label className="text-sm font-semibold text-stone-900">
+                          Địa chỉ giao hàng
+                        </label>
+                        <Textarea
+                          value={address}
+                          onChange={(e) => setAddress(e.target.value)}
+                          placeholder={isLoadingProfile ? "Đang tải địa chỉ..." : "Số nhà, tên đường, phường/xã, quận/huyện..."}
+                          className="bg-white border-amber-100 focus-visible:ring-amber-200 min-h-[80px]"
+                        />
+                        <div className="flex justify-end pt-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleUpdateAddress}
+                            // Stop propagation to prevent form defaults if inside form
+                            type="button"
+                            disabled={isUpdatingAddress || isLoadingProfile}
+                            className="text-xs border-amber-200 hover:bg-amber-50 text-amber-800 h-8"
+                          >
+                            {isUpdatingAddress ? "Đang lưu..." : "Xác nhận địa chỉ"}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-gray-500 italic">
+                          * Phí giao hàng sẽ được tính toán dựa trên khoảng cách.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 shadow-sm border border-amber-100">
+                        <Clock3 className="w-4 h-4 text-amber-700" />
+                        Dự kiến: 25-35 phút
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 shadow-sm border border-amber-100">
+                        <MapPin className="w-4 h-4 text-amber-700" />
+                        42 Nguyễn Huệ, Quận 1, TP.HCM
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-amber-100 bg-white/90 shadow-md">
+                  <CardHeader className="flex flex-col gap-1">
+                    <CardTitle className="text-xl">Danh sách món</CardTitle>
                     <CardDescription>
-                      Chọn cách nhận phù hợp nhất cho đơn của bạn.
+                      {items.length} sản phẩm · Kiểm tra lại giỏ hàng của bạn.
                     </CardDescription>
-                  </div>
-                  <div className="hidden md:flex items-center gap-2 text-xs text-amber-800 font-semibold">
-                    <ShieldCheck className="w-4 h-4" />
-                    Đảm bảo nhiệt độ & niêm phong
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryMethod("delivery")}
-                    className={cn(
-                      "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
-                      deliveryMethod === "delivery"
-                        ? "border-amber-300 bg-amber-50/60 shadow-sm"
-                        : "border-gray-200 hover:border-amber-200 hover:bg-amber-50/40",
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {isEmpty ? (
+                      <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/40 p-6 text-center">
+                        <p className="text-lg font-semibold text-stone-900">
+                          Giỏ hàng đang trống
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Hãy chọn cho mình một món đồ uống thật ngon nhé!
+                        </p>
+                        <div className="mt-4 flex justify-center gap-3">
+                          <Button asChild variant="outline">
+                            <Link href="/menu">Khám phá đồ uống</Link>
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      items.map((item) => {
+                        const sizeDelta = item.size === "M" ? -4000 : 0;
+                        const toppingTotal = item.toppings.reduce(
+                          (sum, t) => sum + t.price * t.quantity,
+                          0
+                        );
+                        const itemPrice = (item.basePrice + sizeDelta + toppingTotal) * item.quantity;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="group relative flex flex-col gap-3 rounded-xl border border-amber-100 bg-white/80 p-4 shadow-sm transition hover:-translate-y-[1px] hover:shadow-md"
+                          >
+                            <button
+                              onClick={() => removeItem(item.id)}
+                              className="absolute right-3 top-3 rounded-full p-2 text-gray-400 transition hover:bg-amber-50 hover:text-amber-800"
+                              aria-label={`Xóa ${item.productName}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+
+                            <div className="flex gap-4">
+                              <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-amber-50">
+                                <Image
+                                  src={item.productImage}
+                                  alt={item.productName}
+                                  fill
+                                  sizes="80px"
+                                  className="object-cover"
+                                />
+                              </div>
+
+                              <div className="flex-1 space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-base font-semibold text-stone-900">
+                                    {item.productName}
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-amber-800">
+                                  <span className="rounded-full bg-amber-50 px-2 py-0.5">
+                                    Size {item.size}
+                                  </span>
+                                  {item.iceLevel && (
+                                    <span className="rounded-full bg-amber-50 px-2 py-0.5">
+                                      Đá {item.iceLevel}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {item.toppings.length > 0 && (
+                                  <div className="text-xs text-gray-600">
+                                    Topping: {item.toppings.map(t => `${t.name} x${t.quantity}`).join(", ")}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                  disabled={item.quantity <= 1}
+                                  className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 text-amber-800 transition hover:bg-amber-50 disabled:opacity-50"
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </button>
+                                <span className="min-w-[24px] text-center text-sm font-semibold text-stone-900">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                  className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 bg-[#693916] text-white transition hover:bg-amber-900"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
+
+                              <div className="text-right">
+                                <p className="text-base font-semibold text-amber-800">
+                                  {formatCurrency(itemPrice)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
-                  >
-                    <span className="mt-0.5 rounded-full bg-amber-100 p-2 text-amber-800">
-                      <Truck className="w-4 h-4" />
-                    </span>
-                    <div>
-                      <p className="font-semibold text-stone-900">
-                        Giao tận nơi
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Phí ship linh hoạt, giao nhanh 25-35 phút.
-                      </p>
-                    </div>
-                  </button>
+                  </CardContent>
+                </Card>
 
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryMethod("pickup")}
-                    className={cn(
-                      "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
-                      deliveryMethod === "pickup"
-                        ? "border-amber-300 bg-amber-50/60 shadow-sm"
-                        : "border-gray-200 hover:border-amber-200 hover:bg-amber-50/40",
-                    )}
-                  >
-                    <span className="mt-0.5 rounded-full bg-amber-100 p-2 text-amber-800">
-                      <Coffee className="w-4 h-4" />
-                    </span>
-                    <div>
-                      <p className="font-semibold text-stone-900">
-                        Nhận tại cửa hàng
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Giữ nhiệt 2h, miễn phí. Chọn quầy gần bạn nhất.
-                      </p>
-                    </div>
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap gap-3 text-sm text-gray-600">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 shadow-sm border border-amber-100">
-                    <Clock3 className="w-4 h-4 text-amber-700" />
-                    Dự kiến: 25-35 phút
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 shadow-sm border border-amber-100">
-                    <MapPin className="w-4 h-4 text-amber-700" />
-                    42 Nguyễn Huệ, Quận 1, TP.HCM
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 shadow-sm border border-amber-100">
-                    <ShieldCheck className="w-4 h-4 text-amber-700" />
-                    Niêm phong & kèm hóa đơn
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-amber-100 bg-white/90 shadow-md">
-              <CardHeader className="flex flex-col gap-1">
-                <CardTitle className="text-xl">Danh sách món</CardTitle>
-                <CardDescription>
-                  {items.length} sản phẩm · Điều chỉnh nhanh số lượng, topping,
-                  ghi chú.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isEmpty ? (
-                  <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/40 p-6 text-center">
-                    <p className="text-lg font-semibold text-stone-900">
-                      Giỏ hàng đang trống
-                    </p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Bắt đầu với một ly Cold Brew hoặc bánh ngọt?
-                    </p>
-                    <div className="mt-4 flex justify-center gap-3">
-                      <Button asChild variant="outline">
-                        <Link href="/menu/beverages">Khám phá đồ uống</Link>
-                      </Button>
-                      <Button asChild>
-                        <Link href="/promotions">Xem khuyến mãi</Link>
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  items.map((item) => (
-                    <CartItemRow
-                      key={item.id}
-                      item={item}
-                      onChangeQty={handleQuantityChange}
-                      onRemove={handleRemoveItem}
+                <Card className="border-amber-100 bg-white/80 shadow-sm">
+                  <CardHeader className="flex flex-col gap-2">
+                    <CardTitle className="text-lg">Ghi chú đơn hàng</CardTitle>
+                    <CardDescription>
+                      Hãy để barista biết nếu bạn có yêu cầu gì đặc biệt nhé.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="Ví dụ: Ít đường, đừng bỏ ống hút nhựa..."
+                      className="min-h-[100px]"
                     />
-                  ))
-                )}
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </>
+            ) : currentStep === 1 ? (
+              // Step 2: Payment Selection
+              <Card className="border-amber-200 bg-white shadow-md transition-all">
+                <CardHeader>
+                  <CardTitle className="text-xl">Hình thức thanh toán</CardTitle>
+                  <CardDescription>
+                    Chọn phương thức thanh toán an toàn và tiện lợi nhất.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("momo")}
+                      className={cn(
+                        "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
+                        paymentMethod === "momo"
+                          ? "border-pink-300 bg-pink-50 ring-2 ring-pink-100 shadow-sm"
+                          : "border-gray-100 hover:border-pink-200 hover:bg-pink-50/30",
+                      )}
+                    >
+                      <div className="h-12 w-12 rounded-lg bg-pink-600 flex items-center justify-center text-white shrink-0 shadow-sm overflow-hidden">
+                        <Image
+                          src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png"
+                          alt="MoMo"
+                          width={48}
+                          height={48}
+                          className="object-contain"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-stone-900 text-lg">Ví MoMo</p>
+                        <p className="text-sm text-gray-600">Thanh toán nhanh chóng, an toàn qua ứng dụng MoMo.</p>
+                      </div>
+                      <div className={cn(
+                        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                        paymentMethod === "momo" ? "border-pink-600 bg-pink-600" : "border-gray-300"
+                      )}>
+                        {paymentMethod === "momo" && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
 
-            <Card className="border-amber-100 bg-white/80 shadow-sm">
-              <CardHeader className="flex flex-col gap-2">
-                <CardTitle className="text-lg">Ghi chú cho barista</CardTitle>
-                <CardDescription>
-                  Ví dụ: “Ít đá, đừng bỏ ống hút”, “Gọi trước khi giao”...
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Thêm lưu ý để món chuẩn vị hơn."
-                  className="min-h-[110px]"
-                />
-              </CardContent>
-            </Card>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("cash")}
+                      className={cn(
+                        "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
+                        paymentMethod === "cash"
+                          ? "border-amber-300 bg-amber-50 ring-2 ring-amber-100 shadow-sm"
+                          : "border-gray-100 hover:border-amber-200 hover:bg-amber-50/30",
+                      )}
+                    >
+                      <div className="h-12 w-12 rounded-lg bg-amber-800 flex items-center justify-center text-white shrink-0 shadow-sm">
+                        <MapPin className="w-7 h-7" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-stone-900 text-lg">Tiền mặt</p>
+                        <p className="text-sm text-gray-600">Thanh toán trực tiếp khi nhận hàng hoặc tại quầy.</p>
+                      </div>
+                      <div className={cn(
+                        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                        paymentMethod === "cash" ? "border-amber-800 bg-amber-800" : "border-gray-300"
+                      )}>
+                        {paymentMethod === "cash" && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="rounded-lg bg-gray-50 p-4 border border-gray-100 mt-6">
+                    <p className="text-sm text-gray-600 italic">
+                      Lưu ý: Bạn có thể đổi hình thức thanh toán bất cứ lúc nào trước khi xác nhận đơn hàng.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              // Step 3: Order Success
+              // Step 3: Order Success
+              <div className="flex flex-col items-center justify-center py-12 animate-in fade-in zoom-in duration-500 max-w-lg mx-auto">
+                <div className="mb-6 relative">
+                  <div className="absolute inset-0 bg-green-100 rounded-full animate-ping opacity-25"></div>
+                  <div className="relative h-20 w-20 bg-green-100 rounded-full flex items-center justify-center text-green-600 shadow-sm">
+                    <CheckCircle2 className="w-10 h-10" />
+                  </div>
+                </div>
+
+                <div className="text-center space-y-3 mb-8">
+                  <h2 className="text-2xl font-bold text-gray-900">Đặt hàng thành công!</h2>
+                  <p className="text-gray-500 text-sm leading-relaxed max-w-xs mx-auto">
+                    Đơn hàng <span className="font-semibold text-gray-900">#{createdOrderId}</span> đã được ghi nhận. <br />
+                    Chúng tôi sẽ sớm liên hệ để xác nhận.
+                  </p>
+                </div>
+
+                <Card className="w-full border-gray-100 bg-gray-50/50 mb-8 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100 bg-white flex justify-between items-center">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mã đơn hàng</span>
+                    <span className="font-mono text-sm font-bold text-gray-900">#{createdOrderId}</span>
+                  </div>
+                  <div className="p-4 bg-white">
+                    <div className="flex justify-between items-center mb-3 text-sm">
+                      <span className="text-gray-600">Phương thức thanh toán</span>
+                      <span className="font-medium text-gray-900 flex items-center gap-2">
+                        {paymentMethod === 'momo' ? (
+                          <>
+                            <Image
+                              src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png"
+                              alt="MoMo"
+                              width={16}
+                              height={16}
+                              className="object-contain" // Fixed class
+                            />
+                            Ví MoMo
+                          </>
+                        ) : (
+                          <>
+                            <MapPin className="w-4 h-4 text-amber-700" />
+                            Tiền mặt
+                          </>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Tổng thanh toán</span>
+                      <span className="font-bold text-lg text-amber-700">
+                        {successOrder ? formatCurrency(successOrder.paidPrice) : formatCurrency(totals.total)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 p-3 text-center border-t border-green-100">
+                    <p className="text-xs font-medium text-green-700 flex items-center justify-center gap-1">
+                      <ShieldCheck className="w-3 h-3" />
+                      Đơn hàng đã được xác nhận thanh toán
+                    </p>
+                  </div>
+                </Card>
+
+                <div className="grid grid-cols-2 gap-3 w-full">
+                  <Button
+                    onClick={() => router.push("/menu")}
+                    variant="outline"
+                    className="h-11 border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                  >
+                    Về trang chủ
+                  </Button>
+                  <Button
+                    onClick={() => router.push("/profile?tab=orders")}
+                    className="h-11 bg-amber-700 hover:bg-amber-800 text-white shadow-md shadow-amber-900/10"
+                  >
+                    Xem đơn hàng
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-28">
+          <div className={cn(
+            "space-y-4 lg:sticky lg:top-28 transition-all duration-300",
+            currentStep === 2 ? "hidden" : "lg:col-span-1 block"
+          )}>
             <Card className="border-amber-200 bg-white shadow-lg">
-              <CardHeader className="pb-4">
+              <CardHeader className="pb-4 border-b border-gray-50">
                 <CardTitle className="flex items-center justify-between text-xl">
                   Tóm tắt đơn
                   <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">
                     {items.length} món
                   </span>
                 </CardTitle>
-                <CardDescription>
-                  Kiểm tra ưu đãi, phí giao và tổng thanh toán.
-                </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-4">
-                <div className="space-y-2 rounded-lg border border-amber-100 bg-amber-50/50 p-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-amber-900">
+              <CardContent className="space-y-4 pt-4">
+                <div className="space-y-2 rounded-lg border border-amber-100 bg-amber-50/40 p-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
                     <Gift className="w-4 h-4" />
-                    Ưu đãi & mã giảm giá
+                    Mã khuyến mãi
                   </div>
                   <div className="flex gap-2">
                     <Input
                       value={voucherCode}
                       onChange={(e) => setVoucherCode(e.target.value)}
-                      placeholder="Nhập mã (FREESHIP, WELCOME10...)"
-                      className="bg-white"
+                      placeholder="Nhập mã ưu đãi"
+                      className="bg-white border-amber-100 focus-visible:ring-amber-200"
+                      disabled={currentStep > 0}
                     />
-                    <Button onClick={handleApplyVoucher} className="shrink-0">
-                      Áp dụng
+                    <Button
+                      onClick={handleApplyVoucher}
+                      className="bg-[#693916] hover:bg-amber-900 text-white"
+                      disabled={promoLoading || currentStep > 0}
+                    >
+                      Dùng
                     </Button>
                   </div>
+
+                  <Dialog open={isPromoDialogOpen} onOpenChange={setIsPromoDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-amber-600 hover:text-amber-800 text-xs font-medium flex items-center gap-1"
+                        disabled={currentStep > 0}
+                        onClick={() => {
+                          setTempSelectedVoucher(appliedVoucher); // Init with current
+                        }}
+                      >
+                        <TicketPercent className="w-3 h-3" />
+                        Chọn mã khuyến mãi khác
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+                      <DialogHeader>
+                        <DialogTitle>Mã khuyến mãi của bạn</DialogTitle>
+                        <DialogDescription>Chọn mã ưu đãi để áp dụng vào đơn hàng</DialogDescription>
+                      </DialogHeader>
+                      <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-2 scrollbar-thin">
+                        {promoLoading ? (
+                          <div className="text-center py-4 text-gray-500">Đang tải mã...</div>
+                        ) : promotions.length === 0 ? (
+                          <div className="text-center py-8 text-gray-500 flex flex-col items-center">
+                            <TicketPercent className="w-10 h-10 text-gray-300 mb-2" />
+                            <p>Chưa có mã khuyến mãi nào</p>
+                          </div>
+                        ) : (
+                          promotions
+                            .filter(p => p.status === "ACTIVE" || p.promotionStatus === "ACTIVE")
+                            .map((promo) => (
+                              <div
+                                key={promo.promotionId}
+                                className={cn(
+                                  "border rounded-lg p-3 flex gap-3 cursor-pointer transition-all hover:bg-amber-50 active:scale-[0.98]",
+                                  tempSelectedVoucher?.promotionId === promo.promotionId ? "border-amber-500 bg-amber-50 ring-1 ring-amber-500" : "border-gray-200"
+                                )}
+                                onClick={() => setTempSelectedVoucher(promo)}
+                              >
+                                <div className="h-12 w-12 bg-amber-100 text-amber-700 rounded-md flex items-center justify-center shrink-0 font-bold text-xs uppercase text-center p-1">
+                                  {promo.discountType === "PERCENTAGE" ? `${promo.discountValue}%` : `${promo.discountValue / 1000}k`}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex justify-between items-start">
+                                    <p className="font-semibold text-stone-900 truncate">{promo.promotionCode}</p>
+                                    <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                                      {promo.promotionType}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-600 line-clamp-1">{promo.promotionName}</p>
+                                  <p className="text-[10px] text-gray-400 mt-1">
+                                    HSD: {new Date(promo.endDate).toLocaleDateString('vi-VN')}
+                                  </p>
+                                </div>
+                                {tempSelectedVoucher?.promotionId === promo.promotionId && (
+                                  <div className="self-center">
+                                    <CheckCircle2 className="w-5 h-5 text-amber-600" />
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                        )}
+                      </div>
+                      <div className="pt-4 border-t border-gray-100 flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setIsPromoDialogOpen(false)}>Hủy</Button>
+                        <Button
+                          className="bg-[#693916] hover:bg-amber-900 text-white"
+                          onClick={() => {
+                            setAppliedVoucher(tempSelectedVoucher);
+                            if (tempSelectedVoucher) {
+                              setVoucherCode(tempSelectedVoucher.promotionCode);
+                            } else {
+                              setVoucherCode("");
+                            }
+                            setIsPromoDialogOpen(false);
+                          }}
+                        >
+                          Áp dụng
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
                   {appliedVoucher ? (
-                    <p className="text-xs text-amber-800">
-                      Đã áp dụng mã <strong>{appliedVoucher}</strong> · Giảm tối
-                      đa 40.000đ
+                    <p className="text-xs text-green-700 font-medium">
+                      ✓ Đã áp dụng mã <strong>{appliedVoucher.promotionCode}</strong>
                     </p>
                   ) : (
-                    <p className="text-xs text-gray-600">
-                      Chọn mã để tối ưu chi phí giao hàng.
+                    <p className="text-xs text-gray-400">
+                      Thêm mã để được giảm giá hời nhé.
                     </p>
                   )}
                 </div>
 
-                <div className="space-y-2 text-sm">
+                <div className="space-y-3 py-2 border-b border-gray-50 text-sm">
+                  <Row label="Tạm tính" value={formatCurrency(totals.subtotal)} />
                   <Row
-                    label="Tạm tính"
-                    value={formatCurrency(totals.subtotal)}
-                  />
-                  <Row
-                    label={
-                      deliveryMethod === "delivery"
-                        ? "Phí giao"
-                        : "Nhận tại quầy"
-                    }
-                    value={
-                      deliveryMethod === "delivery"
-                        ? formatCurrency(totals.shipping)
-                        : "Miễn phí"
-                    }
+                    label={deliveryMethod === "delivery" ? "Phí giao" : "Nhận tại quầy"}
+                    value={deliveryMethod === "delivery" ? formatCurrency(totals.shipping) : "Miễn phí"}
                     highlight={deliveryMethod === "pickup"}
                   />
                   <Row
                     label="Giảm giá"
-                    value={
-                      appliedVoucher
-                        ? `- ${formatCurrency(totals.voucherDiscount)}`
-                        : "-"
-                    }
+                    value={appliedVoucher ? `- ${formatCurrency(totals.voucherDiscount)}` : "-"}
                     highlight={Boolean(appliedVoucher)}
                   />
                 </div>
 
-                <div className="rounded-xl border-amber-100 bg-amber-50/50 text-white p-4 shadow">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-black">Cần đạt</p>
-                      <p className="text-lg font-semibold">
-                        {formatCurrency(
-                          Math.max(freeShipThreshold, totals.total),
-                        )}
-                      </p>
-                      <p className="text-xs text-black">
-                        Miễn phí giao nội thành cho đơn từ 150.000đ
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-black">Tổng thanh toán</p>
-                      <p className="text-2xl font-bold">
-                        {formatCurrency(totals.total)}
-                      </p>
-                    </div>
+                <div className="rounded-xl p-4 shadow-md">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm opacity-80 font-medium">Tổng thanh toán</p>
+                    <p className="text-2xl font-bold">
+                      {formatCurrency(totals.total)}
+                    </p>
                   </div>
-                  <div className="mt-3 h-2 rounded-full bg-white/15">
-                    <div
-                      className="h-2 rounded-full bg-amber-800 transition-all"
-                      style={{
-                        width: `${Math.min(
-                          (totals.subtotal / freeShipThreshold) * 100,
-                          100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="mt-2 text-xs">
-                    {remainingForFreeShip > 0 ? (
-                      <span>
-                        Mua thêm {formatCurrency(remainingForFreeShip)} để được
-                        freeship.
-                      </span>
-                    ) : (
-                      <span className="font-semibold text-amber-50">
-                        Tuyệt! Đơn đã đủ điều kiện freeship nội thành.
-                      </span>
-                    )}
-                  </p>
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <Button className="w-full h-12 text-base">
-                    Tiếp tục thanh toán
-                    <ArrowRight className="w-4 h-4" />
+                <div className="flex flex-col gap-3 pt-2">
+                  <Button
+                    className="w-full h-12 text-base font-bold bg-[#693916] hover:bg-amber-900 shadow-warm"
+                    disabled={isEmpty}
+                    onClick={() => {
+                      if (currentStep === 0) {
+                        setCurrentStep(1);
+                        window.scrollTo(0, 0);
+                      } else {
+                        handlePlaceOrder();
+                      }
+                    }}
+                  >
+                    {isPlacingOrder ? "Đang xử lý..." : (currentStep === 0 ? "Tiếp tục thanh toán" : "Xác nhận đặt hàng")}
+                    <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
-                  <Button variant="outline" className="w-full h-11 text-base">
-                    Đặt thêm món
-                  </Button>
+
+                  {currentStep === 0 && (
+                    <Button
+                      variant="outline"
+                      className="w-full h-11 text-base border-amber-200 text-[#693916] hover:bg-amber-50"
+                      onClick={() => router.push("/menu")}
+                    >
+                      Đặt thêm món
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-amber-100 bg-amber-50/60">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2 text-amber-900">
-                  <Sparkles className="w-4 h-4" />
-                  Mẹo nhỏ
-                </CardTitle>
-                <CardDescription className="text-sm text-amber-800">
-                  Lưu sản phẩm yêu thích, hoặc tách hóa đơn khi thanh toán tại
-                  quầy.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm text-amber-900">
-                <p>· Thêm ống hút gỗ miễn phí ở phần ghi chú.</p>
-                <p>· Đơn doanh nghiệp? Nhập MST vào ghi chú để xuất hóa đơn.</p>
-              </CardContent>
-            </Card>
+            {remainingForFreeShip > 0 && currentStep === 0 && (
+              <div className="rounded-lg bg-blue-50 p-4 border border-blue-100 flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0 text-xs font-bold">!</div>
+                <p className="text-xs text-blue-700 leading-relaxed font-medium">
+                  Mua thêm <span className="font-bold">{formatCurrency(remainingForFreeShip)}</span> nữa thôi để nhận được ưu đãi <span className="font-bold underline">MIỄN PHÍ VẬN CHUYỂN</span> bạn nhé!
+                </p>
+              </div>
+            )}
           </div>
         </div>
-
-        <Card className="border-amber-100 bg-white shadow-sm">
-          <CardHeader className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle className="text-xl">Thêm nhanh món ăn kèm</CardTitle>
-              <CardDescription>
-                Gợi ý món hợp vị, tăng giá trị đơn và đạt freeship nhanh hơn.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {SUGGESTIONS.map((sug) => (
-              <div
-                key={sug.id}
-                className="group rounded-xl border border-amber-100 bg-white p-3 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-              >
-                <div className="relative h-32 w-full overflow-hidden rounded-lg bg-amber-50">
-                  <Image
-                    src={sug.image}
-                    alt={sug.name}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                    className="object-cover transition duration-300 group-hover:scale-105"
-                  />
-                </div>
-                <div className="mt-3 flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold text-stone-900">{sug.name}</p>
-                    <p className="text-sm text-amber-800">
-                      {formatCurrency(sug.price)}
-                    </p>
-                    {sug.accent && (
-                      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">
-                        <Sparkles className="w-3 h-3" />
-                        {sug.accent}
-                      </span>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAddSuggestion(sug)}
-                    className="shrink-0"
-                  >
-                    Thêm
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
       </div>
-    </div>
+    </div >
   );
 }
 
@@ -633,100 +997,10 @@ function Row({
   );
 }
 
-function CartItemRow({
-  item,
-  onChangeQty,
-  onRemove,
-}: {
-  item: CartItem;
-  onChangeQty: (id: number, delta: number) => void;
-  onRemove: (id: number) => void;
-}) {
+export default function CheckoutPage() {
   return (
-    <div className="group relative flex flex-col gap-3 rounded-xl border border-amber-100 bg-white/80 p-4 shadow-sm transition hover:-translate-y-[1px] hover:shadow-md">
-      <button
-        onClick={() => onRemove(item.id)}
-        className="absolute right-3 top-3 rounded-full p-2 text-gray-400 transition hover:bg-amber-50 hover:text-amber-800"
-        aria-label={`Xóa ${item.name}`}
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
-
-      <div className="flex gap-4">
-        <div className="relative h-24 w-24 overflow-hidden rounded-lg bg-amber-50">
-          <Image
-            src={item.image}
-            alt={item.name}
-            fill
-            sizes="96px"
-            className="object-cover"
-          />
-        </div>
-
-        <div className="flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-base font-semibold text-stone-900">
-              {item.name}
-            </p>
-            {item.tags?.map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-          <p className="text-sm text-gray-600">{item.description}</p>
-
-          <div className="flex flex-wrap gap-2 text-xs font-semibold text-amber-800">
-            <span className="rounded-full bg-amber-50 px-3 py-1">
-              Size {item.size}
-            </span>
-            <span className="rounded-full bg-amber-50 px-3 py-1">
-              Đá {item.ice}
-            </span>
-            <span className="rounded-full bg-amber-50 px-3 py-1">
-              Đường {item.sugar}
-            </span>
-          </div>
-
-          {item.note && (
-            <p className="text-xs text-gray-500">
-              Ghi chú: <span className="italic">{item.note}</span>
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onChangeQty(item.id, -1)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-200 text-amber-800 transition hover:bg-amber-50"
-            aria-label="Giảm số lượng"
-          >
-            <Minus className="w-4 h-4" />
-          </button>
-          <span className="min-w-[32px] text-center text-base font-semibold text-stone-900">
-            {item.quantity}
-          </span>
-          <button
-            onClick={() => onChangeQty(item.id, 1)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-800 text-white transition hover:bg-amber-900"
-            aria-label="Tăng số lượng"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="text-right">
-          <p className="text-sm text-gray-500">Tạm tính</p>
-          <p className="text-lg font-semibold text-amber-800">
-            {formatCurrency(item.price * item.quantity)}
-          </p>
-        </div>
-      </div>
-    </div>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Đang tải...</div>}>
+      <CheckoutContent />
+    </Suspense>
   );
 }

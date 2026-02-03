@@ -1,5 +1,3 @@
-// src/types/product.ts
-
 export type ProductStatus = "ACTIVE" | "INACTIVE";
 
 export interface Product {
@@ -12,6 +10,17 @@ export interface Product {
   status: ProductStatus;
 }
 
+export interface ProductVariant {
+  id: number;
+  productId: number;
+  code: string;
+  price: number;
+  size?: string | { code: string; name: string };
+  sizeCode?: string;
+  name?: string;
+  image: string | null;
+}
+
 export interface ProductsMeta {
   currentPage: number;
   size: number;
@@ -21,7 +30,7 @@ export interface ProductsMeta {
 
 export interface ApiEnvelope<T> {
   code: number;
-  status: string; // "OK" | ...
+  status: string;
   message: string;
   data: T;
   meta?: ProductsMeta;

@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import envConfig from "@/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAppContext } from "@/app/AppProvider";
 import { getJwtExpiresAt } from "@/lib/utils";
 
@@ -229,7 +230,7 @@ export default function LoginForm() {
       </CardContent>
 
       {/* Footer */}
-      <CardFooter className="pt-1 pb-4 px-2">
+      <CardFooter className="pt-1 pb-4 px-2 flex flex-col gap-4">
         <Field orientation="horizontal" className="w-full flex justify-center">
           <Button
             type="submit"
@@ -242,6 +243,13 @@ export default function LoginForm() {
             {loading ? "Đang đăng nhập..." : "Đăng nhập ngay"}
           </Button>
         </Field>
+
+        <div className="text-center text-sm">
+          Chưa có tài khoản?{" "}
+          <Link href="/register" className="font-semibold text-amber-700 hover:text-amber-800 hover:underline">
+            Đăng ký ngay
+          </Link>
+        </div>
       </CardFooter>
     </Card>
   );
