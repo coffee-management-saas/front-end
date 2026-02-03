@@ -4,6 +4,7 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
 export class ApiError<T = unknown> extends Error {
   status: number;
   payload?: T;
@@ -14,6 +15,7 @@ export class ApiError<T = unknown> extends Error {
     this.payload = payload;
   }
 }
+
 export function getJwtExpiresAt(accessToken: string): string {
   try {
     const parts = accessToken.split(".");
@@ -34,3 +36,10 @@ export function getJwtExpiresAt(accessToken: string): string {
     return "";
   }
 }
+
+export const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value);

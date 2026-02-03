@@ -1,5 +1,6 @@
 "use client";
 import React, { createContext, useContext, useState } from "react";
+import { CartProvider } from "@/contexts/CartContext";
 
 type Tokens = {
   accessToken: string;
@@ -11,7 +12,6 @@ type AppContextType = {
   tokens: Tokens;
   setTokens: React.Dispatch<React.SetStateAction<Tokens>>;
 
-  // (tuỳ chọn) giữ lại API cũ cho tiện dùng
   accessToken: string;
   setAccessToken: (token: string) => void;
 };
@@ -36,7 +36,6 @@ export default function AppProvider({
     initialTokens ?? { accessToken: "", refreshToken: "", expiresAt: "" },
   );
 
-  // giữ tương thích code cũ (setAccessToken)
   const setAccessToken = (token: string) => {
     setTokens((prev) => ({ ...prev, accessToken: token }));
   };
@@ -50,7 +49,7 @@ export default function AppProvider({
         setAccessToken,
       }}
     >
-      {children}
+      <CartProvider>{children}</CartProvider>
     </AppContext.Provider>
   );
 }

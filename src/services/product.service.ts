@@ -5,6 +5,7 @@ import type {
   Product,
   ProductFilter,
   ProductsResponse,
+  ProductVariant, // Add this
 } from "@/types/product";
 
 async function parseJsonSafely<T>(res: Response): Promise<T> {
@@ -66,10 +67,29 @@ export async function getProductById(id: number | string): Promise<Product> {
 
   const payload = await parseJsonSafely<ApiEnvelope<Product>>(res);
 
-  // BE có thể trả 200 nhưng code != 200 => vẫn coi là lỗi nghiệp vụ
   if (!res.ok || !payload || payload.code !== 200) {
     throw new ApiError(payload?.message || "BE error", res.status, payload);
   }
 
   return payload.data;
+}
+
+export async function getProductVariants(productId?: number | string): Promise<ApiEnvelope<ProductVariant[]>> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const qs = productId ? `?productId=${productId}` : "";
+  const beUrl = `${base}/product/variants${qs}`;
+
+  const res = await fetch(beUrl, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonSafely<ApiEnvelope<ProductVariant[]>>(res);
+
+  if (!res.ok) {
+    throw new ApiError(payload?.message || "BE error", res.status, payload);
+  }
+
+  return payload;
 }

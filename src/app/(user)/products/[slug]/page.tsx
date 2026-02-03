@@ -7,12 +7,17 @@ import {
   ShoppingCart,
   ChevronLeft,
   ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
-import type { ApiEnvelope, Product } from "@/types/product";
+import type { ApiEnvelope, Product, ProductVariant } from "@/types/product";
 import { ToppingsResponse } from "@/types/topping";
+import Link from "next/link";
+import { useCart } from "@/contexts/CartContext";
+import { getProductVariants } from "@/services/product.service";
+import { toast } from "sonner";
 
 type LevelOption = "Ít" | "Bình thường" | "Nhiều";
 
@@ -47,6 +52,13 @@ interface ProductListResponse {
 const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=1200&q=80";
 
+const getVariantName = (v: ProductVariant) => {
+  if (typeof v.size === 'string') return v.size;
+  if (v.size && typeof v.size === 'object' && 'code' in v.size) return (v.size as any).code;
+  if (v.size && typeof v.size === 'object' && 'name' in v.size) return (v.size as any).name;
+  return v.sizeCode || v.code || v.name || `Size ${v.id}`;
+};
+
 const DetailProduct: React.FC = () => {
   const params = useParams<{ slug: string }>();
   const productId = useMemo(
@@ -54,13 +66,12 @@ const DetailProduct: React.FC = () => {
     [params?.slug],
   );
 
-  const [size, setSize] = useState<"L" | "M">("L");
-  const [cart] = useState(0);
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const bestSellerRef = useRef<HTMLDivElement>(null);
   const [selectedIce, setSelectedIce] = useState<LevelOption>("Nhiều");
-  const [selectedTea, setSelectedTea] = useState<LevelOption>("Nhiều");
   const [quantity, setQuantity] = useState<number>(1);
   const [product, setProduct] = useState<Product | null>(null);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [coffeeItems, setCoffeeItems] = useState<SuggestItem[]>([]);
@@ -68,6 +79,9 @@ const DetailProduct: React.FC = () => {
   const [toppings, setToppings] = useState<Topping[]>([]);
   const [topLoading, setTopLoading] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
+
+  const { addItem } = useCart();
+  const router = useRouter();
 
   useEffect(() => {
     const run = async () => {
@@ -127,27 +141,36 @@ const DetailProduct: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/products/${productId}`, {
-          cache: "no-store",
+        const [productRes, variantsRes] = await Promise.all([
+          fetch(`/api/products/${productId}`, { cache: "no-store" }),
+          getProductVariants(productId).catch(() => ({ data: [] }))
+        ]);
+
+        const productPayload = (await productRes.json()) as ApiEnvelope<Product> | { message?: string };
+        if (!productRes.ok || ("code" in productPayload && productPayload.code !== 200)) {
+          throw new Error(("message" in productPayload && productPayload.message) || "Load product failed");
+        }
+        if ("data" in productPayload) {
+          setProduct(productPayload.data as Product);
+        }
+
+        const variantsData = (variantsRes as ApiEnvelope<ProductVariant[]>).data || [];
+
+        const sizeOrder: Record<string, number> = { "S": 1, "M": 2, "L": 3, "XL": 4 };
+        variantsData.sort((a, b) => {
+          const nameA = getVariantName(a).toUpperCase();
+          const nameB = getVariantName(b).toUpperCase();
+          const orderA = sizeOrder[nameA] || 99;
+          const orderB = sizeOrder[nameB] || 99;
+          return orderA - orderB;
         });
 
-        const payload = (await res.json()) as
-          | ApiEnvelope<Product>
-          | { message?: string };
+        setVariants(variantsData);
 
-        if (!res.ok) {
-          throw new Error(
-            ("message" in payload && payload.message) || "Load product failed",
-          );
+        if (variantsData.length > 0) {
+          setSelectedVariantId(variantsData[0].id);
         }
 
-        if (!("code" in payload) || payload.code !== 200) {
-          throw new Error(
-            ("message" in payload && payload.message) || "Load product failed",
-          );
-        }
-
-        setProduct(payload.data);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Load product failed");
         setProduct(null);
@@ -182,14 +205,14 @@ const DetailProduct: React.FC = () => {
         if (!res.ok) {
           throw new Error(
             ("message" in payload && payload.message) ||
-              "Load suggestions failed",
+            "Load suggestions failed",
           );
         }
 
         if (!("code" in payload) || payload.code !== 200) {
           throw new Error(
             ("message" in payload && payload.message) ||
-              "Load suggestions failed",
+            "Load suggestions failed",
           );
         }
 
@@ -228,8 +251,17 @@ const DetailProduct: React.FC = () => {
     };
   }, [product]);
 
-  const basePrice = 59000;
-  const sizeDelta = size === "M" ? -4000 : 0;
+
+
+
+  const activeVariant = useMemo(() => {
+    return variants.find(v => v.id === selectedVariantId);
+  }, [variants, selectedVariantId]);
+
+  // Use price from variant; fallback to 0 if not found
+  const productPrice = activeVariant ? activeVariant.price : 0;
+
+  // No more manual size delta, the variant has the full price
 
   const updateToppingQuantity = (id: string, delta: number) => {
     setToppings((prev) =>
@@ -244,7 +276,7 @@ const DetailProduct: React.FC = () => {
     [toppings],
   );
 
-  const totalPrice = (basePrice + sizeDelta + toppingTotal) * quantity;
+  const totalPrice = (productPrice + toppingTotal) * quantity;
 
   const formatPrice = (price: number) => price.toLocaleString("vi-VN") + " ₫";
 
@@ -253,9 +285,19 @@ const DetailProduct: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto bg-white min-h-screen px-4 md:px-6">
-      {/* Breadcrumb */}
-      <div className="pt-4 pb-2 text-xs text-gray-500">
-        Trang chủ / <span className="text-gray-800">Sản phẩm</span>
+      {/* Breadcrumb with Back Button */}
+      <div className="pt-4 pb-2 flex items-center gap-3">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="text-xs font-medium">Quay lại trang sản phẩm</span>
+        </button>
+        <span className="text-xs text-gray-400">|</span>
+        <div className="text-xs text-gray-500">
+          Trang chủ / <span className="text-gray-800">Sản phẩm</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-start pt-12">
@@ -274,7 +316,7 @@ const DetailProduct: React.FC = () => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg md:text-xl font-semibold text-gray-900">
-                {item.name} ({size})
+                {item.name} ({activeVariant ? getVariantName(activeVariant) : ""})
               </h2>
               <p className="text-xs text-gray-500 mt-1">SKU: {item.sku}</p>
 
@@ -283,7 +325,7 @@ const DetailProduct: React.FC = () => {
               )}
 
               <p className="text-lg md:text-xl font-bold text-[#693916] mt-2">
-                {formatPrice(basePrice + sizeDelta + toppingTotal)}
+                {formatPrice(totalPrice)}
               </p>
             </div>
 
@@ -311,50 +353,25 @@ const DetailProduct: React.FC = () => {
               Chọn kích cỡ
             </h3>
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setSize("L")}
-                className={[
-                  "w-20 h-8 rounded border text-xs font-semibold",
-                  size === "L"
-                    ? "bg-[#693916] text-white border-[#693916]"
-                    : "bg-white text-gray-700 border-gray-200",
-                ].join(" ")}
-              >
-                L
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSize("M")}
-                className={[
-                  "w-20 h-8 rounded border text-xs font-semibold",
-                  size === "M"
-                    ? "bg-[#693916] text-white border-[#693916]"
-                    : "bg-white text-gray-700 border-gray-200",
-                ].join(" ")}
-              >
-                M
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-xs font-bold text-[#693916] pt-5">Trà</Label>
-            <div className="mt-2 grid grid-cols-3 gap-2 pt-2">
-              {(["Ít", "Bình thường", "Nhiều"] as LevelOption[]).map((opt) => (
-                <button
-                  key={opt}
-                  onClick={() => setSelectedTea(opt)}
-                  className={`h-8 px-3 rounded-md border text-xs font-medium transition ${
-                    selectedTea === opt
-                      ? "bg-[#693916] text-white border-[#693916]"
-                      : "bg-gray-100 border-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  {opt}
-                </button>
-              ))}
+              {variants.length > 0 ? (
+                variants.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setSelectedVariantId(v.id)}
+                    className={[
+                      "min-w-16 h-8 px-2 rounded border text-xs font-semibold",
+                      selectedVariantId === v.id
+                        ? "bg-[#693916] text-white border-[#693916]"
+                        : "bg-white text-gray-700 border-gray-200",
+                    ].join(" ")}
+                  >
+                    {getVariantName(v)}
+                  </button>
+                ))
+              ) : (
+                <div className="text-sm text-gray-500">Đang tải kích cỡ...</div>
+              )}
             </div>
           </div>
 
@@ -365,11 +382,10 @@ const DetailProduct: React.FC = () => {
                 <button
                   key={opt}
                   onClick={() => setSelectedIce(opt)}
-                  className={`h-8 px-3 rounded-md border text-xs font-medium transition ${
-                    selectedIce === opt
-                      ? "bg-[#693916] text-white border-[#693916]"
-                      : "bg-gray-100 border-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                  className={`h-8 px-3 rounded-md border text-xs font-medium transition ${selectedIce === opt
+                    ? "bg-[#693916] text-white border-[#693916]"
+                    : "bg-gray-100 border-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
                 >
                   {opt}
                 </button>
@@ -436,11 +452,40 @@ const DetailProduct: React.FC = () => {
             </div>
 
             <button
+              onClick={() => {
+                if (!product) return;
+
+                if (!activeVariant) {
+                  toast.error("Vui lòng chọn kích cỡ");
+                  return;
+                }
+
+                addItem({
+                  productId: product.id,
+                  productName: product.name,
+                  productImage: product.image ?? FALLBACK_IMG,
+                  variantId: activeVariant.id,
+                  size: getVariantName(activeVariant),
+                  basePrice: productPrice,
+                  quantity,
+                  toppings: toppings
+                    .filter((t) => t.quantity > 0)
+                    .map((t) => ({
+                      id: Number(t.id),
+                      name: t.name,
+                      price: t.price,
+                      quantity: t.quantity,
+                    })),
+                  iceLevel: selectedIce,
+                });
+
+                setQuantity(1);
+              }}
               className="mt-5 w-full bg-[#693916] hover:bg-amber-900 text-white py-2.5 rounded-md font-semibold text-sm flex items-center justify-center gap-2"
               type="button"
             >
               <ShoppingCart className="w-4 h-4" />
-              Thêm vào giỏ hàng : {formatPrice(totalPrice)}
+              Đặt hàng : {formatPrice(totalPrice)}
             </button>
           </div>
         </div>
@@ -471,14 +516,16 @@ const DetailProduct: React.FC = () => {
               key={it.id}
               className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 shrink-0 w-[80%] sm:w-[45%] md:w-[calc((100%-1rem*4)/5)]"
             >
-              <div className="relative bg-gray-100 h-36 flex items-center justify-center">
-                <Image
-                  src={it.image}
-                  alt={it.name}
-                  fill
-                  className="object-cover"
-                />
-              </div>
+              <Link href={`/products/${it.id}`} className="block">
+                <div className="relative bg-gray-100 h-36 flex items-center justify-center">
+                  <Image
+                    src={it.image}
+                    alt={it.name}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              </Link>
 
               <div className="p-2">
                 <h3 className="text-xs font-semibold text-gray-800 mb-1 h-8 leading-tight">
@@ -507,16 +554,6 @@ const DetailProduct: React.FC = () => {
           <ChevronRight className="w-6 h-6 text-gray-600" />
         </button>
       </div>
-
-      {/* Floating Cart Button */}
-      <button className="fixed bottom-8 right-8 w-16 h-16 bg-amber-700 hover:bg-amber-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110">
-        <ShoppingCart className="w-8 h-8" />
-        {cart > 0 && (
-          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-sm w-7 h-7 rounded-full flex items-center justify-center font-bold">
-            {cart}
-          </span>
-        )}
-      </button>
     </div>
   );
 };

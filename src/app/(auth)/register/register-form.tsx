@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import envConfig from "@/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const formSchema = z.object({
   username: z
@@ -362,7 +363,7 @@ export default function RegisterForm() {
           </form>
         </CardContent>
 
-        <CardFooter className="pt-1 pb-4 px-2">
+        <CardFooter className="pt-1 pb-4 px-2 flex flex-col gap-4">
           <Field
             orientation="horizontal"
             className="w-full flex justify-center"
@@ -378,6 +379,13 @@ export default function RegisterForm() {
               {loading ? "Đang đăng ký..." : "Đăng kí ngay"}
             </Button>
           </Field>
+
+          <div className="text-center text-sm">
+            Đã có tài khoản?{" "}
+            <Link href="/login" className="font-semibold text-amber-700 hover:text-amber-800 hover:underline">
+              Đăng nhập
+            </Link>
+          </div>
         </CardFooter>
       </Card>
     </div>
