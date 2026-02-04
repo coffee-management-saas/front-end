@@ -97,7 +97,6 @@ export default function ToppingsManager() {
     return item.name.toLowerCase().includes(q);
   });
 
-
   const handleView = async (topping: ToppingDialogItem) => {
     setDialogMode("view");
     setDialogOpen(true);
@@ -307,7 +306,9 @@ export default function ToppingsManager() {
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="font-semibold">Tên topping</TableHead>
-                  <TableHead className="font-semibold text-center">Giá</TableHead>
+                  <TableHead className="font-semibold text-center">
+                    Giá
+                  </TableHead>
                   <TableHead className="font-semibold text-center">
                     Trạng thái
                   </TableHead>

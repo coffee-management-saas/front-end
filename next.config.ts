@@ -12,8 +12,17 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "images.unsplash.com",
       },
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
     ],
-    domains: ["i.pinimg.com", "s3-hcmc02.higiocloud.vn", "images.unsplash.com"],
+    domains: [
+      "i.pinimg.com",
+      "s3-hcmc02.higiocloud.vn",
+      "images.unsplash.com",
+      "res.cloudinary.com",
+    ],
   },
 };
 

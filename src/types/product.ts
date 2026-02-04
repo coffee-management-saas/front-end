@@ -35,3 +35,10 @@ export interface ProductFilter {
   categoryId?: number;
   status?: ProductStatus;
 }
+export type ProductInput = {
+  name: string;
+  categoryId: number;
+  description?: string | null;
+  image?: string | null;
+  status?: Product["status"];
+};

@@ -12,7 +12,6 @@ export interface Promotion {
   startDate: string;
   endDate: string;
   promotionStatus: "ACTIVE" | "INACTIVE" | "DELETED";
-  /** API mới trả trường status; giữ thêm để tương thích */
   status?: "ACTIVE" | "INACTIVE" | "EXPIRED" | "DELETED";
   imageUrl?: string;
   shopId: number;

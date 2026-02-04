@@ -82,7 +82,6 @@ export default function ProductsManagerPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
-
   const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(
     null,
   );
@@ -90,7 +89,6 @@ export default function ProductsManagerPage() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
-
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
@@ -222,9 +220,8 @@ export default function ProductsManagerPage() {
   const handleSave = async () => {
     if (!editForm) return;
 
-    const rawCategoryId = editForm.categoryId.trim();
-    const categoryId = Number(rawCategoryId);
-    if (!rawCategoryId || !Number.isFinite(categoryId) || categoryId <= 0) {
+    const categoryId = Number(editForm.categoryId);
+    if (!Number.isFinite(categoryId)) {
       toast.error("Vui lòng chọn danh mục");
       return;
     }
@@ -519,9 +516,9 @@ export default function ProductsManagerPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Trạng thái</p>
-                  <span className={statusBadgeClass(viewProduct.status)}>
+                  <p className="font-medium">
                     {statusLabel(viewProduct.status)}
-                  </span>
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Mô tả</p>
