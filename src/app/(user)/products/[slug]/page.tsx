@@ -12,11 +12,11 @@ import {
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
-import type { ApiEnvelope, Product, ProductVariant } from "@/types/product";
+import type { ApiEnvelope, Product, ProductVariant, Size } from "@/types/product";
 import { ToppingsResponse } from "@/types/topping";
 import Link from "next/link";
 import { useCart } from "@/contexts/CartContext";
-import { getProductVariants } from "@/services/product.service";
+import { getProductVariants, getProductSizes } from "@/services/product.service";
 import { toast } from "sonner";
 
 type LevelOption = "Ít" | "Bình thường" | "Nhiều";
@@ -72,6 +72,7 @@ const DetailProduct: React.FC = () => {
   const [quantity, setQuantity] = useState<number>(1);
   const [product, setProduct] = useState<Product | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [sizes, setSizes] = useState<Size[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [coffeeItems, setCoffeeItems] = useState<SuggestItem[]>([]);
@@ -141,9 +142,10 @@ const DetailProduct: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const [productRes, variantsRes] = await Promise.all([
+        const [productRes, variantsRes, sizesRes] = await Promise.all([
           fetch(`/api/products/${productId}`, { cache: "no-store" }),
-          getProductVariants(productId).catch(() => ({ data: [] }))
+          getProductVariants(productId).catch(() => ({ data: [] })),
+          getProductSizes().catch(() => ({ data: [] }))
         ]);
 
         const productPayload = (await productRes.json()) as ApiEnvelope<Product> | { message?: string };
@@ -155,13 +157,26 @@ const DetailProduct: React.FC = () => {
         }
 
         const variantsData = (variantsRes as ApiEnvelope<ProductVariant[]>).data || [];
+        const sizesData = (sizesRes as ApiEnvelope<Size[]>).data || [];
+        setSizes(sizesData);
 
-        const sizeOrder: Record<string, number> = { "S": 1, "M": 2, "L": 3, "XL": 4 };
+        const sizeOrder: Record<string, number> = {};
+        sizesData.forEach((s, idx) => {
+          sizeOrder[s.code] = idx + 1;
+          sizeOrder[s.name] = idx + 1;
+        });
+
+        // Fallback if no sizes loaded
+        if (Object.keys(sizeOrder).length === 0) {
+          Object.assign(sizeOrder, { "S": 1, "M": 2, "L": 3, "XL": 4 });
+        }
+
         variantsData.sort((a, b) => {
           const nameA = getVariantName(a).toUpperCase();
           const nameB = getVariantName(b).toUpperCase();
-          const orderA = sizeOrder[nameA] || 99;
-          const orderB = sizeOrder[nameB] || 99;
+          // Try to match name or code
+          const orderA = sizeOrder[nameA] || sizeOrder[a.code] || 99;
+          const orderB = sizeOrder[nameB] || sizeOrder[b.code] || 99;
           return orderA - orderB;
         });
 
@@ -280,7 +295,7 @@ const DetailProduct: React.FC = () => {
 
   const formatPrice = (price: number) => price.toLocaleString("vi-VN") + " ₫";
 
-  if (loading) return <div className="p-6 pt-24">Đang tải sản phẩm...</div>;
+  if (loading) return null;
   if (error) return <div className="p-6 pt-24 text-red-600">{error}</div>;
 
   return (

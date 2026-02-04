@@ -10,12 +10,18 @@ export interface Product {
   status: ProductStatus;
 }
 
+export interface Size {
+  id: number;
+  name: string;
+  code: string;
+}
+
 export interface ProductVariant {
   id: number;
   productId: number;
   code: string;
   price: number;
-  size?: string | { code: string; name: string };
+  size?: string | Size;
   sizeCode?: string;
   name?: string;
   image: string | null;
