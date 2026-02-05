@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useCart } from "@/contexts/CartContext";
 import { getProductVariants, getProductSizes } from "@/services/product.service";
 import { toast } from "sonner";
+import { triggerFlyToCart } from "@/components/FlyingCartAnimation";
 
 type LevelOption = "Ít" | "Bình thường" | "Nhiều";
 
@@ -299,175 +300,225 @@ const DetailProduct: React.FC = () => {
   if (error) return <div className="p-6 pt-24 text-red-600">{error}</div>;
 
   return (
-    <div className="max-w-6xl mx-auto bg-white min-h-screen px-4 md:px-6">
-      {/* Breadcrumb with Back Button */}
-      <div className="pt-4 pb-2 flex items-center gap-3">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span className="text-xs font-medium">Quay lại trang sản phẩm</span>
-        </button>
-        <span className="text-xs text-gray-400">|</span>
-        <div className="text-xs text-gray-500">
-          Trang chủ / <span className="text-gray-800">Sản phẩm</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-start pt-12">
-        <div className="relative h-105 md:h-130 rounded-xl overflow-hidden">
-          <Image
-            src={item.image}
-            alt={item.name}
-            fill
-            sizes="(min-width: 768px) 50vw, 100vw"
-            className="object-cover"
-            priority
-          />
+    <div className="min-h-screen bg-gradient-to-b from-[#F9F7F5] to-white">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
+        {/* Breadcrumb with Back Button */}
+        <div className="pt-6 pb-4 flex items-center gap-3">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-gray-600 hover:text-[#693916] transition-colors group"
+          >
+            <div className="w-8 h-8 rounded-full bg-white shadow-sm group-hover:shadow-md flex items-center justify-center transition-all">
+              <ArrowLeft className="w-4 h-4" />
+            </div>
+            <span className="text-sm font-medium">Quay lại</span>
+          </button>
+          <span className="text-gray-300">|</span>
+          <div className="text-sm text-gray-500">
+            Trang chủ / <span className="text-[#693916] font-medium">Chi tiết sản phẩm</span>
+          </div>
         </div>
 
-        <div className="pt-1">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg md:text-xl font-semibold text-gray-900">
-                {item.name} ({activeVariant ? getVariantName(activeVariant) : ""})
-              </h2>
-              <p className="text-xs text-gray-500 mt-1">SKU: {item.sku}</p>
+        {/* Main Product Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 py-8">
+          {/* Product Image */}
+          <div className="relative">
+            <div className="sticky top-24">
+              <div className="relative h-[400px] md:h-[500px] lg:h-[600px] rounded-3xl overflow-hidden shadow-2xl bg-gradient-to-br from-amber-50 to-orange-50">
+                <Image
+                  src={item.image}
+                  alt={item.name}
+                  fill
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  className="object-cover"
+                  priority
+                />
+                {/* Decorative Corner */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-white/30 to-transparent rounded-bl-full"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Product Details */}
+          <div className="space-y-6">
+            {/* Product Header */}
+            <div className="bg-white rounded-2xl p-6 shadow-md border border-amber-100">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="flex-1">
+                  <span className="inline-block px-3 py-1 bg-amber-100 text-[#693916] text-xs font-bold rounded-full mb-3">
+                    {item.categoryName || "Đồ uống"}
+                  </span>
+                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                    {item.name}
+                  </h1>
+                  <p className="text-sm text-gray-500">SKU: {item.sku}</p>
+                </div>
+
+                {/* Quantity Selector */}
+                <div className="flex items-center gap-3 bg-amber-50 rounded-xl p-2">
+                  <button
+                    className="w-9 h-9 rounded-lg bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="text-lg font-bold text-[#693916] min-w-[30px] text-center">
+                    {quantity}
+                  </span>
+                  <button
+                    className="w-9 h-9 rounded-lg bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
+                    type="button"
+                    onClick={() => setQuantity((q) => q + 1)}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
 
               {item.description && (
-                <p className="text-sm text-gray-600 mt-2">{item.description}</p>
+                <p className="text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4">
+                  {item.description}
+                </p>
               )}
 
-              <p className="text-lg md:text-xl font-bold text-[#693916] mt-2">
-                {formatPrice(totalPrice)}
-              </p>
+              {/* Price Display */}
+              <div className="mt-6 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border-2 border-dashed border-amber-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600 font-medium">Tổng tiền:</span>
+                  <span className="text-3xl font-bold text-[#693916]">
+                    {formatPrice(totalPrice)}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 mt-1">
-              <button
-                className="w-7 h-7 rounded bg-[#693916] text-white flex items-center justify-center"
-                type="button"
-                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-              <span className="text-sm w-6 text-center">{quantity}</span>
-              <button
-                className="w-7 h-7 rounded bg-[#693916] text-white flex items-center justify-center"
-                type="button"
-                onClick={() => setQuantity((q) => q + 1)}
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+            {/* Size Selection */}
+            <div className="bg-white rounded-2xl p-6 shadow-md border border-amber-100">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="w-6 h-6 bg-amber-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">S</span>
+                </div>
+                Chọn kích cỡ
+              </h3>
+              <div className="grid grid-cols-4 gap-3">
+                {variants.length > 0 ? (
+                  variants.map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setSelectedVariantId(v.id)}
+                      className={[
+                        "h-14 rounded-xl font-bold text-base transition-all duration-300 transform hover:scale-105",
+                        selectedVariantId === v.id
+                          ? "bg-gradient-to-br from-[#693916] to-[#876F60] text-white shadow-lg scale-105"
+                          : "bg-gray-50 text-gray-700 border-2 border-gray-200 hover:border-amber-300",
+                      ].join(" ")}
+                    >
+                      {getVariantName(v)}
+                    </button>
+                  ))
+                ) : (
+                  <div className="col-span-4 text-sm text-gray-500 text-center py-4">
+                    Đang tải kích cỡ...
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="mt-4">
-            <h3 className="text-xs font-semibold text-gray-800 mb-2">
-              Chọn kích cỡ
-            </h3>
-            <div className="flex items-center gap-3">
-              {variants.length > 0 ? (
-                variants.map((v) => (
+            {/* Ice Level */}
+            <div className="bg-white rounded-2xl p-6 shadow-md border border-amber-100">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="w-6 h-6 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-xs">❄️</span>
+                </div>
+                Mức độ đá
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                {(["Ít", "Bình thường", "Nhiều"] as LevelOption[]).map((opt) => (
                   <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setSelectedVariantId(v.id)}
-                    className={[
-                      "min-w-16 h-8 px-2 rounded border text-xs font-semibold",
-                      selectedVariantId === v.id
-                        ? "bg-[#693916] text-white border-[#693916]"
-                        : "bg-white text-gray-700 border-gray-200",
-                    ].join(" ")}
+                    key={opt}
+                    onClick={() => setSelectedIce(opt)}
+                    className={`h-12 rounded-xl font-semibold text-sm transition-all duration-300 ${selectedIce === opt
+                      ? "bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-lg scale-105"
+                      : "bg-gray-50 border-2 border-gray-200 text-gray-700 hover:border-blue-300"
+                      }`}
                   >
-                    {getVariantName(v)}
+                    {opt}
                   </button>
-                ))
-              ) : (
-                <div className="text-sm text-gray-500">Đang tải kích cỡ...</div>
-              )}
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <Label className="text-xs font-bold text-[#693916] pt-5">Đá</Label>
-            <div className="mt-2 grid grid-cols-3 gap-2 pt-2">
-              {(["Ít", "Bình thường", "Nhiều"] as LevelOption[]).map((opt) => (
-                <button
-                  key={opt}
-                  onClick={() => setSelectedIce(opt)}
-                  className={`h-8 px-3 rounded-md border text-xs font-medium transition ${selectedIce === opt
-                    ? "bg-[#693916] text-white border-[#693916]"
-                    : "bg-gray-100 border-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-          </div>
+            {/* Toppings */}
+            <div className="bg-white rounded-2xl p-6 shadow-md border border-amber-100">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="w-6 h-6 bg-green-500 rounded-lg flex items-center justify-center">
+                  <Plus className="w-4 h-4 text-white" />
+                </div>
+                Chọn Topping
+              </h3>
 
-          <div className="mt-5">
-            <h3 className="text-xs font-semibold text-gray-800 mb-3">
-              Chọn Topping
-            </h3>
-
-            <div className="space-y-3">
               {topLoading && (
-                <div className="text-sm text-gray-500 mb-2">
+                <div className="text-sm text-gray-500 text-center py-4">
                   Đang tải topping...
                 </div>
               )}
               {topError && (
-                <div className="text-sm text-red-600 mb-2">{topError}</div>
+                <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3 mb-4">
+                  {topError}
+                </div>
               )}
 
-              {toppings.map((t) => (
-                <div
-                  key={t.id}
-                  className="grid grid-cols-[1fr_auto] gap-4 items-center"
-                >
-                  <div>
-                    <p className="text-xs text-gray-900">{t.name}</p>
-                    <p className="text-[11px] text-gray-500 mt-1">
-                      {formatPrice(t.price)}
-                    </p>
+              <div className="space-y-3">
+                {toppings.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-amber-50 rounded-xl border border-gray-200 hover:border-amber-300 transition-all"
+                  >
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-gray-900">{t.name}</p>
+                      <p className="text-xs text-amber-600 font-medium mt-1">
+                        +{formatPrice(t.price)}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => updateToppingQuantity(t.id, -1)}
+                        disabled={t.quantity === 0}
+                        className={[
+                          "w-9 h-9 rounded-lg flex items-center justify-center transition-all",
+                          t.quantity === 0
+                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                            : "bg-white shadow-sm hover:shadow-md text-[#693916] hover:scale-105",
+                        ].join(" ")}
+                        type="button"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+
+                      <span className="w-8 text-center text-base font-bold text-gray-800">
+                        {t.quantity}
+                      </span>
+
+                      <button
+                        onClick={() => updateToppingQuantity(t.id, 1)}
+                        className="w-9 h-9 rounded-lg bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
+                        type="button"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateToppingQuantity(t.id, -1)}
-                      disabled={t.quantity === 0}
-                      className={[
-                        "w-7 h-7 rounded border flex items-center justify-center",
-                        t.quantity === 0
-                          ? "bg-gray-200 text-gray-400 border-gray-200 cursor-not-allowed"
-                          : "bg-[#693916] text-white border-[#693916]",
-                      ].join(" ")}
-                      type="button"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-
-                    <span className="w-5 text-center text-sm text-gray-800">
-                      {t.quantity}
-                    </span>
-
-                    <button
-                      onClick={() => updateToppingQuantity(t.id, 1)}
-                      className="w-7 h-7 rounded border border-[#693916] bg-[#693916] text-white flex items-center justify-center"
-                      type="button"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
+            {/* Add to Cart Button */}
             <button
-              onClick={() => {
+              id="add-to-cart-btn"
+              onClick={(e) => {
                 if (!product) return;
 
                 if (!activeVariant) {
@@ -494,80 +545,94 @@ const DetailProduct: React.FC = () => {
                   iceLevel: selectedIce,
                 });
 
+                // Trigger flying animation
+                triggerFlyToCart(
+                  product.image ?? FALLBACK_IMG,
+                  e.currentTarget
+                );
+
+                toast.success("Đã thêm vào giỏ hàng!");
                 setQuantity(1);
               }}
-              className="mt-5 w-full bg-[#693916] hover:bg-amber-900 text-white py-2.5 rounded-md font-semibold text-sm flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-[#693916] to-[#876F60] hover:from-[#876F60] hover:to-[#693916] text-white py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
               type="button"
             >
-              <ShoppingCart className="w-4 h-4" />
-              Đặt hàng : {formatPrice(totalPrice)}
+              <ShoppingCart className="w-6 h-6" />
+              Thêm vào giỏ hàng - {formatPrice(totalPrice)}
             </button>
           </div>
         </div>
-      </div>
 
-      {/* SẢN PHẨM  GỢI Ý */}
-      <div className="text-center mb-12 mt-6 pt-10">
-        <h1 className="text-xl md:text-xl font-bold text-[#693916] mb-2">
-          SẢN PHẨM GỢI Ý
-        </h1>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => scrollLeft(bestSellerRef)}
-          className="hidden md:flex bg-white shadow-md rounded-full p-2 hover:bg-gray-100 transition flex-shrink-0"
-          type="button"
-        >
-          <ChevronLeft className="w-6 h-6 text-gray-600" />
-        </button>
-
-        <div
-          ref={bestSellerRef}
-          className="flex flex-1 gap-4 pb-4 mb-8 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none]"
-        >
-          {coffeeItems.map((it) => (
-            <div
-              key={it.id}
-              className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 shrink-0 w-[80%] sm:w-[45%] md:w-[calc((100%-1rem*4)/5)]"
-            >
-              <Link href={`/products/${it.id}`} className="block">
-                <div className="relative bg-gray-100 h-36 flex items-center justify-center">
-                  <Image
-                    src={it.image}
-                    alt={it.name}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-              </Link>
-
-              <div className="p-2">
-                <h3 className="text-xs font-semibold text-gray-800 mb-1 h-8 leading-tight">
-                  {it.name}
-                </h3>
-                <p className="text-base font-bold text-[#693916] mb-2">
-                  {it.price.toLocaleString("vi-VN")} ₫
-                </p>
-                <button
-                  className="w-full bg-[#693916] text-white font-semibold py-1 rounded-lg flex items-center justify-center gap-1 text-xs"
-                  type="button"
-                >
-                  <ShoppingCart className="w-3 h-3" />
-                  Đặt mua
-                </button>
-              </div>
+        {/* Suggested Products */}
+        <div className="py-12">
+          <div className="text-center mb-10">
+            <div className="inline-block mb-3">
+              <span className="text-sm font-bold text-[#693916] uppercase tracking-[0.2em] bg-amber-100 px-6 py-2 rounded-full shadow-sm">
+                Gợi ý cho bạn
+              </span>
             </div>
-          ))}
-        </div>
+            <h2 className="text-3xl font-bold text-[#693916]">
+              Sản Phẩm Tương Tự
+            </h2>
+          </div>
 
-        <button
-          onClick={() => scrollRight(bestSellerRef)}
-          className="hidden md:flex bg-white shadow-md rounded-full p-2 hover:bg-gray-100 transition flex-shrink-0"
-          type="button"
-        >
-          <ChevronRight className="w-6 h-6 text-gray-600" />
-        </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => scrollLeft(bestSellerRef)}
+              className="hidden md:flex bg-white shadow-lg rounded-full p-3 hover:bg-amber-50 hover:shadow-xl transition-all flex-shrink-0 transform hover:scale-110"
+              type="button"
+            >
+              <ChevronLeft className="w-6 h-6 text-[#693916]" />
+            </button>
+
+            <div
+              ref={bestSellerRef}
+              className="flex flex-1 gap-6 pb-4 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none]"
+            >
+              {coffeeItems.map((it) => (
+                <div
+                  key={it.id}
+                  className="group bg-white rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 shrink-0 w-[280px] overflow-hidden border border-amber-100 transform hover:-translate-y-2"
+                >
+                  <Link href={`/products/${it.id}`} className="block">
+                    <div className="relative bg-gradient-to-br from-amber-50 to-orange-50 h-56 overflow-hidden">
+                      <Image
+                        src={it.image}
+                        alt={it.name}
+                        fill
+                        className="object-cover group-hover:scale-110 transition-transform duration-500"
+                      />
+                    </div>
+                  </Link>
+
+                  <div className="p-5">
+                    <h3 className="text-base font-bold text-gray-800 mb-2 h-12 line-clamp-2 leading-tight group-hover:text-[#693916] transition-colors">
+                      {it.name}
+                    </h3>
+                    <p className="text-xl font-bold text-[#693916] mb-4">
+                      {it.price.toLocaleString("vi-VN")} ₫
+                    </p>
+                    <button
+                      className="w-full bg-gradient-to-r from-[#693916] to-[#876F60] hover:from-[#876F60] hover:to-[#693916] text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+                      type="button"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Đặt mua
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => scrollRight(bestSellerRef)}
+              className="hidden md:flex bg-white shadow-lg rounded-full p-3 hover:bg-amber-50 hover:shadow-xl transition-all flex-shrink-0 transform hover:scale-110"
+              type="button"
+            >
+              <ChevronRight className="w-6 h-6 text-[#693916]" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
