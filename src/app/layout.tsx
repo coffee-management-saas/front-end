@@ -4,6 +4,7 @@ import "./globals.css";
 import LayoutContent from "@/components/layout-content";
 import { Toaster } from "@/components/ui/sonner";
 import { FloatingCartButton } from "@/components/floating-cart-button";
+import { FlyingCartManager } from "@/components/FlyingCartAnimation";
 
 import AppProvider from "@/app/AppProvider";
 import SlideSession from "@/components/slide-session";
@@ -61,13 +62,15 @@ export default async function RootLayout({
             expiresAt,
           }}
         >
-          <LayoutContent>
-            <SlideSession />
-            {children}
-          </LayoutContent>
+          <FlyingCartManager>
+            <LayoutContent>
+              <SlideSession />
+              {children}
+            </LayoutContent>
 
-          <FloatingCartButton />
-          <Toaster />
+            <FloatingCartButton />
+            <Toaster />
+          </FlyingCartManager>
         </AppProvider>
       </body>
     </html>
