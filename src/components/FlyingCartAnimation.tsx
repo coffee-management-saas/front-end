@@ -15,13 +15,11 @@ export function FlyingCartItem({ imageSrc, startX, startY, onComplete }: FlyingI
     const [opacity, setOpacity] = useState(1);
 
     useEffect(() => {
-        // Only run on client side
         if (typeof window === 'undefined') {
             onComplete();
             return;
         }
 
-        // Get cart icon position (top right of screen)
         const cartElement = document.querySelector('[data-cart-icon]');
         const cartRect = cartElement?.getBoundingClientRect();
 
@@ -33,26 +31,22 @@ export function FlyingCartItem({ imageSrc, startX, startY, onComplete }: FlyingI
         const endX = cartRect.left + cartRect.width / 2;
         const endY = cartRect.top + cartRect.height / 2;
 
-        // Animate to cart position
-        const duration = 800; // ms
+        const duration = 800;
         const startTime = Date.now();
 
         const animate = () => {
             const elapsed = Date.now() - startTime;
             const progress = Math.min(elapsed / duration, 1);
 
-            // Easing function (ease-in-out)
             const eased = progress < 0.5
                 ? 2 * progress * progress
                 : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
-            // Calculate current position
             const currentX = startX + (endX - startX) * eased;
             const currentY = startY + (endY - startY) * eased;
 
             setPosition({ x: currentX, y: currentY });
 
-            // Fade out near the end
             if (progress > 0.7) {
                 setOpacity(1 - (progress - 0.7) / 0.3);
             }

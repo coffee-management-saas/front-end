@@ -3,6 +3,7 @@ export interface ProfileData {
   username: string;
   fullname: string;
   rankId: string;
+  points?: number; // Điểm tích lũy
   email: string;
   phone: string;
   address: string;

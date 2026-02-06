@@ -29,6 +29,7 @@ import { logoutFromNextClientToNextServer } from "@/services/auth.service";
 import { Button } from "@/components/ui/button";
 import { ProductCategoriesResponse, ProductCategory } from "@/types/catagories";
 import { DeliveryMethodModal } from "@/components/DeliveryMethodModal";
+import NotificationDropdown from "@/components/notification-dropdown";
 
 export default function PhucLongHeader() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -157,19 +158,18 @@ export default function PhucLongHeader() {
             </span>
           </button>
 
-          {/* Mail/Notification Icon */}
-          <button className="relative p-2 rounded-full hover:bg-amber-50 transition-all group">
-            <Mail className="w-6 h-6 text-[#693916] group-hover:text-amber-600" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
+          {/* Mail/Notification Icon with Dropdown */}
+          <div className="relative group">
+            <button className="relative p-2 rounded-full hover:bg-amber-50 transition-all">
+              <Mail className="w-6 h-6 text-[#693916] group-hover:text-amber-600" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
 
-          {/* Shopping Cart Icon */}
-          <Link href="/cart" className="relative p-2 rounded-full hover:bg-amber-50 transition-all group" data-cart-icon>
-            <ShoppingBag className="w-6 h-6 text-[#693916] group-hover:text-amber-600" />
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-              0
-            </span>
-          </Link>
+            {/* Dropdown - appears on hover */}
+            <div className="absolute top-full right-0 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 ease-in-out z-50 transform translate-y-2 group-hover:translate-y-0">
+              <NotificationDropdown />
+            </div>
+          </div>
 
           {/* Right Side Icons */}
           <div className="flex items-center gap-4 ml-auto">

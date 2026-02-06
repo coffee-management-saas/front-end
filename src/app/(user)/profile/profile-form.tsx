@@ -5,7 +5,6 @@ import {
   CreditCard,
   Heart,
   HelpCircle,
-  LogOut,
   MapPin,
   Pencil,
   ShoppingCart,
@@ -13,6 +12,8 @@ import {
 } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import OrderHistory from "./order-history";
+import MemberTier from "./member-tier";
+import Favorites from "./favorites";
 
 import { ProfileData } from "@/types/profile";
 
@@ -67,6 +68,8 @@ export default function ProfileForm() {
         return "Bạc";
       case "3":
         return "Vàng";
+      case "4":
+        return "Kim Cương";
       default:
         return "Chưa xếp hạng";
     }
@@ -100,7 +103,7 @@ export default function ProfileForm() {
     {
       id: "orders",
       icon: ShoppingCart,
-      label: "Đơn hàng",
+      label: "Lịch sử đơn hàng",
       color: "text-amber-600",
     },
     {
@@ -121,7 +124,6 @@ export default function ProfileForm() {
       label: "Trung tâm trợ giúp",
       color: "text-orange-600",
     },
-    { id: "logout", icon: LogOut, label: "Đăng xuất", color: "text-amber-600" },
   ];
 
   const handleInputChange = (field: keyof ProfileData, value: string) => {
@@ -347,8 +349,47 @@ export default function ProfileForm() {
                     <label className="block text-sm font-medium text-gray-900">
                       Hạng thành viên
                     </label>
-                    <div className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-100 text-gray-700">
-                      {rankLabel}
+                    <div className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white flex items-center gap-3">
+                      {profile.rankId === "1" && (
+                        <>
+                          <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+                            <span className="text-amber-700 font-bold text-sm">🥉</span>
+                          </div>
+                          <span className="font-semibold text-amber-700">{rankLabel}</span>
+                        </>
+                      )}
+                      {profile.rankId === "2" && (
+                        <>
+                          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                            <span className="text-gray-600 font-bold text-sm">🥈</span>
+                          </div>
+                          <span className="font-semibold text-gray-600">{rankLabel}</span>
+                        </>
+                      )}
+                      {profile.rankId === "3" && (
+                        <>
+                          <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                            <span className="text-yellow-600 font-bold text-sm">🥇</span>
+                          </div>
+                          <span className="font-semibold text-yellow-600">{rankLabel}</span>
+                        </>
+                      )}
+                      {profile.rankId === "4" && (
+                        <>
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-blue-600 font-bold text-sm">💎</span>
+                          </div>
+                          <span className="font-semibold text-blue-600">{rankLabel}</span>
+                        </>
+                      )}
+                      {!profile.rankId || (profile.rankId !== "1" && profile.rankId !== "2" && profile.rankId !== "3" && profile.rankId !== "4") && (
+                        <span className="text-gray-500">{rankLabel}</span>
+                      )}
+                      {profile.points !== undefined && (
+                        <span className="ml-auto text-sm text-gray-500">
+                          {profile.points.toLocaleString()} điểm
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -356,13 +397,18 @@ export default function ProfileForm() {
             )}
 
             {activeTab === "orders" && <OrderHistory />}
+            {activeTab === "member" && <MemberTier />}
+            {activeTab === "favorites" && <Favorites />}
 
             {/* Fallback for other tabs */}
-            {activeTab !== "orders" && activeTab !== "personal-info" && (
-              <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-                <p>Tính năng đang được phát triển</p>
-              </div>
-            )}
+            {activeTab !== "orders" &&
+              activeTab !== "personal-info" &&
+              activeTab !== "member" &&
+              activeTab !== "favorites" && (
+                <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                  <p>Tính năng đang được phát triển</p>
+                </div>
+              )}
           </form>
         </div>
       </div>
