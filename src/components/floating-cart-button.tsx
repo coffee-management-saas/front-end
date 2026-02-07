@@ -24,7 +24,7 @@ export function FloatingCartButton() {
                 )}
                 aria-label="Giỏ hàng"
             >
-                <ShoppingCart className="w-8 h-8" />
+                <ShoppingCart className="w-8 h-8" data-cart-icon />
                 {totalItems > 0 && (
                     <span className="absolute -top-2 -right-2 bg-red-500 text-white text-sm w-7 h-7 rounded-full flex items-center justify-center font-bold shadow-md">
                         {totalItems > 99 ? "99+" : totalItems}

@@ -109,7 +109,7 @@ export default function LoginForm() {
         throw new Error(data?.message || `Login failed (${res.status})`);
       }
 
-      toast.success("Đăng nhập thành công!");
+      // toast.success("Đăng nhập thành công!");
 
       await fetch("/api/auth", {
         method: "POST",

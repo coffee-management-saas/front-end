@@ -301,7 +301,7 @@ const DetailProduct: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#F9F7F5] to-white">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto px-4 md:px-6 lg:px-8">
         {/* Breadcrumb with Back Button */}
         <div className="pt-6 pb-4 flex items-center gap-3">
           <button
@@ -320,11 +320,11 @@ const DetailProduct: React.FC = () => {
         </div>
 
         {/* Main Product Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 py-8">
-          {/* Product Image */}
-          <div className="relative">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 py-4">
+          {/* Product Image - takes 5 cols */}
+          <div className="lg:col-span-5 relative">
             <div className="sticky top-24">
-              <div className="relative h-[400px] md:h-[500px] lg:h-[600px] rounded-3xl overflow-hidden shadow-2xl bg-gradient-to-br from-amber-50 to-orange-50">
+              <div className="relative h-[250px] md:h-[350px] lg:h-[380px] rounded-2xl overflow-hidden shadow-xl bg-gradient-to-br from-amber-50 to-orange-50">
                 <Image
                   src={item.image}
                   alt={item.name}
@@ -339,39 +339,39 @@ const DetailProduct: React.FC = () => {
             </div>
           </div>
 
-          {/* Product Details */}
-          <div className="space-y-6">
+          {/* Product Details - takes 7 cols */}
+          <div className="lg:col-span-7 space-y-3">
             {/* Product Header */}
-            <div className="bg-white rounded-2xl p-6 shadow-md border border-amber-100">
-              <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-amber-100">
+              <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex-1">
-                  <span className="inline-block px-3 py-1 bg-amber-100 text-[#693916] text-xs font-bold rounded-full mb-3">
+                  <span className="inline-block px-2 py-0.5 bg-amber-100 text-[#693916] text-[10px] font-bold rounded-full mb-1">
                     {item.categoryName || "Đồ uống"}
                   </span>
-                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                  <h1 className="text-lg md:text-xl font-bold text-gray-900 mb-1 leading-tight">
                     {item.name}
                   </h1>
-                  <p className="text-sm text-gray-500">SKU: {item.sku}</p>
+                  <p className="text-xs text-gray-500">SKU: {item.sku}</p>
                 </div>
 
                 {/* Quantity Selector */}
-                <div className="flex items-center gap-3 bg-amber-50 rounded-xl p-2">
+                <div className="flex items-center gap-2 bg-amber-50 rounded-lg p-1">
                   <button
-                    className="w-9 h-9 rounded-lg bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
+                    className="w-7 h-7 rounded-md bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
                     type="button"
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                   >
-                    <Minus className="w-4 h-4" />
+                    <Minus className="w-3 h-3" />
                   </button>
-                  <span className="text-lg font-bold text-[#693916] min-w-[30px] text-center">
+                  <span className="text-sm font-bold text-[#693916] min-w-[20px] text-center">
                     {quantity}
                   </span>
                   <button
-                    className="w-9 h-9 rounded-lg bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
+                    className="w-7 h-7 rounded-md bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
                     type="button"
                     onClick={() => setQuantity((q) => q + 1)}
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3 h-3" />
                   </button>
                 </div>
               </div>
@@ -383,131 +383,126 @@ const DetailProduct: React.FC = () => {
               )}
 
               {/* Price Display */}
-              <div className="mt-6 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border-2 border-dashed border-amber-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 font-medium">Tổng tiền:</span>
-                  <span className="text-3xl font-bold text-[#693916]">
-                    {formatPrice(totalPrice)}
-                  </span>
-                </div>
-              </div>
+              {/* Total Price Removed as per feedback */}
             </div>
 
-            {/* Size Selection */}
-            <div className="bg-white rounded-2xl p-6 shadow-md border border-amber-100">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <div className="w-6 h-6 bg-amber-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">S</span>
-                </div>
-                Chọn kích cỡ
-              </h3>
-              <div className="grid grid-cols-4 gap-3">
-                {variants.length > 0 ? (
-                  variants.map((v) => (
-                    <button
-                      key={v.id}
-                      type="button"
-                      onClick={() => setSelectedVariantId(v.id)}
-                      className={[
-                        "h-14 rounded-xl font-bold text-base transition-all duration-300 transform hover:scale-105",
-                        selectedVariantId === v.id
-                          ? "bg-gradient-to-br from-[#693916] to-[#876F60] text-white shadow-lg scale-105"
-                          : "bg-gray-50 text-gray-700 border-2 border-gray-200 hover:border-amber-300",
-                      ].join(" ")}
-                    >
-                      {getVariantName(v)}
-                    </button>
-                  ))
-                ) : (
-                  <div className="col-span-4 text-sm text-gray-500 text-center py-4">
-                    Đang tải kích cỡ...
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Size Selection */}
+              <div className="bg-white rounded-xl p-3 shadow-sm border border-amber-100">
+                <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
+                  <div className="w-5 h-5 bg-[#693916] rounded-md flex items-center justify-center">
+                    <span className="text-white text-[10px] font-bold">S</span>
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Ice Level */}
-            <div className="bg-white rounded-2xl p-6 shadow-md border border-amber-100">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <div className="w-6 h-6 bg-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-xs">❄️</span>
+                  Chọn kích cỡ
+                </h3>
+                <div className="grid grid-cols-4 gap-2">
+                  {variants.length > 0 ? (
+                    variants.map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => setSelectedVariantId(v.id)}
+                        className={[
+                          "h-9 rounded-lg font-bold text-xs transition-all duration-300 transform hover:scale-105",
+                          selectedVariantId === v.id
+                            ? "bg-gradient-to-br from-[#693916] to-[#876F60] text-white shadow-md scale-105"
+                            : "bg-gray-50 text-gray-700 border border-gray-200 hover:border-amber-300",
+                        ].join(" ")}
+                      >
+                        {getVariantName(v)}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="col-span-4 text-xs text-gray-500 text-center py-2">
+                      Đang tải...
+                    </div>
+                  )}
                 </div>
-                Mức độ đá
-              </h3>
-              <div className="grid grid-cols-3 gap-3">
-                {(["Ít", "Bình thường", "Nhiều"] as LevelOption[]).map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => setSelectedIce(opt)}
-                    className={`h-12 rounded-xl font-semibold text-sm transition-all duration-300 ${selectedIce === opt
-                      ? "bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-lg scale-105"
-                      : "bg-gray-50 border-2 border-gray-200 text-gray-700 hover:border-blue-300"
-                      }`}
-                  >
-                    {opt}
-                  </button>
-                ))}
+              </div>
+
+              {/* Ice Level */}
+              <div className="bg-white rounded-xl p-3 shadow-sm border border-amber-100">
+                <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
+                  <div className="w-5 h-5 bg-[#693916] rounded-md flex items-center justify-center">
+                    <span className="text-white text-[10px]">❄️</span>
+                  </div>
+                  Đá
+                </h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["Ít", "Bình thường", "Nhiều"] as LevelOption[]).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setSelectedIce(opt)}
+                      className={`h-9 rounded-lg font-semibold text-[10px] transition-all duration-300 ${selectedIce === opt
+                        ? "bg-gradient-to-br from-[#693916] to-[#876F60] text-white shadow-md scale-105"
+                        : "bg-gray-50 border border-gray-200 text-gray-700 hover:border-[#693916]"
+                        }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
             {/* Toppings */}
-            <div className="bg-white rounded-2xl p-6 shadow-md border border-amber-100">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <div className="w-6 h-6 bg-green-500 rounded-lg flex items-center justify-center">
-                  <Plus className="w-4 h-4 text-white" />
+            <div className="bg-white rounded-xl p-3 shadow-sm border border-amber-100">
+              <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
+                <div className="w-5 h-5 bg-[#693916] rounded-md flex items-center justify-center">
+                  <Plus className="w-3 h-3 text-white" />
                 </div>
-                Chọn Topping
+                Topping
               </h3>
 
               {topLoading && (
-                <div className="text-sm text-gray-500 text-center py-4">
-                  Đang tải topping...
+                <div className="text-xs text-gray-500 text-center py-2">
+                  Đang tải...
                 </div>
               )}
               {topError && (
-                <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3 mb-4">
+                <div className="text-xs text-red-600 bg-red-50 rounded-md p-2 mb-2">
                   {topError}
                 </div>
               )}
 
-              <div className="space-y-3">
+              <div className="space-y-2 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
                 {toppings.map((t) => (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-amber-50 rounded-xl border border-gray-200 hover:border-amber-300 transition-all"
+                    className="flex items-center justify-between p-2 bg-gradient-to-r from-gray-50 to-amber-50 rounded-lg border border-gray-200 hover:border-amber-300 transition-all"
                   >
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-gray-900">{t.name}</p>
-                      <p className="text-xs text-amber-600 font-medium mt-1">
+                      <p className="text-xs font-semibold text-gray-900">{t.name}</p>
+                      <p className="text-[10px] text-amber-600 font-medium mt-0">
                         +{formatPrice(t.price)}
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => updateToppingQuantity(t.id, -1)}
                         disabled={t.quantity === 0}
                         className={[
-                          "w-9 h-9 rounded-lg flex items-center justify-center transition-all",
+                          "w-6 h-6 rounded-md flex items-center justify-center transition-all",
                           t.quantity === 0
                             ? "bg-gray-200 text-gray-400 cursor-not-allowed"
                             : "bg-white shadow-sm hover:shadow-md text-[#693916] hover:scale-105",
                         ].join(" ")}
                         type="button"
                       >
-                        <Minus className="w-4 h-4" />
+                        <Minus className="w-3 h-3" />
                       </button>
 
-                      <span className="w-8 text-center text-base font-bold text-gray-800">
+                      <span className="w-5 text-center text-xs font-bold text-gray-800">
                         {t.quantity}
                       </span>
 
                       <button
                         onClick={() => updateToppingQuantity(t.id, 1)}
-                        className="w-9 h-9 rounded-lg bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
+                        className="w-6 h-6 rounded-md bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
                         type="button"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
@@ -554,7 +549,7 @@ const DetailProduct: React.FC = () => {
                 toast.success("Đã thêm vào giỏ hàng!");
                 setQuantity(1);
               }}
-              className="w-full bg-gradient-to-r from-[#693916] to-[#876F60] hover:from-[#876F60] hover:to-[#693916] text-white py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
+              className="w-full bg-gradient-to-r from-[#693916] to-[#876F60] hover:from-[#876F60] hover:to-[#693916] text-white py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
               type="button"
             >
               <ShoppingCart className="w-6 h-6" />
@@ -564,14 +559,14 @@ const DetailProduct: React.FC = () => {
         </div>
 
         {/* Suggested Products */}
-        <div className="py-12">
-          <div className="text-center mb-10">
-            <div className="inline-block mb-3">
-              <span className="text-sm font-bold text-[#693916] uppercase tracking-[0.2em] bg-amber-100 px-6 py-2 rounded-full shadow-sm">
+        <div className="py-8">
+          <div className="text-center mb-6">
+            <div className="inline-block mb-2">
+              <span className="text-xs font-bold text-[#693916] uppercase tracking-[0.2em] bg-amber-100 px-4 py-1.5 rounded-full shadow-sm">
                 Gợi ý cho bạn
               </span>
             </div>
-            <h2 className="text-3xl font-bold text-[#693916]">
+            <h2 className="text-xl font-bold text-[#693916]">
               Sản Phẩm Tương Tự
             </h2>
           </div>
@@ -592,10 +587,10 @@ const DetailProduct: React.FC = () => {
               {coffeeItems.map((it) => (
                 <div
                   key={it.id}
-                  className="group bg-white rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 shrink-0 w-[280px] overflow-hidden border border-amber-100 transform hover:-translate-y-2"
+                  className="group bg-white rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 shrink-0 w-[200px] overflow-hidden border border-amber-100 transform hover:-translate-y-2"
                 >
                   <Link href={`/products/${it.id}`} className="block">
-                    <div className="relative bg-gradient-to-br from-amber-50 to-orange-50 h-56 overflow-hidden">
+                    <div className="relative bg-gradient-to-br from-amber-50 to-orange-50 h-40 overflow-hidden">
                       <Image
                         src={it.image}
                         alt={it.name}
