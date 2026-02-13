@@ -38,6 +38,12 @@ const menuItems: MenuItem[] = [
   { title: "Khuyến mãi", href: "/admin/promotions-manager", icon: Package },
   { title: "Sản phẩm", href: "/admin/products-manager", icon: Coffee },
   { title: "Toppings", href: "/admin/toppings-manager", icon: ShoppingBagIcon },
+  { title: "Sizes", href: "/admin/sizes-manager", icon: ShoppingBagIcon },
+  {
+    title: "Biến thể sản phẩm",
+    href: "/admin/variants-manager",
+    icon: ShoppingBagIcon,
+  },
   { title: "Nhân viên", href: "/admin/employees-manager", icon: Users },
   { title: "Cài đặt", href: "/settings", icon: Settings },
 ];

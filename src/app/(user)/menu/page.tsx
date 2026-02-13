@@ -34,12 +34,14 @@ function BeverageCard({ beverage, index = 0 }: BeverageCardProps) {
       style={{ animationDelay: `${index * 80}ms` }}
     >
       <div className="relative h-56 overflow-hidden bg-secondary/30">
-        <img
-          src={beverage.image}
-          alt={beverage.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-          loading="lazy"
-        />
+        <Link href={`/products/${slug}`} className="block h-full w-full">
+          <img
+            src={beverage.image}
+            alt={beverage.name}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            loading="lazy"
+          />
+        </Link>
 
         {beverage.isPopular && (
           <div className="absolute top-3 left-3 px-3 py-1 bg-accent text-accent-foreground text-xs font-semibold rounded-full shadow-lg">

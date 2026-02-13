@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import LayoutContent from "@/components/layout-content";
 import { Toaster } from "@/components/ui/sonner";
+import { FloatingCartButton } from "@/components/floating-cart-button";
 
 import AppProvider from "@/app/AppProvider";
 import SlideSession from "@/components/slide-session";
@@ -65,6 +66,7 @@ export default async function RootLayout({
             {children}
           </LayoutContent>
 
+          <FloatingCartButton />
           <Toaster />
         </AppProvider>
       </body>

@@ -6,6 +6,7 @@ import type {
   ProductFilter,
   ProductInput,
   ProductsResponse,
+  ProductVariant, // Add this
 } from "@/types/product";
 
 async function parseJsonSafely<T>(res: Response): Promise<T> {
@@ -139,4 +140,26 @@ export async function deleteProductById(id: number | string): Promise<void> {
     );
     throw new ApiError(data?.message || "BE error", res.status, data);
   }
+}
+
+export async function getProductVariants(
+  productId?: number | string,
+): Promise<ApiEnvelope<ProductVariant[]>> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const qs = productId ? `?productId=${productId}` : "";
+  const beUrl = `${base}/product/variants${qs}`;
+
+  const res = await fetch(beUrl, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonSafely<ApiEnvelope<ProductVariant[]>>(res);
+
+  if (!res.ok) {
+    throw new ApiError(payload?.message || "BE error", res.status, payload);
+  }
+
+  return payload;
 }
