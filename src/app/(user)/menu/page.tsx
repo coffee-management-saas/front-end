@@ -33,7 +33,7 @@ function BeverageCard({ beverage, index = 0 }: BeverageCardProps) {
       )}
       style={{ animationDelay: `${index * 80}ms` }}
     >
-      <div className="relative h-56 overflow-hidden bg-secondary/30">
+      <div className="relative h-40 overflow-hidden bg-secondary/30">
         <Link href={`/products/${slug}`} className="block h-full w-full">
           <img
             src={beverage.image}

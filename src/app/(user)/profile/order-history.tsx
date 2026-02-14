@@ -66,32 +66,57 @@ export default function OrderHistory() {
     }
 
     return (
-        <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Lịch sử đơn hàng</h3>
-            <div className="space-y-3">
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h3 className="text-xl font-bold text-gray-900">Lịch sử đơn hàng</h3>
+                    <p className="text-sm text-gray-500 mt-1">Bạn có {orders.length} đơn hàng</p>
+                </div>
+            </div>
+
+            <div className="grid gap-4">
                 {orders.map((order) => (
                     <div
                         key={order.orderId}
-                        className="border border-gray-100 rounded-xl p-4 hover:bg-gray-50 transition-colors cursor-pointer flex justify-between items-center group"
+                        className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-amber-200 transition-all duration-300 cursor-pointer overflow-hidden"
                         onClick={() => handleViewDetail(order.orderId)}
                     >
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                                <span className="font-bold text-gray-900">#{order.orderId}</span>
-                                <StatusBadge status={order.orderStatus} />
+                        {/* Decorative gradient */}
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-full -mr-16 -mt-16"></div>
+
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 space-y-3">
+                                {/* Order ID and Status */}
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                                        <ShoppingBag className="w-5 h-5 text-amber-700" />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-gray-900 text-lg">#{order.orderId}</span>
+                                            <StatusBadge status={order.orderStatus} />
+                                        </div>
+                                        <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                                            <span className="flex items-center gap-1">
+                                                <Calendar className="w-3.5 h-3.5" />
+                                                {order.createdAt ? format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: vi }) : "N/A"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Price */}
+                                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                                    <span className="text-sm text-gray-600">Tổng thanh toán</span>
+                                    <span className="text-xl font-bold text-amber-700">
+                                        {formatCurrency(order.paidPrice)}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="text-sm text-gray-500 flex items-center gap-3">
-                                <span className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3" />
-                                    {order.createdAt ? format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: vi }) : "N/A"}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                    <CreditCard className="w-3 h-3" />
-                                    {formatCurrency(order.paidPrice)}
-                                </span>
-                            </div>
+
+                            {/* Arrow */}
+                            <ChevronRight className="w-6 h-6 text-gray-300 group-hover:text-amber-600 group-hover:translate-x-1 transition-all ml-4" />
                         </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-amber-700 transition-colors" />
                     </div>
                 ))}
             </div>

@@ -4,7 +4,9 @@ export interface Variant {
   id: number;
   costPrice: number;
   price: number;
+  productId?: number;
   productName: string;
+  sizeId?: number;
   sizeCode: string;
   skuCode: string;
   status: VariantStatus;

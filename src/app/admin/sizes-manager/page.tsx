@@ -1,6 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Search, Ruler, CheckCircle2, PauseCircle, Plus } from "lucide-react";
+import {
+  Search,
+  Ruler,
+  CheckCircle2,
+  PauseCircle,
+  Plus,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,6 +22,7 @@ import {
 import { toast } from "sonner";
 import type { Size, SizeStatus } from "@/types/size";
 import { SizeDialog, type SizeDialogItem } from "@/components/admin/SizeDialog";
+import { DeleteConfirmDialog } from "@/components/admin/DeleteConfirmDialog";
 
 type SizeRow = {
   id: string;
@@ -22,18 +31,26 @@ type SizeRow = {
 };
 
 const mapSize = (s: Size): SizeRow => ({
-  id: String(s.sizeId ?? 0),
+  id: String(s.id ?? 0),
   code: s.code ?? "",
   status: s.status ?? "ACTIVE",
 });
 
 const statusLabel = (status: SizeStatus) =>
-  status === "ACTIVE" ? "Họat động" : "Tạm dừng";
+  status === "ACTIVE"
+    ? "Họat động"
+    : status === "INACTIVE"
+      ? "Tạm dừng"
+      : status === "OUTOFSTOCK"
+        ? "Hết hàng"
+        : "Đã xóa";
 
 const statusBadgeClass = (status: SizeStatus) =>
   status === "ACTIVE"
     ? "admin-badge admin-badge-active"
-    : "admin-badge admin-badge-inactive";
+    : status === "INACTIVE"
+      ? "admin-badge admin-badge-inactive"
+      : "admin-badge admin-badge-inactive";
 
 export default function SizesManagerPage() {
   const [sizes, setSizes] = useState<SizeRow[]>([]);
@@ -41,7 +58,9 @@ export default function SizesManagerPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<"create">("create");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
+  const [selectedSize, setSelectedSize] = useState<SizeRow | null>(null);
 
   useEffect(() => {
     const run = async () => {
@@ -70,15 +89,21 @@ export default function SizesManagerPage() {
 
   const filteredSizes = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return sizes;
-    return sizes.filter((s) => s.code.toLowerCase().includes(q));
+    const visible = sizes.filter((s) => s.status !== "DELETED");
+    if (!q) return visible;
+    return visible.filter((s) => s.code.toLowerCase().includes(q));
   }, [sizes, searchQuery]);
 
-  const activeCount = sizes.filter((s) => s.status === "ACTIVE").length;
-  const inactiveCount = sizes.filter((s) => s.status === "INACTIVE").length;
+  const visibleSizes = sizes.filter((s) => s.status !== "DELETED");
+  const activeCount = visibleSizes.filter((s) => s.status === "ACTIVE").length;
+  const inactiveCount = visibleSizes.filter(
+    (s) => s.status === "INACTIVE",
+  ).length;
+  const deletedCount = sizes.filter((s) => s.status === "DELETED").length;
 
   const handleCreate = () => {
     setDialogMode("create");
+    setSelectedSize(null);
     setDialogOpen(true);
   };
 
@@ -92,17 +117,38 @@ export default function SizesManagerPage() {
       toast.error("Vui lòng nhập mã size");
       return;
     }
-    if (sizes.some((s) => s.code.toUpperCase() === code)) {
+
+    const duplicate = sizes.some((s) => {
+      if (dialogMode === "edit" && s.id === String(payload.id ?? "")) {
+        return false;
+      }
+      return s.code.toUpperCase() === code;
+    });
+    if (duplicate) {
       toast.error(`Mã size "${code}" đã tồn tại`);
       return;
     }
 
     try {
-      const res = await fetch("/api/sizes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, status }),
-      });
+      const isEdit = dialogMode === "edit";
+      const targetId = String(payload.id ?? "");
+      if (isEdit && !targetId) {
+        toast.error("Thiếu id size");
+        return;
+      }
+
+      const res = await fetch(
+        isEdit ? `/api/sizes/${targetId}` : "/api/sizes",
+        {
+          method: isEdit ? "PUT" : "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ code, status }),
+        },
+      );
       const data = (await res.json().catch(() => null)) as unknown;
 
       const message =
@@ -111,15 +157,73 @@ export default function SizesManagerPage() {
           : "";
 
       if (!res.ok || !data) {
-        throw new Error(message || "Create size failed");
+        throw new Error(
+          message || (isEdit ? "Update size failed" : "Create size failed"),
+        );
       }
 
       const created = mapSize(data as Size);
-      setSizes((prev) => [created, ...prev]);
-      toast.success(`Đã thêm size "${created.code}"`);
+      setSizes((prev) => {
+        if (isEdit) {
+          return prev.map((s) => (s.id === created.id ? created : s));
+        }
+        return [created, ...prev];
+      });
+      toast.success(
+        isEdit
+          ? `Đã cập nhật size "${created.code}"`
+          : `Đã thêm size "${created.code}"`,
+      );
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Create size failed";
+      const msg =
+        e instanceof Error
+          ? e.message
+          : dialogMode === "edit"
+            ? "Update size failed"
+            : "Create size failed";
       toast.error(msg);
+    }
+  };
+
+  const handleEdit = (size: SizeRow) => {
+    setDialogMode("edit");
+    setSelectedSize(size);
+    setDialogOpen(true);
+  };
+
+  const handleDelete = (size: SizeRow) => {
+    setSelectedSize(size);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedSize) return;
+
+    try {
+      const res = await fetch(`/api/sizes/${selectedSize.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+
+      const data = (await res.json().catch(() => null)) as unknown;
+      const message =
+        data && typeof data === "object" && "message" in data
+          ? String((data as { message?: unknown }).message ?? "")
+          : "";
+
+      if (!res.ok) {
+        throw new Error(message || `Delete size failed (${res.status})`);
+      }
+
+      setSizes((prev) => prev.filter((s) => s.id !== selectedSize.id));
+      toast.success(`Đã xóa size "${selectedSize.code}"`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Delete size failed";
+      toast.error(msg);
+    } finally {
+      setDeleteDialogOpen(false);
+      setSelectedSize(null);
     }
   };
 
@@ -142,14 +246,14 @@ export default function SizesManagerPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="admin-card p-5 bg-gray-100">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Ruler className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{sizes.length}</p>
+                <p className="text-2xl font-bold">{visibleSizes.length}</p>
                 <p className="text-sm text-muted-foreground">Tổng sizes</p>
               </div>
             </div>
@@ -178,6 +282,18 @@ export default function SizesManagerPage() {
               </div>
             </div>
           </div>
+
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-destructive" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{deletedCount}</p>
+                <p className="text-sm text-muted-foreground">Đã xóa</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="admin-card">
@@ -202,6 +318,9 @@ export default function SizesManagerPage() {
                   <TableHead className="font-semibold text-center">
                     Trạng thái
                   </TableHead>
+                  <TableHead className="font-semibold text-center">
+                    Thao tác
+                  </TableHead>
                 </TableRow>
               </TableHeader>
 
@@ -209,7 +328,7 @@ export default function SizesManagerPage() {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={3}
+                      colSpan={4}
                       className="text-center py-10 text-muted-foreground"
                     >
                       Đang tải sizes...
@@ -218,7 +337,7 @@ export default function SizesManagerPage() {
                 ) : loadError ? (
                   <TableRow>
                     <TableCell
-                      colSpan={3}
+                      colSpan={4}
                       className="text-center py-10 text-destructive"
                     >
                       {loadError}
@@ -227,7 +346,7 @@ export default function SizesManagerPage() {
                 ) : filteredSizes.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={3}
+                      colSpan={4}
                       className="text-center py-10 text-muted-foreground"
                     >
                       Không tìm thấy size nào
@@ -243,6 +362,26 @@ export default function SizesManagerPage() {
                           {statusLabel(size.status)}
                         </span>
                       </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(size)}
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(size)}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -253,12 +392,31 @@ export default function SizesManagerPage() {
       </div>
 
       <SizeDialog
-        key={`${dialogMode}-new`}
+        key={`${dialogMode}-${selectedSize?.id ?? "new"}`}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSave={handleSave}
         mode={dialogMode}
+        size={
+          selectedSize
+            ? {
+                id: selectedSize.id,
+                code: selectedSize.code,
+                status: selectedSize.status,
+              }
+            : null
+        }
+      />
+
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={confirmDelete}
+        itemName={selectedSize?.code || ""}
+        title="Xác nhận xóa size"
+        confirmLabel="Xóa size"
       />
     </>
   );
 }
+

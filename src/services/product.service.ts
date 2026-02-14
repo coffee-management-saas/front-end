@@ -7,6 +7,7 @@ import type {
   ProductInput,
   ProductsResponse,
   ProductVariant, // Add this
+  Size,
 } from "@/types/product";
 
 async function parseJsonSafely<T>(res: Response): Promise<T> {
@@ -156,6 +157,25 @@ export async function getProductVariants(
   });
 
   const payload = await parseJsonSafely<ApiEnvelope<ProductVariant[]>>(res);
+
+  if (!res.ok) {
+    throw new ApiError(payload?.message || "BE error", res.status, payload);
+  }
+
+  return payload;
+}
+
+export async function getProductSizes(): Promise<ApiEnvelope<Size[]>> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/product/sizes`;
+
+  const res = await fetch(beUrl, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonSafely<ApiEnvelope<Size[]>>(res);
 
   if (!res.ok) {
     throw new ApiError(payload?.message || "BE error", res.status, payload);

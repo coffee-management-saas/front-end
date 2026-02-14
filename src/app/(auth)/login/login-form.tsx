@@ -63,10 +63,7 @@ const formSchema = z.object({
       /^[a-zA-Z0-9_]+$/,
       "Username can only contain letters, numbers, and underscore.",
     ),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters.")
-    .max(100, "Password must be at most 100 characters."),
+  password: z.string(),
 });
 
 export default function LoginForm() {
@@ -109,7 +106,7 @@ export default function LoginForm() {
         throw new Error(data?.message || `Login failed (${res.status})`);
       }
 
-      toast.success("Đăng nhập thành công!");
+      // toast.success("Đăng nhập thành công!");
 
       await fetch("/api/auth", {
         method: "POST",
@@ -246,7 +243,10 @@ export default function LoginForm() {
 
         <div className="text-center text-sm">
           Chưa có tài khoản?{" "}
-          <Link href="/register" className="font-semibold text-amber-700 hover:text-amber-800 hover:underline">
+          <Link
+            href="/register"
+            className="font-semibold text-amber-700 hover:text-amber-800 hover:underline"
+          >
             Đăng ký ngay
           </Link>
         </div>

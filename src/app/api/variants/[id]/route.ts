@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { ApiError } from "@/lib/utils";
-import { createVariant, getVariants } from "@/services/variants.service";
-import type { VariantFilter, VariantStatus } from "@/types/variants";
+import { getVariantById, updateVariant } from "@/services/variants.service";
+import type { VariantStatus } from "@/types/variants";
 
 function parseStatus(v: string | null): VariantStatus | undefined {
   if (!v) return undefined;
@@ -11,47 +11,19 @@ function parseStatus(v: string | null): VariantStatus | undefined {
   return undefined;
 }
 
-export async function GET(req: NextRequest) {
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
     const cookieStore = await cookies();
     const accessToken = cookieStore.get("accessToken")?.value;
 
-    const { searchParams } = new URL(req.url);
-
-    const page = Number(searchParams.get("page") ?? "0");
-    const size = Number(searchParams.get("size") ?? "10");
-    const productIdRaw = searchParams.get("productId");
-    const status = parseStatus(searchParams.get("status"));
-
-    if (!productIdRaw) {
-      return Response.json({ message: "Missing productId" }, { status: 400 });
+    const { id: idParam } = await params;
+    const id = Number(idParam);
+    if (!Number.isFinite(id)) {
+      return Response.json({ message: "Invalid id" }, { status: 400 });
     }
-
-    const filter: VariantFilter = {
-      page: Number.isFinite(page) ? page : 0,
-      size: Number.isFinite(size) ? size : 10,
-      productId: productIdRaw,
-    };
-
-    if (status) filter.status = status;
-
-    const data = await getVariants(filter, accessToken);
-    return Response.json(data, { status: 200 });
-  } catch (err) {
-    if (err instanceof ApiError) {
-      return Response.json(
-        { message: err.message, payload: err.payload },
-        { status: err.status },
-      );
-    }
-    return Response.json({ message: "Server error" }, { status: 500 });
-  }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get("accessToken")?.value;
 
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
@@ -96,15 +68,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = await createVariant(payload, accessToken);
+    const data = await updateVariant(id, payload, accessToken);
     return Response.json(
       {
-        code: 201,
-        status: "CREATED",
-        message: "Create product variant successfully",
+        code: 200,
+        status: "OK",
+        message: "Update product variant successfully",
         data,
       },
-      { status: 201 },
+      { status: 200 },
+    );
+  } catch (err) {
+    if (err instanceof ApiError) {
+      return Response.json(
+        { message: err.message, payload: err.payload },
+        { status: err.status },
+      );
+    }
+    return Response.json({ message: "Server error" }, { status: 500 });
+  }
+}
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+
+    const { id: idParam } = await params;
+    const id = Number(idParam);
+    if (!Number.isFinite(id)) {
+      return Response.json({ message: "Invalid id" }, { status: 400 });
+    }
+
+    const data = await getVariantById(id, accessToken);
+    return Response.json(
+      {
+        code: 200,
+        status: "OK",
+        message: "Get variant detail successfully",
+        data,
+      },
+      { status: 200 },
     );
   } catch (err) {
     if (err instanceof ApiError) {

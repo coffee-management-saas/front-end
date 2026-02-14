@@ -1,6 +1,11 @@
 import envConfig from "@/config";
 import { ApiError } from "@/lib/utils";
-import type { Size, SizeStatus } from "@/types/size";
+import type {
+  CreateSizePayload,
+  Size,
+  SizeStatus,
+  UpdateSizePayload,
+} from "@/types/size";
 
 async function parseJsonSafely<T>(res: Response): Promise<T | null> {
   const raw = await res.text();
@@ -15,6 +20,26 @@ async function parseJsonSafely<T>(res: Response): Promise<T | null> {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
+}
+
+function extractErrorMessage(payload: unknown): string | undefined {
+  if (typeof payload === "string" && payload.trim() !== "") return payload;
+  if (isRecord(payload)) {
+    const candidates = [
+      payload.message,
+      payload.error,
+      payload.detail,
+      payload.title,
+    ];
+    for (const c of candidates) {
+      if (typeof c === "string" && c.trim() !== "") return c;
+    }
+  }
+  return undefined;
+}
+
+function authHeaders(accessToken?: string): Record<string, string> {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
 const toNumber = (value: unknown, fallback = 0): number => {
@@ -34,13 +59,16 @@ const toString = (value: unknown, fallback = ""): string => {
 
 const toStatus = (value: unknown): SizeStatus => {
   const s = toString(value, "ACTIVE").toUpperCase();
-  return s === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+  if (s === "INACTIVE") return "INACTIVE";
+  if (s === "OUTOFSTOCK") return "OUTOFSTOCK";
+  if (s === "DELETED") return "DELETED";
+  return "ACTIVE";
 };
 
 function toSize(x: unknown): Size {
   const o = isRecord(x) ? x : {};
   return {
-    sizeId: toNumber(o.sizeId ?? o.id, 0),
+    id: toNumber(o.sizeId ?? o.id, 0),
     code: toString(o.code ?? o.sizeCode ?? o.name, ""),
     status: toStatus(o.status),
   };
@@ -58,7 +86,10 @@ function normalizeSizes(payload: unknown): Size[] {
   return [];
 }
 
-export async function getSizes(status?: SizeStatus): Promise<Size[]> {
+export async function getSizes(
+  status?: SizeStatus,
+  accessToken?: string,
+): Promise<Size[]> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
 
   const qs = new URLSearchParams();
@@ -68,25 +99,27 @@ export async function getSizes(status?: SizeStatus): Promise<Size[]> {
 
   const res = await fetch(beUrl, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...authHeaders(accessToken) },
     cache: "no-store",
   });
 
   const payload = await parseJsonSafely<unknown>(res);
 
   if (!res.ok) {
-    throw new ApiError("BE error", res.status, payload);
+    throw new ApiError(
+      extractErrorMessage(payload) || "BE error",
+      res.status,
+      payload,
+    );
   }
 
   return normalizeSizes(payload);
 }
 
-type CreateSizePayload = {
-  code: string;
-  status: SizeStatus;
-};
-
-export async function createSize(payload: CreateSizePayload): Promise<Size> {
+export async function createSize(
+  payload: CreateSizePayload,
+  accessToken?: string,
+): Promise<Size> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const beUrl = `${base}/product/sizes`;
 
@@ -95,6 +128,7 @@ export async function createSize(payload: CreateSizePayload): Promise<Size> {
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...authHeaders(accessToken),
     },
     body: JSON.stringify({
       code: payload.code,
@@ -105,20 +139,20 @@ export async function createSize(payload: CreateSizePayload): Promise<Size> {
   const data = await parseJsonSafely<unknown>(res);
 
   if (!res.ok) {
-    throw new ApiError("BE error", res.status, data);
+    throw new ApiError(
+      extractErrorMessage(data) || "BE error",
+      res.status,
+      data,
+    );
   }
 
   return toSize(data);
 }
 
-type UpdateSizePayload = {
-  code: string;
-  status: SizeStatus;
-};
-
 export async function updateSize(
   sizeId: number | string,
   payload: UpdateSizePayload,
+  accessToken?: string,
 ): Promise<Size> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const beUrl = `${base}/product/sizes/${sizeId}`;
@@ -128,6 +162,7 @@ export async function updateSize(
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...authHeaders(accessToken),
     },
     body: JSON.stringify({
       code: payload.code,
@@ -138,24 +173,35 @@ export async function updateSize(
   const data = await parseJsonSafely<unknown>(res);
 
   if (!res.ok) {
-    throw new ApiError("BE error", res.status, data);
+    throw new ApiError(
+      extractErrorMessage(data) || "BE error",
+      res.status,
+      data,
+    );
   }
 
   return toSize(data);
 }
 
-export async function deleteSize(sizeId: number | string): Promise<void> {
+export async function deleteSize(
+  sizeId: number | string,
+  accessToken?: string,
+): Promise<void> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const beUrl = `${base}/product/sizes/${sizeId}`;
 
   const res = await fetch(beUrl, {
     method: "DELETE",
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...authHeaders(accessToken) },
   });
 
   const data = await parseJsonSafely<unknown>(res);
 
   if (!res.ok) {
-    throw new ApiError("BE error", res.status, data);
+    throw new ApiError(
+      extractErrorMessage(data) || "BE error",
+      res.status,
+      data,
+    );
   }
 }

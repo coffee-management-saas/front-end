@@ -29,8 +29,12 @@ type CreateVariantResponse = {
   data: Variant;
 };
 
+type UpdateVariantResponse = CreateVariantResponse;
+type GetVariantResponse = CreateVariantResponse;
+
 export async function getVariants(
   filter: VariantFilter,
+  accessToken?: string,
 ): Promise<VariantsResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
 
@@ -46,7 +50,10 @@ export async function getVariants(
 
   const res = await fetch(beUrl, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
     cache: "no-store",
   });
 
@@ -61,6 +68,7 @@ export async function getVariants(
 
 export async function createVariant(
   payload: CreateVariantPayload,
+  accessToken?: string,
 ): Promise<Variant> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const beUrl = `${base}/product/variants`;
@@ -70,6 +78,7 @@ export async function createVariant(
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify({
       productId: payload.productId,
@@ -85,6 +94,66 @@ export async function createVariant(
   const data = await parseJsonSafely<CreateVariantResponse>(res);
 
   if (!res.ok || data?.code !== 201) {
+    throw new ApiError(data?.message || "BE error", res.status, data);
+  }
+
+  return data.data;
+}
+
+export async function updateVariant(
+  id: number | string,
+  payload: CreateVariantPayload,
+  accessToken?: string,
+): Promise<Variant> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/product/variants/${id}`;
+
+  const res = await fetch(beUrl, {
+    method: "PUT",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify({
+      productId: payload.productId,
+      sizeId: payload.sizeId,
+      price: payload.price,
+      costPrice: payload.costPrice,
+      skuCode: payload.skuCode,
+      status: payload.status,
+    }),
+    cache: "no-store",
+  });
+
+  const data = await parseJsonSafely<UpdateVariantResponse>(res);
+
+  if (!res.ok || data?.code !== 200) {
+    throw new ApiError(data?.message || "BE error", res.status, data);
+  }
+
+  return data.data;
+}
+
+export async function getVariantById(
+  id: number | string,
+  accessToken?: string,
+): Promise<Variant> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/product/variants/${id}`;
+
+  const res = await fetch(beUrl, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    cache: "no-store",
+  });
+
+  const data = await parseJsonSafely<GetVariantResponse>(res);
+
+  if (!res.ok || data?.code !== 200) {
     throw new ApiError(data?.message || "BE error", res.status, data);
   }
 
