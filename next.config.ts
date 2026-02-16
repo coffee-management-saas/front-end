@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
     ],
     domains: ["i.pinimg.com", "s3-hcmc02.higiocloud.vn", "images.unsplash.com", "res.cloudinary.com"],
   },
+
+  output: 'standalone'
 };
 
 export default nextConfig;
