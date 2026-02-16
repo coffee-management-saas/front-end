@@ -21,7 +21,12 @@ const nextConfig: NextConfig = {
         hostname: "upload.wikimedia.org",
       },
     ],
-    domains: ["i.pinimg.com", "s3-hcmc02.higiocloud.vn", "images.unsplash.com", "res.cloudinary.com"],
+    domains: [
+      "i.pinimg.com",
+      "s3-hcmc02.higiocloud.vn",
+      "images.unsplash.com",
+      "res.cloudinary.com",
+    ],
   },
 
   output: 'standalone'

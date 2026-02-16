@@ -154,3 +154,30 @@ export async function updatePromotionById(
 
   return data;
 }
+
+export async function uploadPromotionImage(
+  promotionId: number | string,
+  file: File,
+  accessToken?: string,
+): Promise<Promotion | { imageUrl?: string } | null> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/promotions/${promotionId}/image`;
+
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const res = await fetch(beUrl, {
+    method: "PATCH",
+    headers: { Accept: "application/json", ...authHeaders(accessToken) },
+    body: formData,
+    cache: "no-store",
+  });
+
+  const data = await parseJsonSafely<Promotion | { imageUrl?: string }>(res);
+
+  if (!res.ok) {
+    throw new ApiError("BE error", res.status, data);
+  }
+
+  return data ?? null;
+}

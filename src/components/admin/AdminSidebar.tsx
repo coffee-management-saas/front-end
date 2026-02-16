@@ -1,7 +1,6 @@
 "use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   Coffee,
@@ -11,6 +10,13 @@ import {
   Users,
   Settings,
   LogOut,
+  Ruler,
+  Layers,
+  Tag,
+  ShoppingBag,
+  Leaf,
+  ReceiptText,
+  NotebookPen,
 } from "lucide-react";
 
 import {
@@ -25,6 +31,9 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { toast } from "sonner";
+import { logoutFromNextClientToNextServer } from "@/services/auth.service";
+import { useAppContext } from "@/app/AppProvider";
 
 type MenuItem = {
   title: string;
@@ -35,8 +44,22 @@ type MenuItem = {
 const menuItems: MenuItem[] = [
   { title: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { title: "Danh mục", href: "/admin/categories-manager", icon: FolderTree },
-  { title: "Khuyến mãi", href: "/admin/promotions-manager", icon: FolderTree },
-  { title: "Sản phẩm", href: "/products", icon: Package },
+  { title: "Khuyến mãi", href: "/admin/promotions-manager", icon: Tag },
+  { title: "Sản phẩm", href: "/admin/products-manager", icon: ShoppingBag },
+  { title: "Nguyên liệu", href: "/admin/ingredients-manager", icon: Leaf },
+  {
+    title: "Hóa đơn nhập kho",
+    href: "/admin/invoices-manager",
+    icon: ReceiptText,
+  },
+  { title: "Toppings", href: "/admin/toppings-manager", icon: Package },
+  { title: "Công thức", href: "/admin/recipes-manager", icon: NotebookPen },
+  { title: "Sizes", href: "/admin/sizes-manager", icon: Ruler },
+  {
+    title: "Biến thể sản phẩm",
+    href: "/admin/variants-manager",
+    icon: Layers,
+  },
   { title: "Nhân viên", href: "/admin/employees-manager", icon: Users },
   { title: "Cài đặt", href: "/settings", icon: Settings },
 ];
@@ -46,10 +69,26 @@ const cn = (...classes: Array<string | false | null | undefined>) =>
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { setTokens } = useAppContext();
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
+    if (href === "/admin") return pathname === "/admin";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutFromNextClientToNextServer();
+      toast.success("Đăng xuất thành công");
+    } catch (e) {
+      console.error(e);
+      toast.error("Đăng xuất thất bại");
+    } finally {
+      setTokens({ accessToken: "", refreshToken: "", expiresAt: "" });
+      router.replace("/login");
+    }
   };
 
   return (
@@ -74,7 +113,7 @@ export function AdminSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="py-4">
+      <SidebarContent className="py-4 bg-[#F9F7F5]">
         <SidebarGroup>
           <SidebarGroupLabel className="px-4 text-sidebar-foreground/50 text-xs uppercase tracking-wider mb-2">
             Menu chính
@@ -114,9 +153,7 @@ export function AdminSidebar() {
         <button
           type="button"
           className="flex items-center gap-3 w-full py-2.5 px-3 rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-          onClick={() => {
-            // TODO: gắn logic logout ở đây (vd: next-auth signOut() hoặc xóa token)
-          }}
+          onClick={handleLogout}
         >
           <LogOut className="w-5 h-5" />
           <span>Đăng xuất</span>

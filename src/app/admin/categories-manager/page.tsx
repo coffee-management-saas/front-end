@@ -1,7 +1,6 @@
-"use client";
-import { useState } from "react";
+﻿"use client";
+import { useEffect, useState } from "react";
 import { Plus, Search, Eye, Pencil, Trash2, FolderTree } from "lucide-react";
-import { AdminLayout } from "@/components/admin/AdminLayout";
 import { CategoryDialog } from "@/components/admin/CategoryDialog";
 import { DeleteConfirmDialog } from "@/components/admin/DeleteConfirmDialog";
 import { Button } from "@/components/ui/button";
@@ -15,84 +14,39 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import type {
+  ProductCategory,
+  ProductCategoriesResponse,
+  Category,
+} from "@/types/catagories";
+import type { ProductsResponse } from "@/types/product";
 
-// ✅ Inline type + mock data (không cần import nữa)
 type CategoryStatus = "active" | "inactive";
-
-type Category = {
-  id: string;
-  name: string;
-  description: string;
-  productCount: number;
-  status: CategoryStatus;
-  createdAt: Date;
-  updatedAt: Date;
+type CreateCategoryResponse = {
+  code: number;
+  message: string;
+  data: ProductCategory | null;
 };
+type UpdateCategoryResponse = CreateCategoryResponse;
 
-const mockCategories: Category[] = [
-  {
-    id: "1",
-    name: "Cà phê Việt Nam",
-    description:
-      "Các loại cà phê truyền thống Việt Nam như cà phê sữa đá, cà phê đen, bạc xỉu",
-    productCount: 12,
-    status: "active",
-    createdAt: new Date("2024-01-15"),
-    updatedAt: new Date("2024-02-20"),
-  },
-  {
-    id: "2",
-    name: "Espresso",
-    description:
-      "Các loại đồ uống từ espresso như Americano, Latte, Cappuccino, Mocha",
-    productCount: 8,
-    status: "active",
-    createdAt: new Date("2024-01-20"),
-    updatedAt: new Date("2024-02-18"),
-  },
-  {
-    id: "3",
-    name: "Trà",
-    description: "Các loại trà thảo mộc, trà xanh, trà oolong, trà hoa",
-    productCount: 15,
-    status: "active",
-    createdAt: new Date("2024-01-22"),
-    updatedAt: new Date("2024-02-15"),
-  },
-  {
-    id: "4",
-    name: "Đá xay",
-    description: "Các loại đồ uống đá xay như Frappuccino, Smoothie, sinh tố",
-    productCount: 6,
-    status: "active",
-    createdAt: new Date("2024-02-01"),
-    updatedAt: new Date("2024-02-25"),
-  },
-  {
-    id: "5",
-    name: "Bánh ngọt",
-    description: "Bánh mì, croissant, bánh cookies và các loại bánh ngọt khác",
-    productCount: 20,
-    status: "active",
-    createdAt: new Date("2024-02-05"),
-    updatedAt: new Date("2024-02-28"),
-  },
-  {
-    id: "6",
-    name: "Đồ uống mùa hè",
-    description: "Các loại đồ uống giải nhiệt cho mùa hè",
-    productCount: 0,
-    status: "inactive",
-    createdAt: new Date("2024-02-10"),
-    updatedAt: new Date("2024-02-10"),
-  },
-];
+const mapStatus = (status?: string): CategoryStatus =>
+  status?.toUpperCase() === "ACTIVE" ? "active" : "inactive";
 
+const mapCategory = (c: ProductCategory): Category => ({
+  id: String(c.id),
+  name: c.name ?? "",
+  productCount: 0,
+  status: mapStatus(c.status),
+  createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
+});
 export default function Categories() {
-  const [categories, setCategories] = useState<Category[]>(mockCategories);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletedCount, setDeletedCount] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
     null,
   );
@@ -100,12 +54,73 @@ export default function Categories() {
     "view",
   );
 
+  useEffect(() => {
+    const run = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const qs = new URLSearchParams({ page: "0", size: "100" });
+        const res = await fetch(`/api/categories?${qs.toString()}`, {
+          cache: "no-store",
+        });
+        const data = (await res.json()) as ProductCategoriesResponse;
+
+        if (!res.ok || data?.code !== 200) {
+          throw new Error(data?.message || "Load categories failed");
+        }
+
+        const rawItems = data?.data ?? [];
+        const deleted = rawItems.filter(
+          (c) => c.status?.toUpperCase() === "DELETED",
+        ).length;
+        setDeletedCount(deleted);
+
+        const items = rawItems
+          .filter((c) => c.status?.toUpperCase() !== "DELETED")
+          .map(mapCategory);
+
+        const counts = await Promise.all(
+          items.map(async (c) => {
+            try {
+              const qs = new URLSearchParams({
+                page: "0",
+                size: "1",
+                categoryId: c.id,
+              });
+              const res = await fetch(`/api/products?${qs.toString()}`, {
+                cache: "no-store",
+              });
+              const pdata = (await res.json()) as ProductsResponse;
+
+              if (!res.ok || pdata?.code !== 200) return 0;
+              return pdata?.meta?.totalElements ?? pdata?.data?.length ?? 0;
+            } catch {
+              return 0;
+            }
+          }),
+        );
+
+        const withCounts = items.map((c, i) => ({
+          ...c,
+          productCount: counts[i] ?? 0,
+        }));
+
+        setCategories(withCounts);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Load categories failed";
+        setLoadError(msg);
+        toast.error(msg);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    run();
+  }, []);
+
   const filteredCategories = categories.filter((cat) => {
     const q = searchQuery.toLowerCase();
-    return (
-      cat.name.toLowerCase().includes(q) ||
-      cat.description.toLowerCase().includes(q)
-    );
+    return cat.name.toLowerCase().includes(q);
   });
 
   const handleView = (category: Category) => {
@@ -131,42 +146,101 @@ export default function Categories() {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
-    if (selectedCategory) {
-      setCategories(categories.filter((c) => c.id !== selectedCategory.id));
+  const confirmDelete = async () => {
+    if (!selectedCategory) return;
+
+    try {
+      const res = await fetch(`/api/categories/${selectedCategory.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Delete category failed");
+      }
+
+      setCategories((prev) => prev.filter((c) => c.id !== selectedCategory.id));
+      setDeletedCount((prev) => prev + 1);
       toast.success(`Đã xóa danh mục "${selectedCategory.name}"`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Delete category failed";
+      toast.error(msg);
+    } finally {
       setDeleteDialogOpen(false);
       setSelectedCategory(null);
     }
   };
 
-  const handleSave = (categoryData: Partial<Category>) => {
+  const handleSave = async (categoryData: Partial<Category>) => {
     if (dialogMode === "create") {
-      const newCategory: Category = {
-        id: String(Date.now()),
-        name: categoryData.name || "",
-        description: categoryData.description || "",
-        productCount: 0,
-        status: categoryData.status || "active",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      setCategories([...categories, newCategory]);
-      toast.success(`Đã thêm danh mục "${newCategory.name}"`);
+      try {
+        const status =
+          categoryData.status === "inactive" ? "INACTIVE" : "ACTIVE";
+        const res = await fetch("/api/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: categoryData.name ?? "",
+            status,
+          }),
+        });
+        const data = (await res
+          .json()
+          .catch(() => null)) as CreateCategoryResponse | null;
+
+        if (!res.ok || !data || data.code < 200 || data.code >= 300) {
+          throw new Error(data?.message || "Create category failed");
+        }
+
+        if (!data.data) {
+          throw new Error("Create category failed (missing data)");
+        }
+
+        const newCategory = mapCategory(data.data);
+        setCategories((prev) => [...prev, newCategory]);
+        toast.success(`Đã thêm danh mục "${newCategory.name}"`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Create category failed";
+        toast.error(msg);
+      }
     } else if (dialogMode === "edit" && selectedCategory) {
-      setCategories(
-        categories.map((c) =>
-          c.id === selectedCategory.id
-            ? { ...c, ...categoryData, updatedAt: new Date() }
-            : c,
-        ),
-      );
-      toast.success(`Đã cập nhật danh mục "${categoryData.name}"`);
+      try {
+        const status =
+          categoryData.status === "inactive" ? "INACTIVE" : "ACTIVE";
+        const res = await fetch(`/api/categories/${selectedCategory.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: categoryData.name ?? selectedCategory.name,
+            status,
+          }),
+        });
+        const data = (await res
+          .json()
+          .catch(() => null)) as UpdateCategoryResponse | null;
+
+        if (!res.ok || !data || data.code < 200 || data.code >= 300) {
+          throw new Error(data?.message || "Update category failed");
+        }
+
+        if (!data.data) {
+          throw new Error("Update category failed (missing data)");
+        }
+
+        const updated = mapCategory(data.data);
+        setCategories((prev) =>
+          prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
+        );
+        toast.success(`Đã cập nhật danh mục "${updated.name}"`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Update category failed";
+        toast.error(msg);
+      }
     }
   };
 
   return (
-    <AdminLayout>
+    <>
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -186,8 +260,8 @@ export default function Categories() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="admin-card p-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="admin-card p-5 bg-gray-100">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
                 <FolderTree className="w-6 h-6 text-primary" />
@@ -199,8 +273,8 @@ export default function Categories() {
             </div>
           </div>
 
-          <div className="admin-card p-5">
-            <div className="flex items-center gap-4">
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4 ">
               <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
                 <FolderTree className="w-6 h-6 text-success" />
               </div>
@@ -213,8 +287,8 @@ export default function Categories() {
             </div>
           </div>
 
-          <div className="admin-card p-5">
-            <div className="flex items-center gap-4">
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4 ">
               <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
                 <FolderTree className="w-6 h-6 text-accent" />
               </div>
@@ -223,6 +297,17 @@ export default function Categories() {
                   {categories.reduce((sum, c) => sum + c.productCount, 0)}
                 </p>
                 <p className="text-sm text-muted-foreground">Tổng sản phẩm</p>
+              </div>
+            </div>
+          </div>
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+                <FolderTree className="w-6 h-6 text-destructive" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{deletedCount}</p>
+                <p className="text-sm text-muted-foreground">Danh mục đã xóa</p>
               </div>
             </div>
           </div>
@@ -247,13 +332,14 @@ export default function Categories() {
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="font-semibold">Tên danh mục</TableHead>
-                  <TableHead className="font-semibold">Mô tả</TableHead>
+
                   <TableHead className="font-semibold text-center">
                     Sản phẩm
                   </TableHead>
                   <TableHead className="font-semibold text-center">
                     Trạng thái
                   </TableHead>
+                  <TableHead className="font-semibold">Ngày tạo</TableHead>
                   <TableHead className="font-semibold text-right">
                     Thao tác
                   </TableHead>
@@ -261,7 +347,25 @@ export default function Categories() {
               </TableHeader>
 
               <TableBody>
-                {filteredCategories.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      Đang tải danh mục...
+                    </TableCell>
+                  </TableRow>
+                ) : loadError ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center py-10 text-destructive"
+                    >
+                      {loadError}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredCategories.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={5}
@@ -276,9 +380,7 @@ export default function Categories() {
                       <TableCell className="font-medium">
                         {category.name}
                       </TableCell>
-                      <TableCell className="text-muted-foreground max-w-xs truncate">
-                        {category.description}
-                      </TableCell>
+
                       <TableCell className="text-center">
                         {category.productCount}
                       </TableCell>
@@ -294,6 +396,15 @@ export default function Categories() {
                             ? "Hoạt động"
                             : "Tạm dừng"}
                         </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground max-w-xs truncate">
+                        {category.createdAt.toLocaleString("vi-VN", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
@@ -335,6 +446,7 @@ export default function Categories() {
       </div>
 
       <CategoryDialog
+        key={`${dialogMode}-${selectedCategory?.id ?? "new"}`}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         category={selectedCategory}
@@ -348,6 +460,6 @@ export default function Categories() {
         onConfirm={confirmDelete}
         categoryName={selectedCategory?.name || ""}
       />
-    </AdminLayout>
+    </>
   );
 }

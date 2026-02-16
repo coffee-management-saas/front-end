@@ -9,6 +9,12 @@ export interface ToppingDto {
   status: ToppingStatus;
 }
 
+export type ToppingInput = {
+  name: string;
+  price: number;
+  status: ToppingStatus;
+};
+
 export interface PaginationMeta {
   currentPage: number;
   size: number;
@@ -28,3 +34,4 @@ export interface ApiResponse<TData, TMeta = undefined> {
 export type ToppingItem = ToppingDto & { quantity: number };
 
 export type ToppingsResponse = ApiResponse<ToppingDto[], PaginationMeta>;
+export type ToppingResponse = ApiResponse<ToppingDto>;

@@ -1,27 +1,14 @@
 ﻿"use client";
-
-import React, { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
-  Beaker,
   CheckCircle2,
-  ChefHat,
-  ClipboardCheck,
-  Filter,
   Package2,
   Pencil,
   Plus,
-  Sparkles,
-  Trash2,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -32,569 +19,520 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { toast } from "sonner";
+import { ApiError } from "@/lib/utils";
+import type {
+  IngredientBaseUnit,
+  IngredientDto,
+  IngredientInput,
+  IngredientInventoryStatus,
+  IngredientStorageType,
+} from "@/types/ingredient";
 
-type IngredientLine = {
-  id: string;
+type IngredientForm = {
   name: string;
-  amount: string;
-  unit: string;
-  note?: string;
+  skuCode: string;
+  baseUnit: IngredientBaseUnit;
+  minStockAlert: number;
+  storageType: IngredientStorageType;
+  inventoryStatus: IngredientInventoryStatus;
 };
 
-type Recipe = {
-  id: string;
-  name: string;
-  category: string;
-  size: string;
-  price: number;
-  tags: string[];
-  ingredients: IngredientLine[];
-  steps: string[];
+const parseJsonSafely = async <T,>(res: Response): Promise<T | null> => {
+  const raw = await res.text();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new ApiError("BE trả về không phải JSON", 502, raw);
+  }
 };
 
-const seedRecipes: Recipe[] = [
-  {
-    id: "rc-latte-caramel",
-    name: "Latte hạnh nhân caramel",
-    category: "Coffee",
-    size: "360 ml",
-    price: 59000,
-    tags: ["best seller", "hot"],
-    ingredients: [
-      { id: "i1", name: "Espresso blend", amount: "18", unit: "g" },
-      { id: "i2", name: "Sữa hạnh nhân", amount: "180", unit: "ml" },
-      { id: "i3", name: "Syrup caramel", amount: "12", unit: "g" },
-      { id: "i4", name: "Hạnh nhân lát", amount: "3", unit: "g" },
-    ],
-    steps: [
-      "Làm nóng ly, kiểm tra máy ở 93°C.",
-      "Chiết 18g cafe ra 40ml trong 25s, khuấy degas 10s.",
-      "Steam 180ml sữa 55°C, foam mịn.",
-      "Rót layer, topping caramel + hạnh nhân, giao trong 90s.",
-    ],
-  },
-  {
-    id: "rc-coldbrew-orange",
-    name: "Cold Brew cam sành",
-    category: "Cold Brew",
-    size: "400 ml",
-    price: 65000,
-    tags: ["iced"],
-    ingredients: [
-      { id: "i1", name: "Cold brew base", amount: "120", unit: "ml" },
-      { id: "i2", name: "Nước cam sành", amount: "80", unit: "ml" },
-      { id: "i3", name: "Syrup đường nâu", amount: "15", unit: "ml" },
-      { id: "i4", name: "Đá viên", amount: "120", unit: "g" },
-    ],
-    steps: [
-      "Cho syrup + nước cam + đá vào shaker, lắc 8s.",
-      "Đổ cold brew vào ly, thêm hỗn hợp cam lên trên.",
-      "Trang trí lát cam, giao trong 60s.",
-    ],
-  },
-  {
-    id: "rc-oolong-milk",
-    name: "Trà ô long sữa rang",
-    category: "Tea / Milk Tea",
-    size: "500 ml",
-    price: 52000,
-    tags: ["milk tea"],
-    ingredients: [
-      { id: "i1", name: "Trà ô long rang", amount: "90", unit: "ml" },
-      { id: "i2", name: "Sữa tươi", amount: "120", unit: "ml" },
-      { id: "i3", name: "Creamer rang", amount: "20", unit: "g" },
-      { id: "i4", name: "Trân châu đường nâu", amount: "50", unit: "g" },
-    ],
-    steps: [
-      "Ủ trà ô long 4 phút, để ấm.",
-      "Khuấy creamer với 30ml trà cho tan.",
-      "Cho đá + trà + sữa vào lắc 6s, rót ra ly.",
-      "Thêm trân châu và váng sữa nếu có.",
-    ],
-  },
+const baseUnitOptions: IngredientBaseUnit[] = [
+  "GRAM",
+  "KILOGRAM",
+  "LITER",
+  "MILLILITER",
+  "PIECE",
+  "PAIR",
 ];
 
-const categoryTone: Record<string, string> = {
-  Coffee: "bg-amber-50 text-amber-700",
-  "Cold Brew": "bg-sky-50 text-sky-700",
-  "Tea / Milk Tea": "bg-emerald-50 text-emerald-700",
-};
+const storageTypeOptions: IngredientStorageType[] = [
+  "NORMAL",
+  "COOL",
+  "FROZEN",
+  "DRY",
+  "REFRIGERATED",
+];
 
-function IngredientsManagerPage() {
-  const [recipes, setRecipes] = useState<Recipe[]>(seedRecipes);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<"all" | string>("all");
+const statusOptions: IngredientInventoryStatus[] = [
+  "ACTIVE",
+  "INACTIVE",
+  "DELETED",
+];
+
+const formatStock = (
+  qty: number | null | undefined,
+  unit: IngredientBaseUnit,
+) =>
+  `${Number(qty ?? 0).toLocaleString("vi-VN")} ${baseUnitLabel(unit)}`.trim();
+const statusLabel = (status: IngredientInventoryStatus) =>
+  status === "ACTIVE"
+    ? "Họat động"
+    : status === "INACTIVE"
+      ? "Tạm dừng"
+      : "Đã xóa";
+
+const storageLabel = (type: IngredientStorageType) =>
+  type === "NORMAL"
+    ? "THƯỜNG"
+    : type === "COOL"
+      ? "LÀM MÁT"
+      : type === "FROZEN"
+        ? "ĐÔNG LẠNH"
+        : type === "DRY"
+          ? "KHÔ"
+          : "LÀM LẠNH";
+const baseUnitLabel = (unit: IngredientBaseUnit) =>
+  unit === "GRAM"
+    ? "GAM"
+    : unit === "KILOGRAM"
+      ? "KG"
+      : unit === "LITER"
+        ? "LÍT"
+        : unit === "MILLILITER"
+          ? "ML"
+          : unit === "PIECE"
+            ? "CÁI"
+            : "ĐÔI";
+const statusBadgeClass = (status: IngredientInventoryStatus) =>
+  status === "ACTIVE"
+    ? "admin-badge admin-badge-active"
+    : "admin-badge admin-badge-inactive";
+
+const toForm = (item?: IngredientDto | null): IngredientForm => ({
+  name: item?.name ?? "",
+  skuCode: item?.skuCode ?? "",
+  baseUnit: item?.baseUnit ?? "GRAM",
+  minStockAlert: item?.minStockAlert ?? 0,
+  storageType: item?.storageType ?? "NORMAL",
+  inventoryStatus: item?.inventoryStatus ?? "ACTIVE",
+});
+
+export default function IngredientsManagerPage() {
+  const [ingredients, setIngredients] = useState<IngredientDto[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [mode, setMode] = useState<"create" | "edit">("create");
-  const emptyForm: Recipe = {
-    id: "",
-    name: "",
-    category: seedRecipes[0].category,
-    size: "360 ml",
-    price: 0,
-    tags: [],
-    ingredients: [],
-    steps: [],
-  };
-  const [form, setForm] = useState<Recipe>(emptyForm);
-  const [ingDraft, setIngDraft] = useState({ name: "", amount: "", unit: "" });
-  const [stepsText, setStepsText] = useState("");
 
-  const categories = useMemo(
-    () => Array.from(new Set(recipes.map((i) => i.category))),
-    [recipes],
-  );
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
+  const [selectedIngredient, setSelectedIngredient] =
+    useState<IngredientDto | null>(null);
+  const [form, setForm] = useState<IngredientForm>(() => toForm());
 
-  const filtered = useMemo(() => {
-    return recipes.filter((item) => {
-      const matchSearch = item.name
-        .toLowerCase()
-        .includes(search.toLowerCase());
-      const matchCategory = category === "all" || item.category === category;
-      return matchSearch && matchCategory;
+  const getIngredientsClient = async (params: {
+    page: number;
+    size: number;
+  }) => {
+    const qs = new URLSearchParams({
+      page: String(params.page),
+      size: String(params.size),
     });
-  }, [category, recipes, search]);
 
-  const summary = useMemo(() => {
-    const totalIngredients = recipes.reduce(
-      (acc, r) => acc + r.ingredients.length,
-      0,
+    const res = await fetch(`/api/ingredients?${qs.toString()}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+
+    const data = await parseJsonSafely<{ code?: number; message?: string }>(
+      res,
     );
-    return {
-      totalRecipes: recipes.length,
-      totalIngredients,
-      categories: categories.length,
-    };
-  }, [categories.length, recipes]);
 
-  const resetForm = () => {
-    setForm({
-      ...emptyForm,
-      category: categories[0] ?? seedRecipes[0].category,
-    });
-    setIngDraft({ name: "", amount: "", unit: "" });
-    setStepsText("");
-    setMode("create");
-  };
-
-  const openCreate = () => {
-    resetForm();
-    setDialogOpen(true);
-  };
-
-  const openEdit = (item: Recipe) => {
-    setForm(item);
-    setMode("edit");
-    setStepsText(item.steps.join("\n"));
-    setIngDraft({ name: "", amount: "", unit: "" });
-    setDialogOpen(true);
-  };
-
-  const handleDelete = (id: string) => {
-    const target = recipes.find((i) => i.id === id);
-    if (!target) return;
-    const ok = window.confirm(`Xóa công thức "${target.name}"?`);
-    if (ok) setRecipes((prev) => prev.filter((i) => i.id !== id));
-  };
-
-  const addIngredientLine = () => {
-    if (!ingDraft.name.trim() || !ingDraft.amount.trim()) return;
-    const newLine: IngredientLine = {
-      id: `ing-${Date.now()}`,
-      name: ingDraft.name.trim(),
-      amount: ingDraft.amount.trim(),
-      unit: ingDraft.unit.trim() || "",
-    };
-    setForm((f) => ({ ...f, ingredients: [...f.ingredients, newLine] }));
-    setIngDraft({ name: "", amount: "", unit: "" });
-  };
-
-  const removeIngredientLine = (id: string) => {
-    setForm((f) => ({
-      ...f,
-      ingredients: f.ingredients.filter((ing) => ing.id !== id),
-    }));
-  };
-
-  const upsertRecipe = () => {
-    if (!form.name.trim()) return alert("Tên món không được trống");
-    if (form.ingredients.length === 0)
-      return alert("Cần ít nhất 1 thành phần cho công thức");
-
-    const payload: Recipe = {
-      ...form,
-      steps: stepsText
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    };
-
-    if (mode === "create") {
-      const newItem: Recipe = {
-        ...payload,
-        id: `rc-${Date.now()}`,
-      };
-      setRecipes((prev) => [newItem, ...prev]);
-    } else {
-      setRecipes((prev) => prev.map((i) => (i.id === form.id ? payload : i)));
+    if (!res.ok) {
+      throw new ApiError("BE error", res.status, data);
     }
 
-    setDialogOpen(false);
-    resetForm();
+    if (!data || Number(data.code) !== 200) {
+      throw new ApiError(data?.message || "Get ingredients failed", 400, data);
+    }
+
+    return data as unknown;
+  };
+
+  const createIngredientClient = async (payload: IngredientInput) => {
+    const res = await fetch("/api/ingredients", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    const data = await parseJsonSafely<{ message?: string }>(res);
+
+    if (!res.ok || !data) {
+      throw new ApiError(
+        data?.message || "Create ingredient failed",
+        res.status,
+        data,
+      );
+    }
+
+    if ("data" in data && (data as { data?: IngredientDto }).data) {
+      return (data as { data: IngredientDto }).data;
+    }
+
+    return data as unknown as IngredientDto;
+  };
+
+  const updateIngredientByIdClient = async (
+    id: number | string,
+    payload: Partial<IngredientInput>,
+  ) => {
+    const res = await fetch(`/api/ingredients/${id}`, {
+      method: "PUT",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    const data = await parseJsonSafely<{ message?: string }>(res);
+
+    if (!res.ok || !data) {
+      throw new ApiError(
+        data?.message || "Update ingredient failed",
+        res.status,
+        data,
+      );
+    }
+
+    if ("data" in data && (data as { data?: IngredientDto }).data) {
+      return (data as { data: IngredientDto }).data;
+    }
+
+    return data as unknown as IngredientDto;
+  };
+
+  const normalizeIngredients = (payload: unknown): IngredientDto[] => {
+    if (!payload || typeof payload !== "object") return [];
+    const data = (payload as { data?: unknown }).data;
+    if (Array.isArray(data))
+      return data.filter(
+        (item): item is IngredientDto =>
+          !!item && typeof item === "object" && "name" in item,
+      );
+    if (data && typeof data === "object") {
+      const nested = data as {
+        data?: unknown;
+        content?: unknown;
+        items?: unknown;
+      };
+      if (Array.isArray(nested.data))
+        return nested.data.filter(
+          (item): item is IngredientDto =>
+            !!item && typeof item === "object" && "name" in item,
+        );
+      if (Array.isArray(nested.content))
+        return nested.content.filter(
+          (item): item is IngredientDto =>
+            !!item && typeof item === "object" && "name" in item,
+        );
+      if (Array.isArray(nested.items))
+        return nested.items.filter(
+          (item): item is IngredientDto =>
+            !!item && typeof item === "object" && "name" in item,
+        );
+    }
+    return [];
+  };
+
+  useEffect(() => {
+    const run = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+
+      try {
+        const data = await getIngredientsClient({ page: 0, size: 200 });
+        setIngredients(normalizeIngredients(data).filter(Boolean));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Load ingredients failed";
+        setLoadError(msg);
+        toast.error(msg);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    run();
+  }, []);
+
+  const safeIngredients = useMemo(
+    () => ingredients.filter(Boolean) as IngredientDto[],
+    [ingredients],
+  );
+
+  const filteredIngredients = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return safeIngredients.filter((item) => {
+      const name = item.name?.toLowerCase() ?? "";
+      const sku = item.skuCode?.toLowerCase() ?? "";
+      return name.includes(q) || sku.includes(q);
+    });
+  }, [safeIngredients, searchQuery]);
+
+  const summary = useMemo(() => {
+    const total = safeIngredients.length;
+    const active = safeIngredients.filter(
+      (i) => i.inventoryStatus === "ACTIVE",
+    ).length;
+    const lowStock = safeIngredients.filter(
+      (i) => (i.totalStockQuantity ?? 0) <= (i.minStockAlert ?? 0),
+    ).length;
+    return { total, active, lowStock };
+  }, [safeIngredients]);
+
+  const openCreate = () => {
+    setDialogMode("create");
+    setSelectedIngredient(null);
+    setForm(toForm());
+    setDialogOpen(true);
+  };
+
+  const openEdit = (item: IngredientDto) => {
+    setDialogMode("edit");
+    setSelectedIngredient(item);
+    setForm(toForm(item));
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    const payload: IngredientInput = {
+      name: form.name.trim(),
+      skuCode: form.skuCode.trim(),
+      baseUnit: form.baseUnit,
+      minStockAlert: Number(form.minStockAlert) || 0,
+      storageType: form.storageType,
+      inventoryStatus: form.inventoryStatus,
+    };
+
+    if (!payload.name) {
+      toast.error("Vui lòng nhập tên nguyên liệu");
+      return;
+    }
+
+    if (!payload.skuCode) {
+      toast.error("Vui lòng nhập mã SKU");
+      return;
+    }
+
+    try {
+      if (dialogMode === "create") {
+        const created = await createIngredientClient(payload);
+        setIngredients((prev) => [created, ...prev].filter(Boolean));
+        toast.success(`Đã thêm nguyên liệu "${created.name}"`);
+      } else if (selectedIngredient) {
+        const updated = await updateIngredientByIdClient(
+          selectedIngredient.id,
+          payload,
+        );
+        setIngredients((prev) =>
+          prev.map((i) => (i?.id === updated.id ? updated : i)).filter(Boolean),
+        );
+        toast.success(`Đã cập nhật nguyên liệu "${updated.name}"`);
+      }
+
+      setDialogOpen(false);
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : dialogMode === "create"
+            ? "Create ingredient failed"
+            : "Update ingredient failed";
+      toast.error(msg);
+    }
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
-      <Card className="border-slate-200/70 bg-white/80 shadow-sm">
-        <CardHeader className="pb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-              Quản lý công thức
-            </p>
-            <h1 className="text-2xl font-semibold text-slate-900">
-              Công thức & thành phần
-            </h1>
-            <p className="text-sm text-slate-600">
-              Lưu, chỉnh sửa và triển khai công thức đồ uống cho quán.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-              onClick={openCreate}
-            >
-              <Plus className="w-4 h-4" />
-              Thêm công thức
-            </Button>
-            <Button
-              variant="outline"
-              className="border-slate-200 text-slate-800"
-            >
-              <ChefHat className="w-4 h-4" />
-              Bộ SOP bar
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              label: "Tổng công thức",
-              value: `${summary.totalRecipes} món`,
-              desc: `${summary.categories} nhóm đồ uống`,
-              icon: Package2,
-              tone: "from-amber-100 via-white to-white",
-            },
-            {
-              label: "Thành phần đã định nghĩa",
-              value: `${summary.totalIngredients} nguyên liệu`,
-              desc: "Đi kèm định lượng & đơn vị",
-              icon: Beaker,
-              tone: "from-sky-100 via-white to-white",
-            },
-            {
-              label: "Công thức nổi bật",
-              value: "3 đề xuất",
-              desc: "Best seller tuần này",
-              icon: ClipboardCheck,
-              tone: "from-emerald-100 via-white to-white",
-            },
-            {
-              label: "Sửa đổi gần nhất",
-              value: "Hôm nay",
-              desc: "Nhớ publish lên app bán hàng",
-              icon: AlertTriangle,
-              tone: "from-rose-100 via-white to-white",
-            },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={item.label}
-                className={`relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br ${item.tone} px-4 py-4 shadow-[0_6px_20px_rgba(15,23,42,0.05)]`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm text-slate-600">{item.label}</p>
-                    <p className="text-2xl font-semibold text-slate-900">
-                      {item.value}
-                    </p>
-                    <p className="text-xs text-slate-500">{item.desc}</p>
-                  </div>
-                  <div className="h-11 w-11 rounded-xl bg-white text-amber-700 flex items-center justify-center border border-slate-200">
-                    <Icon className="w-5 h-5" />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      <Card className="border-slate-200 bg-white/90 shadow-sm">
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between pb-2">
+    <>
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <CardTitle className="text-base">Bộ lọc nhanh</CardTitle>
-            <CardDescription>Tìm công thức theo tên hoặc nhóm.</CardDescription>
+            <h1 className="text-3xl font-bold text-foreground">Nguyên liệu</h1>
+            <p className="text-muted-foreground mt-1">
+              Quản lý danh sách nguyên liệu và tồn kho.
+            </p>
           </div>
           <Button
-            variant="outline"
-            size="sm"
-            className="border-slate-200 text-slate-700"
+            onClick={openCreate}
+            className="bg-primary hover:bg-primary/90"
           >
-            <Filter className="w-4 h-4" />
-            Lưu cấu hình
+            <Plus className="w-4 h-4 mr-2" />
+            Thêm nguyên liệu
           </Button>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-[1.4fr_0.8fr_0.6fr]">
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-            <Input
-              placeholder="Tìm theo tên món..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="border-none bg-transparent p-0 focus-visible:ring-0"
-            />
-          </div>
-          <select
-            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-xs outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-            value={category}
-            onChange={(e) =>
-              setCategory(e.target.value === "all" ? "all" : e.target.value)
-            }
-          >
-            <option value="all">Tất cả nhóm</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="justify-start border border-slate-200 text-slate-800"
-            onClick={() => {
-              setSearch("");
-              setCategory("all");
-            }}
-          >
-            <Sparkles className="w-4 h-4" />
-            Đặt lại
-          </Button>
-        </CardContent>
-      </Card>
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.8fr_1fr]">
-        <Card className="border-slate-200 bg-white/95 shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Package2 className="w-6 h-6 text-primary" />
+              </div>
               <div>
-                <CardTitle className="text-base">Danh sách công thức</CardTitle>
-                <CardDescription>
-                  Thành phần chi tiết & các bước pha chế.
-                </CardDescription>
+                <p className="text-2xl font-bold">{summary.total}</p>
+                <p className="text-sm text-muted-foreground">
+                  Tổng nguyên liệu
+                </p>
               </div>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                {filtered.length} món
-              </span>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {filtered.length === 0 && (
-              <div className="py-6 text-center text-sm text-slate-500">
-                Không có công thức nào khớp bộ lọc.
+          </div>
+
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6 text-success" />
               </div>
-            )}
-            {filtered.map((item) => {
-              const tone =
-                categoryTone[item.category] ?? "bg-slate-50 text-slate-700";
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-[0_4px_12px_rgba(15,23,42,0.04)]"
-                >
-                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-lg font-semibold text-slate-900">
-                          {item.name}
-                        </p>
+              <div>
+                <p className="text-2xl font-bold">{summary.active}</p>
+                <p className="text-sm text-muted-foreground">Đang hoạt động</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-card p-5 bg-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{summary.lowStock}</p>
+                <p className="text-sm text-muted-foreground">Sắp hết hàng</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="admin-card">
+          <div className="p-4 border-b border-border">
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm kiếm nguyên liệu..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-background"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="font-semibold">
+                    Tên nguyên liệu
+                  </TableHead>
+                  <TableHead className="font-semibold text-center">
+                    SKU
+                  </TableHead>
+
+                  <TableHead className="font-semibold text-center">
+                    Tồn kho
+                  </TableHead>
+                  <TableHead className="font-semibold text-center">
+                    Kho lưu trữ
+                  </TableHead>
+                  <TableHead className="font-semibold text-center">
+                    Trạng thái
+                  </TableHead>
+                  <TableHead className="font-semibold text-center">
+                    Thao tác
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      Đang tải nguyên liệu...
+                    </TableCell>
+                  </TableRow>
+                ) : loadError ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center py-10 text-destructive"
+                    >
+                      {loadError}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredIngredients.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      Không tìm thấy nguyên liệu nào
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredIngredients.map((item) => (
+                    <TableRow key={item.id} className="admin-table-row">
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell className="text-center">
+                        {item.skuCode}
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        {formatStock(item.totalStockQuantity, item.baseUnit)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {storageLabel(item.storageType)}
+                      </TableCell>
+                      <TableCell className="text-center">
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-medium ${tone}`}
+                          className={statusBadgeClass(item.inventoryStatus)}
                         >
-                          {item.category}
+                          {statusLabel(item.inventoryStatus)}
                         </span>
-                        <span className="text-xs rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 border border-slate-200">
-                          {item.size}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-600">
-                        Giá đề xuất: {item.price.toLocaleString("vi-VN")} ₫
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {item.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="text-[11px] rounded-full bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5"
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEdit(item)}
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
                           >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-slate-200 text-slate-800"
-                        onClick={() => openEdit(item)}
-                      >
-                        <Pencil className="w-4 h-4" />
-                        Sửa
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:bg-red-50"
-                        onClick={() => handleDelete(item.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Xóa
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
-                      <p className="text-xs uppercase tracking-[0.08em] text-slate-500 mb-2">
-                        Thành phần
-                      </p>
-                      <div className="space-y-2">
-                        {item.ingredients.map((ing) => (
-                          <div
-                            key={ing.id}
-                            className="flex items-start justify-between text-sm text-slate-900"
-                          >
-                            <div>
-                              <p className="font-medium">{ing.name}</p>
-                              {ing.note ? (
-                                <p className="text-xs text-slate-500">
-                                  {ing.note}
-                                </p>
-                              ) : null}
-                            </div>
-                            <p className="text-sm text-slate-700">
-                              {ing.amount} {ing.unit}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
-                      <p className="text-xs uppercase tracking-[0.08em] text-slate-500 mb-2">
-                        Các bước pha
-                      </p>
-                      <ol className="space-y-1 text-sm text-slate-800 list-decimal list-inside">
-                        {item.steps.map((step, idx) => (
-                          <li key={idx}>{step}</li>
-                        ))}
-                      </ol>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        <div className="space-y-3">
-          <Card className="border-slate-200 bg-white/95 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">Ghi chú bar</CardTitle>
-                  <CardDescription>
-                    Nhắc nhanh: cách bảo quản & lưu ý khẩu vị.
-                  </CardDescription>
-                </div>
-                <Sparkles className="w-4 h-4 text-amber-600" />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-slate-700">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                - Siro homemade nên dán ngày nấu, dùng trong 5 ngày.
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                - Espresso blend: purge 2s trước shot đầu mỗi ca.
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                - Với đồ đá, lắc đủ 8s để tan syrup, tránh tách lớp.
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200 bg-white/95 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">
-                    Batch brew hôm nay
-                  </CardTitle>
-                  <CardDescription>
-                    Theo dõi mẻ pha chế & người phụ trách
-                  </CardDescription>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-slate-200 text-slate-800"
-                >
-                  <Plus className="w-4 h-4" />
-                  Tạo mẻ
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {[
-                {
-                  name: "Cold brew base",
-                  window: "08:30 → 11:00",
-                  owner: "Thịnh",
-                  status: "Đang ủ",
-                },
-                {
-                  name: "Trà ô long rang",
-                  window: "09:15 → 10:00",
-                  owner: "Vy",
-                  status: "Hoàn thành",
-                },
-              ].map((batch) => (
-                <div
-                  key={batch.name}
-                  className="flex items-start justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
-                >
-                  <div>
-                    <p className="font-semibold text-slate-900">{batch.name}</p>
-                    <p className="text-xs text-slate-600">
-                      Thời gian {batch.window}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Phụ trách: {batch.owner}
-                    </p>
-                  </div>
-                  <span
-                    className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-                      batch.status === "Hoàn thành"
-                        ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                        : "border-amber-100 bg-amber-50 text-amber-700"
-                    }`}
-                  >
-                    {batch.status}
-                  </span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
 
@@ -602,144 +540,108 @@ function IngredientsManagerPage() {
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open);
-          if (!open) resetForm();
+          if (!open) setForm(toForm(selectedIngredient));
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {mode === "create" ? "Thêm công thức mới" : "Chỉnh sửa công thức"}
+              {dialogMode === "create"
+                ? "Thêm nguyên liệu"
+                : "Chỉnh sửa nguyên liệu"}
             </DialogTitle>
             <DialogDescription>
-              Nhập thông tin món, thành phần và các bước pha.
+              Nhập thông tin cơ bản và ngưỡng cảnh báo tồn kho.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="name">Tên món</Label>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="name">Tên nguyên liệu</Label>
               <Input
                 id="name"
                 value={form.name}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, name: e.target.value }))
                 }
-                placeholder="Ví dụ: Latte hạnh nhân caramel"
+                placeholder="Ví dụ: Đường trắng"
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="category">Nhóm</Label>
-              <select
-                id="category"
-                className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-xs outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                value={form.category}
+              <Label htmlFor="sku">Mã SKU</Label>
+              <Input
+                id="sku"
+                value={form.skuCode}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, category: e.target.value }))
+                  setForm((f) => ({ ...f, skuCode: e.target.value }))
+                }
+                placeholder="ING-SUGAR-001"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="baseUnit">Đơn vị cơ bản</Label>
+              <select
+                id="baseUnit"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                value={form.baseUnit}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    baseUnit: e.target.value as IngredientBaseUnit,
+                  }))
                 }
               >
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {baseUnitOptions.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {baseUnitLabel(unit)}
                   </option>
                 ))}
               </select>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="size">Size/định lượng ly</Label>
-              <Input
-                id="size"
-                value={form.size}
+              <Label htmlFor="storageType">Kho lưu trữ</Label>
+              <select
+                id="storageType"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                value={form.storageType}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, size: e.target.value }))
+                  setForm((f) => ({
+                    ...f,
+                    storageType: e.target.value as IngredientStorageType,
+                  }))
                 }
-                placeholder="360 ml"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="price">Giá bán đề xuất (₫)</Label>
-              <Input
-                id="price"
-                type="number"
-                value={form.price}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, price: Number(e.target.value) || 0 }))
-                }
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Thành phần</Label>
-              <div className="space-y-2">
-                {form.ingredients.length === 0 && (
-                  <p className="text-xs text-slate-500">
-                    Chưa có thành phần nào. Thêm bên dưới.
-                  </p>
-                )}
-                {form.ingredients.map((ing) => (
-                  <div
-                    key={ing.id}
-                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
-                  >
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-slate-900">
-                        {ing.name}
-                      </p>
-                      <p className="text-xs text-slate-600">
-                        {ing.amount} {ing.unit}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-red-600 hover:bg-red-50"
-                      onClick={() => removeIngredientLine(ing.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+              >
+                {storageTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {storageLabel(type)}
+                  </option>
                 ))}
-                <div className="grid gap-2 md:grid-cols-[1.2fr_0.6fr_0.4fr_auto]">
-                  <Input
-                    placeholder="Tên thành phần"
-                    value={ingDraft.name}
-                    onChange={(e) =>
-                      setIngDraft((d) => ({ ...d, name: e.target.value }))
-                    }
-                  />
-                  <Input
-                    placeholder="Số lượng"
-                    value={ingDraft.amount}
-                    onChange={(e) =>
-                      setIngDraft((d) => ({ ...d, amount: e.target.value }))
-                    }
-                  />
-                  <Input
-                    placeholder="Đơn vị"
-                    value={ingDraft.unit}
-                    onChange={(e) =>
-                      setIngDraft((d) => ({ ...d, unit: e.target.value }))
-                    }
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-slate-200 text-slate-800"
-                    onClick={addIngredientLine}
-                  >
-                    Thêm
-                  </Button>
-                </div>
-              </div>
+              </select>
             </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="steps">Các bước pha (mỗi dòng một bước)</Label>
-              <Textarea
-                id="steps"
-                rows={5}
-                value={stepsText}
-                onChange={(e) => setStepsText(e.target.value)}
-                placeholder="Ví dụ:\n1. Chiết 18g cafe ra 40ml trong 25s\n2. Steam sữa 55°C..."
-              />
+            <div className="space-y-2">
+              <Label htmlFor="status">Trạng thái</Label>
+              <select
+                id="status"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                value={form.inventoryStatus}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    inventoryStatus: e.target
+                      .value as IngredientInventoryStatus,
+                  }))
+                }
+              >
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabel(status)}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -748,16 +650,14 @@ function IngredientsManagerPage() {
               Hủy
             </Button>
             <Button
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-              onClick={upsertRecipe}
+              className="bg-primary hover:bg-primary/90"
+              onClick={handleSave}
             >
-              {mode === "create" ? "Lưu công thức" : "Cập nhật"}
+              {dialogMode === "create" ? "Lưu nguyên liệu" : "Cập nhật"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
-
-export default IngredientsManagerPage;

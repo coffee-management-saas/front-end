@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +8,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Category } from "@/types/catagories";
@@ -29,27 +27,16 @@ export function CategoryDialog({
   onSave,
   mode,
 }: CategoryDialogProps) {
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    status: "active" as "active" | "inactive",
+  type FormData = { name: string; status: "active" | "inactive" };
+  const [formData, setFormData] = useState<FormData>(() => {
+    if (mode === "create" || !category) {
+      return { name: "", status: "active" };
+    }
+    return {
+      name: category.name ?? "",
+      status: category.status ?? "active",
+    };
   });
-
-  //   useEffect(() => {
-  //     if (category) {
-  //       setFormData({
-  //         name: category.name,
-  //         description: category.description,
-  //         status: category.status,
-  //       });
-  //     } else {
-  //       setFormData({
-  //         name: '',
-  //         description: '',
-  //         status: 'active',
-  //       });
-  //     }
-  //   }, [category, open]);
 
   const handleSave = () => {
     onSave({
@@ -89,21 +76,6 @@ export function CategoryDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Mô tả</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
-              placeholder="Nhập mô tả danh mục..."
-              rows={4}
-              disabled={isViewMode}
-              className="bg-background resize-none"
-            />
-          </div>
-
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>Trạng thái</Label>
@@ -138,9 +110,6 @@ export function CategoryDialog({
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">
                   Cập nhật lần cuối:
-                </span>
-                <span className="font-medium">
-                  {category.updatedAt.toLocaleDateString("vi-VN")}
                 </span>
               </div>
             </div>

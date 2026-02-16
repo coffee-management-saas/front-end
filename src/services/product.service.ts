@@ -4,6 +4,7 @@ import type {
   ApiEnvelope,
   Product,
   ProductFilter,
+  ProductInput,
   ProductsResponse,
   ProductVariant, // Add this
   Size,
@@ -75,7 +76,76 @@ export async function getProductById(id: number | string): Promise<Product> {
   return payload.data;
 }
 
-export async function getProductVariants(productId?: number | string): Promise<ApiEnvelope<ProductVariant[]>> {
+export async function createProduct(payload: ProductInput): Promise<Product> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/product/products`;
+
+  const res = await fetch(beUrl, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  const data = await parseJsonSafely<ApiEnvelope<Product>>(res);
+
+  if (!res.ok || !data || data.code !== 200) {
+    throw new ApiError(data?.message || "BE error", res.status, data);
+  }
+
+  return data.data;
+}
+
+export async function updateProductById(
+  id: number | string,
+  payload: ProductInput,
+): Promise<Product> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/product/products/${id}`;
+
+  const res = await fetch(beUrl, {
+    method: "PUT",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  const data = await parseJsonSafely<ApiEnvelope<Product>>(res);
+
+  if (!res.ok || !data || data.code !== 200) {
+    throw new ApiError(data?.message || "BE error", res.status, data);
+  }
+
+  return data.data;
+}
+
+export async function deleteProductById(id: number | string): Promise<void> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/product/products/${id}`;
+
+  const res = await fetch(beUrl, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const data = await parseJsonSafely<ApiEnvelope<null>>(res).catch(
+      () => null,
+    );
+    throw new ApiError(data?.message || "BE error", res.status, data);
+  }
+}
+
+export async function getProductVariants(
+  productId?: number | string,
+): Promise<ApiEnvelope<ProductVariant[]>> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const qs = productId ? `?productId=${productId}` : "";
   const beUrl = `${base}/product/variants${qs}`;
