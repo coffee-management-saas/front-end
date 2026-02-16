@@ -19,6 +19,7 @@ import type {
   Employee,
   EmployeeResponse,
 } from "@/types/employee";
+import type { ScheduleDto, SchedulesResponse } from "@/types/schedules";
 
 type EmployeeRow = {
   id: string;
@@ -47,6 +48,12 @@ export default function EmployeesManager() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [schedules, setSchedules] = useState<ScheduleDto[]>([]);
+  const [schedulesLoading, setSchedulesLoading] = useState(false);
+  const [schedulesError, setSchedulesError] = useState<string | null>(null);
+  const [activeTable, setActiveTable] = useState<"employees" | "schedules">(
+    "employees",
+  );
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -189,6 +196,36 @@ export default function EmployeesManager() {
     loadEmployees();
   }, []);
 
+  useEffect(() => {
+    const run = async () => {
+      setSchedulesLoading(true);
+      setSchedulesError(null);
+      try {
+        const qs = new URLSearchParams({ page: "0", size: "10" });
+        const res = await fetch(`/api/schedules?${qs.toString()}`, {
+          cache: "no-store",
+        });
+        const data = (await res
+          .json()
+          .catch(() => null)) as SchedulesResponse | null;
+
+        if (!res.ok || !data || data.code < 200 || data.code >= 300) {
+          throw new Error(data?.message || "Load schedules failed");
+        }
+
+        setSchedules(data.data ?? []);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Load schedules failed";
+        setSchedulesError(msg);
+        toast.error(msg);
+      } finally {
+        setSchedulesLoading(false);
+      }
+    };
+
+    run();
+  }, []);
+
   const filteredEmployees = employees.filter((item) => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return true;
@@ -265,17 +302,38 @@ export default function EmployeesManager() {
 
       <div className="admin-card">
         <div className="p-4 border-b border-border">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Tìm kiếm nhân viên..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-background"
-            />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative max-w-sm w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm kiếm nhân viên..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-background"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant={activeTable === "employees" ? "default" : "outline"}
+                onClick={() => setActiveTable("employees")}
+                className="h-9"
+              >
+                Nhân viên
+              </Button>
+              <Button
+                type="button"
+                variant={activeTable === "schedules" ? "default" : "outline"}
+                onClick={() => setActiveTable("schedules")}
+                className="h-9"
+              >
+                Lịch làm việc
+              </Button>
+            </div>
           </div>
         </div>
 
+        {activeTable === "employees" ? (
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -383,6 +441,97 @@ export default function EmployeesManager() {
             </TableBody>
           </Table>
         </div>
+        ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="font-semibold">Nhân viên</TableHead>
+                <TableHead className="font-semibold text-center">
+                  Loại
+                </TableHead>
+                <TableHead className="font-semibold text-center">
+                  Thứ
+                </TableHead>
+                <TableHead className="font-semibold text-center">
+                  Bắt đầu
+                </TableHead>
+                <TableHead className="font-semibold text-center">
+                  Kết thúc
+                </TableHead>
+                <TableHead className="font-semibold text-center">
+                  Lặp lại
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {schedulesLoading ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={6}
+                    className="text-center py-10 text-muted-foreground"
+                  >
+                    Đang tải lịch làm việc...
+                  </TableCell>
+                </TableRow>
+              ) : schedulesError ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={6}
+                    className="text-center py-10 text-destructive"
+                  >
+                    {schedulesError}
+                  </TableCell>
+                </TableRow>
+              ) : schedules.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={6}
+                    className="text-center py-10 text-muted-foreground"
+                  >
+                    Chưa có lịch làm việc.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                schedules.map((s) => (
+                  <TableRow key={s.scheduleId} className="admin-table-row">
+                    <TableCell className="font-medium">
+                      {s.employeeName}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {s.employeeType}
+                    </TableCell>
+                    <TableCell className="text-center">{s.dayOfWeek}</TableCell>
+                    <TableCell className="text-center">
+                      {s.startTime
+                        ? new Date(s.startTime).toLocaleString("vi-VN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            day: "2-digit",
+                            month: "2-digit",
+                          })
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {s.endTime
+                        ? new Date(s.endTime).toLocaleString("vi-VN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            day: "2-digit",
+                            month: "2-digit",
+                          })
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {s.isRecurring ? "Có" : "Không"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        )}
       </div>
       </div>
 

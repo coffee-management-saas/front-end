@@ -13,6 +13,10 @@ import {
   Ruler,
   Layers,
   Tag,
+  ShoppingBag,
+  Leaf,
+  ReceiptText,
+  NotebookPen,
 } from "lucide-react";
 
 import {
@@ -41,9 +45,15 @@ const menuItems: MenuItem[] = [
   { title: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { title: "Danh mục", href: "/admin/categories-manager", icon: FolderTree },
   { title: "Khuyến mãi", href: "/admin/promotions-manager", icon: Tag },
-  { title: "Sản phẩm", href: "/admin/products-manager", icon: Coffee },
-  { title: "Nguyên liệu", href: "/admin/ingredients-manager", icon: Coffee },
+  { title: "Sản phẩm", href: "/admin/products-manager", icon: ShoppingBag },
+  { title: "Nguyên liệu", href: "/admin/ingredients-manager", icon: Leaf },
+  {
+    title: "Hóa đơn nhập kho",
+    href: "/admin/invoices-manager",
+    icon: ReceiptText,
+  },
   { title: "Toppings", href: "/admin/toppings-manager", icon: Package },
+  { title: "Công thức", href: "/admin/recipes-manager", icon: NotebookPen },
   { title: "Sizes", href: "/admin/sizes-manager", icon: Ruler },
   {
     title: "Biến thể sản phẩm",

@@ -21,13 +21,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import type { Promotion } from "@/types/promotion";
-import {
-  deletePromotionById,
-  getPromotionById,
-  getPromotions,
-  uploadPromotionImage,
-  updatePromotionById,
-} from "@/services/promotion.service";
+import { uploadPromotionImage } from "@/services/promotion.service";
 
 type PromotionStatus = "active" | "inactive" | "expired" | "deleted";
 
@@ -58,6 +52,7 @@ type PromotionFormState = {
   endDate: string;
   promotionStatus: Promotion["promotionStatus"];
   imageUrl: string;
+  shopId: string;
 };
 
 const mapStatus = (status?: string): PromotionStatus => {
@@ -98,6 +93,58 @@ const formatDateTime = (input?: string) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+const parseJsonSafely = async <T,>(res: Response): Promise<T | null> => {
+  const raw = await res.text();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+};
+
+const fetchPromotions = async (): Promise<Promotion[]> => {
+  const res = await fetch("/api/promotion", { cache: "no-store" });
+  const data = await parseJsonSafely<Promotion[]>(res);
+  if (!res.ok || !data) {
+    throw new Error("Load promotions failed");
+  }
+  return data;
+};
+
+const fetchPromotionById = async (id: string): Promise<Promotion> => {
+  const res = await fetch(`/api/promotion/${id}`, { cache: "no-store" });
+  const data = await parseJsonSafely<Promotion>(res);
+  if (!res.ok || !data) {
+    throw new Error("Load promotion failed");
+  }
+  return data;
+};
+
+const updatePromotion = async (
+  id: string,
+  payload: Record<string, unknown>,
+): Promise<Promotion> => {
+  const res = await fetch(`/api/promotion/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonSafely<Promotion>(res);
+  if (!res.ok || !data) {
+    throw new Error("Update promotion failed");
+  }
+  return data;
+};
+
+const deletePromotion = async (id: string): Promise<void> => {
+  const res = await fetch(`/api/promotion/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const data = await parseJsonSafely<{ message?: string }>(res);
+    throw new Error(data?.message || "Delete promotion failed");
+  }
 };
 
 const toLocalDateTimeInput = (input?: string) => {
@@ -197,6 +244,7 @@ const createFormState = (promotion: Promotion): PromotionFormState => ({
   endDate: toLocalDateTimeInput(promotion.endDate),
   promotionStatus: promotion.promotionStatus ?? "INACTIVE",
   imageUrl: promotion.imageUrl ?? "",
+  shopId: String(promotion.shopId ?? 1),
 });
 
 export default function PromotionsManagerPage() {
@@ -209,6 +257,11 @@ export default function PromotionsManagerPage() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewPromotion, setViewPromotion] = useState<Promotion | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<PromotionFormState | null>(null);
+  const [createSaving, setCreateSaving] = useState(false);
+  const [createImageFile, setCreateImageFile] = useState<File | null>(null);
+  const [createImageUploading, setCreateImageUploading] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState<PromotionFormState | null>(null);
@@ -222,7 +275,7 @@ export default function PromotionsManagerPage() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const data = await getPromotions();
+        const data = await fetchPromotions();
 
         if (!Array.isArray(data)) {
           throw new Error("Dữ liệu promotions không đúng định dạng");
@@ -261,7 +314,7 @@ export default function PromotionsManagerPage() {
     setViewLoading(true);
     setViewPromotion(null);
     try {
-      const data = await getPromotionById(promotion.id);
+      const data = await fetchPromotionById(promotion.id);
       setViewPromotion(data);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Load promotion failed";
@@ -279,7 +332,7 @@ export default function PromotionsManagerPage() {
     setEditForm(null);
     setEditImageFile(null);
     try {
-      const data = await getPromotionById(promotion.id);
+      const data = await fetchPromotionById(promotion.id);
       setEditForm(createFormState(data));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Load promotion failed";
@@ -299,7 +352,7 @@ export default function PromotionsManagerPage() {
     if (!selectedPromotion) return;
 
     try {
-      await deletePromotionById(selectedPromotion.id);
+      await deletePromotion(selectedPromotion.id);
 
       setPromotions((prev) =>
         prev.filter((p) => p.id !== selectedPromotion.id),
@@ -314,7 +367,103 @@ export default function PromotionsManagerPage() {
     }
   };
   const handleCreate = () => {
-    toast.info("Chưa hỗ trợ tạo mới khuyến mãi");
+    setCreateForm(
+      createFormState({
+        promotionId: 0,
+        promotionCode: "",
+        promotionName: "",
+        promotionType: "ORDER",
+        minimumSpent: 0,
+        quantity: 0,
+        discountType: "PERCENTAGE",
+        discountValue: 0,
+        maxDiscountAmount: 0,
+        usageLimitPerUser: 0,
+        startDate: new Date().toISOString(),
+        endDate: new Date().toISOString(),
+        promotionStatus: "INACTIVE",
+        imageUrl: "",
+        shopId: 1,
+        createdDate: "",
+        updatedDate: "",
+      } as Promotion),
+    );
+    setCreateImageFile(null);
+    setCreateDialogOpen(true);
+  };
+
+  const createPromotion = async (
+    payload: Record<string, unknown>,
+  ): Promise<Promotion> => {
+    const res = await fetch("/api/promotion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await parseJsonSafely<Promotion>(res);
+    if (!res.ok || !data) {
+      throw new Error("Create promotion failed");
+    }
+    return data;
+  };
+
+  const handleCreateSubmit = async () => {
+    if (!createForm) return;
+    setCreateSaving(true);
+    try {
+      const payload = {
+        promotionName: createForm.promotionName.trim(),
+        promotionCode: createForm.promotionCode.trim(),
+        promotionType: createForm.promotionType,
+        shopId: Number(createForm.shopId) || 1,
+        minimumSpent: Number(createForm.minimumSpent) || 0,
+        quantity: Number(createForm.quantity) || 0,
+        discountType: createForm.discountType,
+        discountValue: Number(createForm.discountValue) || 0,
+        maxDiscountAmount: Number(createForm.maxDiscountAmount) || 0,
+        usageLimitPerUser: Number(createForm.usageLimitPerUser) || 0,
+        startDate: toIsoOrUndefined(createForm.startDate),
+        endDate: toIsoOrUndefined(createForm.endDate),
+        promotionStatus: createForm.promotionStatus,
+        imageUrl: createForm.imageUrl.trim() || undefined,
+      };
+
+      const created = await createPromotion(payload);
+      let finalCreated = created;
+
+      if (createImageFile) {
+        setCreateImageUploading(true);
+        try {
+          const uploadRes = await uploadPromotionImage(
+            created.promotionId,
+            createImageFile,
+          );
+          const imageUrl =
+            uploadRes &&
+            typeof uploadRes === "object" &&
+            "imageUrl" in uploadRes
+              ? uploadRes.imageUrl
+              : (uploadRes as Promotion | null)?.imageUrl;
+          if (imageUrl) {
+            finalCreated = { ...created, imageUrl };
+          }
+        } finally {
+          setCreateImageUploading(false);
+        }
+      }
+
+      const newRow = mapPromotion(finalCreated);
+      setPromotions((prev) => [newRow, ...prev]);
+      toast.success(`Đã tạo khuyến mãi "${newRow.name}"`);
+      setCreateDialogOpen(false);
+      setCreateForm(null);
+      setCreateImageFile(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Create promotion failed";
+      toast.error(msg);
+    } finally {
+      setCreateSaving(false);
+    }
   };
   const handleUpdate = async () => {
     if (!selectedPromotion || !editForm) return;
@@ -360,7 +509,7 @@ export default function PromotionsManagerPage() {
         imageUrl: uploadedImageUrl,
       };
 
-      const data = await updatePromotionById(selectedPromotion.id, payload);
+      const data = await updatePromotion(selectedPromotion.id, payload);
 
       const updatedRow = mapPromotion(data);
       setPromotions((prev) =>
@@ -751,7 +900,7 @@ export default function PromotionsManagerPage() {
       </Dialog>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Chỉnh sửa khuyến mãi</DialogTitle>
           </DialogHeader>
@@ -996,6 +1145,267 @@ export default function PromotionsManagerPage() {
                 : editSaving
                   ? "Đang lưu..."
                   : "Lưu thay đổi"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Thêm khuyến mãi</DialogTitle>
+          </DialogHeader>
+
+          {!createForm ? (
+            <div className="text-sm text-muted-foreground">
+              Đang chuẩn bị form...
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Tên khuyến mãi</label>
+                <Input
+                  value={createForm.promotionName}
+                  onChange={(e) =>
+                    setCreateForm((prev) =>
+                      prev ? { ...prev, promotionName: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Mã khuyến mãi</label>
+                <Input
+                  value={createForm.promotionCode}
+                  onChange={(e) =>
+                    setCreateForm((prev) =>
+                      prev ? { ...prev, promotionCode: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Loại áp dụng</label>
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={createForm.promotionType}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              promotionType: e.target
+                                .value as Promotion["promotionType"],
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    <option value="ORDER">Đơn hàng</option>
+                    <option value="PRODUCT">Sản phẩm</option>
+                  </select>
+                </div>
+
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Trạng thái</label>
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={createForm.promotionStatus}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              promotionStatus: e.target
+                                .value as Promotion["promotionStatus"],
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    <option value="ACTIVE">Đang áp dụng</option>
+                    <option value="INACTIVE">Tạm ngưng</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Shop ID</label>
+                  <Input
+                    type="number"
+                    value={createForm.shopId}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev ? { ...prev, shopId: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Giá trị đơn tối thiểu
+                  </label>
+                  <Input
+                    type="number"
+                    value={createForm.minimumSpent}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev ? { ...prev, minimumSpent: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Số lượng</label>
+                  <Input
+                    type="number"
+                    value={createForm.quantity}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev ? { ...prev, quantity: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Kiểu giảm giá</label>
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={createForm.discountType}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              discountType: e.target
+                                .value as Promotion["discountType"],
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    <option value="PERCENTAGE">Phần trăm</option>
+                    <option value="FIXED_AMOUNT">Giá trị cố định</option>
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Giá trị giảm</label>
+                  <Input
+                    type="number"
+                    value={createForm.discountValue}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev
+                          ? { ...prev, discountValue: e.target.value }
+                          : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Giảm tối đa</label>
+                  <Input
+                    type="number"
+                    value={createForm.maxDiscountAmount}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev
+                          ? { ...prev, maxDiscountAmount: e.target.value }
+                          : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Giới hạn / khách
+                  </label>
+                  <Input
+                    type="number"
+                    value={createForm.usageLimitPerUser}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev
+                          ? { ...prev, usageLimitPerUser: e.target.value }
+                          : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Ngày bắt đầu</label>
+                  <Input
+                    type="datetime-local"
+                    value={createForm.startDate}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev ? { ...prev, startDate: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Ngày kết thúc</label>
+                  <Input
+                    type="datetime-local"
+                    value={createForm.endDate}
+                    onChange={(e) =>
+                      setCreateForm((prev) =>
+                        prev ? { ...prev, endDate: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Tải ảnh mới</label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    setCreateImageFile(e.target.files?.[0] ?? null)
+                  }
+                />
+                {createImageFile ? (
+                  <p className="text-xs text-muted-foreground">
+                    Đã chọn: {createImageFile.name}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setCreateDialogOpen(false)}
+              disabled={createSaving || createImageUploading}
+            >
+              Hủy
+            </Button>
+            <Button
+              onClick={handleCreateSubmit}
+              disabled={createSaving || createImageUploading || !createForm}
+            >
+              {createImageUploading
+                ? "Đang tải ảnh..."
+                : createSaving
+                  ? "Đang lưu..."
+                  : "Tạo khuyến mãi"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { ApiError } from "@/lib/utils";
+import { getProductVariants } from "@/services/product.service";
 import { createVariant, getVariants } from "@/services/variants.service";
 import type { VariantFilter, VariantStatus } from "@/types/variants";
 
@@ -24,7 +25,8 @@ export async function GET(req: NextRequest) {
     const status = parseStatus(searchParams.get("status"));
 
     if (!productIdRaw) {
-      return Response.json({ message: "Missing productId" }, { status: 400 });
+      const data = await getProductVariants();
+      return Response.json(data, { status: 200 });
     }
 
     const filter: VariantFilter = {
