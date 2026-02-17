@@ -106,7 +106,7 @@ const parseJsonSafely = async <T,>(res: Response): Promise<T | null> => {
 };
 
 const fetchPromotions = async (): Promise<Promotion[]> => {
-  const res = await fetch("/api/promotion", { cache: "no-store" });
+  const res = await fetch("/api/promotions", { cache: "no-store" });
   const data = await parseJsonSafely<Promotion[]>(res);
   if (!res.ok || !data) {
     throw new Error("Load promotions failed");
@@ -115,7 +115,7 @@ const fetchPromotions = async (): Promise<Promotion[]> => {
 };
 
 const fetchPromotionById = async (id: string): Promise<Promotion> => {
-  const res = await fetch(`/api/promotion/${id}`, { cache: "no-store" });
+  const res = await fetch(`/api/promotions/${id}`, { cache: "no-store" });
   const data = await parseJsonSafely<Promotion>(res);
   if (!res.ok || !data) {
     throw new Error("Load promotion failed");
@@ -127,7 +127,7 @@ const updatePromotion = async (
   id: string,
   payload: Record<string, unknown>,
 ): Promise<Promotion> => {
-  const res = await fetch(`/api/promotion/${id}`, {
+  const res = await fetch(`/api/promotions/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -140,7 +140,7 @@ const updatePromotion = async (
 };
 
 const deletePromotion = async (id: string): Promise<void> => {
-  const res = await fetch(`/api/promotion/${id}`, { method: "DELETE" });
+  const res = await fetch(`/api/promotions/${id}`, { method: "DELETE" });
   if (!res.ok) {
     const data = await parseJsonSafely<{ message?: string }>(res);
     throw new Error(data?.message || "Delete promotion failed");
@@ -395,7 +395,7 @@ export default function PromotionsManagerPage() {
   const createPromotion = async (
     payload: Record<string, unknown>,
   ): Promise<Promotion> => {
-    const res = await fetch("/api/promotion", {
+    const res = await fetch("/api/promotions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -440,8 +440,8 @@ export default function PromotionsManagerPage() {
           );
           const imageUrl =
             uploadRes &&
-            typeof uploadRes === "object" &&
-            "imageUrl" in uploadRes
+              typeof uploadRes === "object" &&
+              "imageUrl" in uploadRes
               ? uploadRes.imageUrl
               : (uploadRes as Promotion | null)?.imageUrl;
           if (imageUrl) {
@@ -479,8 +479,8 @@ export default function PromotionsManagerPage() {
           );
           const imageUrl =
             uploadRes &&
-            typeof uploadRes === "object" &&
-            "imageUrl" in uploadRes
+              typeof uploadRes === "object" &&
+              "imageUrl" in uploadRes
               ? uploadRes.imageUrl
               : (uploadRes as Promotion | null)?.imageUrl;
           if (imageUrl) {
@@ -945,10 +945,10 @@ export default function PromotionsManagerPage() {
                       setEditForm((prev) =>
                         prev
                           ? {
-                              ...prev,
-                              promotionType: e.target
-                                .value as Promotion["promotionType"],
-                            }
+                            ...prev,
+                            promotionType: e.target
+                              .value as Promotion["promotionType"],
+                          }
                           : prev,
                       )
                     }
@@ -967,10 +967,10 @@ export default function PromotionsManagerPage() {
                       setEditForm((prev) =>
                         prev
                           ? {
-                              ...prev,
-                              promotionStatus: e.target
-                                .value as Promotion["promotionStatus"],
-                            }
+                            ...prev,
+                            promotionStatus: e.target
+                              .value as Promotion["promotionStatus"],
+                          }
                           : prev,
                       )
                     }
@@ -1022,10 +1022,10 @@ export default function PromotionsManagerPage() {
                       setEditForm((prev) =>
                         prev
                           ? {
-                              ...prev,
-                              discountType: e.target
-                                .value as Promotion["discountType"],
-                            }
+                            ...prev,
+                            discountType: e.target
+                              .value as Promotion["discountType"],
+                          }
                           : prev,
                       )
                     }
@@ -1196,10 +1196,10 @@ export default function PromotionsManagerPage() {
                       setCreateForm((prev) =>
                         prev
                           ? {
-                              ...prev,
-                              promotionType: e.target
-                                .value as Promotion["promotionType"],
-                            }
+                            ...prev,
+                            promotionType: e.target
+                              .value as Promotion["promotionType"],
+                          }
                           : prev,
                       )
                     }
@@ -1218,10 +1218,10 @@ export default function PromotionsManagerPage() {
                       setCreateForm((prev) =>
                         prev
                           ? {
-                              ...prev,
-                              promotionStatus: e.target
-                                .value as Promotion["promotionStatus"],
-                            }
+                            ...prev,
+                            promotionStatus: e.target
+                              .value as Promotion["promotionStatus"],
+                          }
                           : prev,
                       )
                     }
@@ -1283,10 +1283,10 @@ export default function PromotionsManagerPage() {
                       setCreateForm((prev) =>
                         prev
                           ? {
-                              ...prev,
-                              discountType: e.target
-                                .value as Promotion["discountType"],
-                            }
+                            ...prev,
+                            discountType: e.target
+                              .value as Promotion["discountType"],
+                          }
                           : prev,
                       )
                     }
