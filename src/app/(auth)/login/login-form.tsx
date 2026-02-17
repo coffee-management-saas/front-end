@@ -57,13 +57,13 @@ function getRoleFromAccessToken(token: string): string | null {
 const formSchema = z.object({
   username: z
     .string()
-    .min(3, "Username must be at least 3 characters.")
-    .max(32, "Username must be at most 32 characters.")
+    .min(5, "Tên đăng nhập phải có ít nhất 5 ký tự.")
+    .max(32, "Tên đăng nhập tối đa 32 ký tự.")
     .regex(
       /^[a-zA-Z0-9_]+$/,
-      "Username can only contain letters, numbers, and underscore.",
+      "Tên đăng nhập chỉ chứa chữ cái, số và dấu gạch dưới.",
     ),
-  password: z.string(),
+  password: z.string().min(1, "Vui lòng nhập mật khẩu."),
 });
 
 export default function LoginForm() {
@@ -101,12 +101,28 @@ export default function LoginForm() {
       );
 
       const data = await res.json();
-      const expiresAt = getJwtExpiresAt(data.accessToken);
+
       if (!res.ok) {
-        throw new Error(data?.message || `Login failed (${res.status})`);
+        // Handle specific error cases
+        // 401: Unauthorized (Wrong credentials)
+        // 400: Bad Request (Likely validation or business logic error from BE)
+        if (res.status === 401 || res.status === 400) {
+          form.setError("password", {
+            type: "manual",
+            message: "Tên đăng nhập hoặc mật khẩu không chính xác",
+          });
+          // Also mark username as invalid visually if desired, but msg is under password
+          form.setError("username", {
+            type: "manual",
+            message: " ",
+          });
+          return;
+        }
+
+        throw new Error(data?.message || `Lỗi đăng nhập (${res.status})`);
       }
 
-      // toast.success("Đăng nhập thành công!");
+      const expiresAt = getJwtExpiresAt(data.accessToken);
 
       await fetch("/api/auth", {
         method: "POST",
@@ -136,7 +152,9 @@ export default function LoginForm() {
       router.replace(destination);
     } catch (error) {
       console.error("Login error:", error);
-      toast.error("Đăng nhập thất bại, vui lòng thử lại");
+      toast.error(
+        error instanceof Error ? error.message : "Đăng nhập thất bại, vui lòng thử lại"
+      );
     } finally {
       setLoading(false);
     }

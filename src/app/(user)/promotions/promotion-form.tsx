@@ -37,7 +37,7 @@ const SubscriptionCards: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        const res = await fetch("/api/promotion", {
+        const res = await fetch("/api/promotions", {
           method: "GET",
           headers: { Accept: "application/json" },
           signal: controller.signal,

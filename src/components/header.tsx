@@ -357,14 +357,7 @@ export default function PhucLongHeader() {
               </div>
             </li>
 
-            <li>
-              <a
-                href="#"
-                className="block py-3 hover:text-[#876F60] transition border-b-2 border-transparent hover:border-[#876F60]"
-              >
-                SẢN PHẨM ĐÓNG GÓI
-              </a>
-            </li>
+
 
             <li>
               <Link

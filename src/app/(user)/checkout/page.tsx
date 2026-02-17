@@ -223,7 +223,7 @@ const CheckoutContent = () => {
         setPromoLoading(true);
         setPromoError(null);
 
-        const res = await fetch("/api/promotion", {
+        const res = await fetch("/api/promotions", {
           method: "GET",
           headers: { Accept: "application/json" },
           credentials: "same-origin",

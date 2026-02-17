@@ -69,7 +69,7 @@ const Homepage: React.FC = () => {
         setPromoLoading(true);
         setPromoError(null);
 
-        const res = await fetch("/api/promotion", {
+        const res = await fetch("/api/promotions", {
           method: "GET",
           headers: { Accept: "application/json" },
           credentials: "same-origin",
@@ -208,9 +208,7 @@ const Homepage: React.FC = () => {
           <h1 className="text-2xl md:text-2xl font-bold text-amber-700 mb-2">
             BEST SELLERS - TRÀ SỮA ĐẬM VỊ
           </h1>
-          {productsLoading && (
-            <p className="text-gray-600 mt-2">Đang tải sản phẩm...</p>
-          )}
+
           {productsError && (
             <p className="text-red-600 mt-2">{productsError}</p>
           )}
@@ -289,9 +287,7 @@ const Homepage: React.FC = () => {
             TIN TỨC & KHUYẾN MÃI
           </h1>
 
-          {promoLoading && (
-            <p className="text-gray-600 mt-2">Đang tải khuyến mãi...</p>
-          )}
+
           {promoError && <p className="text-red-600 mt-2">{promoError}</p>}
         </div>
 
