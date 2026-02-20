@@ -20,22 +20,42 @@ async function parseJsonSafely<T>(res: Response): Promise<T | null> {
   }
 }
 
+function authHeaders(accessToken?: string): Record<string, string> {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
+function shouldUseNextApi(options?: { viaNextApi?: boolean }) {
+  if (typeof options?.viaNextApi === "boolean") {
+    return options.viaNextApi;
+  }
+  return typeof window !== "undefined";
+}
+
 export async function getToppings(params: {
   page: number;
   size: number;
+  accessToken?: string;
+  options?: { viaNextApi?: boolean };
 }): Promise<ToppingsResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const useNextApi = shouldUseNextApi(params.options);
 
   const qs = new URLSearchParams({
     page: String(params.page),
     size: String(params.size),
   });
 
-  const beUrl = `${base}/product/toppings?${qs.toString()}`;
+  const beUrl = useNextApi
+    ? `/api/products/toppings?${qs.toString()}`
+    : `${base}/product/toppings?${qs.toString()}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi ? {} : authHeaders(params.accessToken)),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
     cache: "no-store",
   });
 
@@ -52,13 +72,24 @@ export async function getToppings(params: {
   return data;
 }
 
-export async function getToppingById(id: number | string): Promise<ToppingDto> {
+export async function getToppingById(
+  id: number | string,
+  accessToken?: string,
+  options?: { viaNextApi?: boolean },
+): Promise<ToppingDto> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/toppings/${id}`;
+  const useNextApi = shouldUseNextApi(options);
+  const beUrl = useNextApi
+    ? `/api/products/toppings/${id}`
+    : `${base}/product/toppings/${id}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi ? {} : authHeaders(accessToken)),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
     cache: "no-store",
   });
 
@@ -72,17 +103,20 @@ export async function getToppingById(id: number | string): Promise<ToppingDto> {
 }
 
 export async function createTopping(
-  payload: ToppingInput,
+  payload: ToppingInput & { accessToken?: string },
 ): Promise<ToppingDto> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/toppings`;
+  const useNextApi = shouldUseNextApi();
+  const beUrl = useNextApi ? "/api/products/toppings" : `${base}/product/toppings`;
 
   const res = await fetch(beUrl, {
     method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...(useNextApi ? {} : authHeaders(payload.accessToken)),
     },
+    credentials: useNextApi ? "same-origin" : "omit",
     body: JSON.stringify(payload),
     cache: "no-store",
   });
@@ -103,16 +137,23 @@ export async function createTopping(
 export async function updateToppingById(
   id: number | string,
   payload: Partial<ToppingInput>,
+  accessToken?: string,
+  options?: { viaNextApi?: boolean },
 ): Promise<ToppingDto> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/toppings/${id}`;
+  const useNextApi = shouldUseNextApi(options);
+  const beUrl = useNextApi
+    ? `/api/products/toppings/${id}`
+    : `${base}/product/toppings/${id}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...(useNextApi ? {} : authHeaders(accessToken)),
     },
+    credentials: useNextApi ? "same-origin" : "omit",
     body: JSON.stringify(payload),
     cache: "no-store",
   });
@@ -130,13 +171,24 @@ export async function updateToppingById(
   return data.data;
 }
 
-export async function deleteToppingById(id: number | string): Promise<void> {
+export async function deleteToppingById(
+  id: number | string,
+  accessToken?: string,
+  options?: { viaNextApi?: boolean },
+): Promise<void> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/toppings/${id}`;
+  const useNextApi = shouldUseNextApi(options);
+  const beUrl = useNextApi
+    ? `/api/products/toppings/${id}`
+    : `${base}/product/toppings/${id}`;
 
   const res = await fetch(beUrl, {
     method: "DELETE",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi ? {} : authHeaders(accessToken)),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
     cache: "no-store",
   });
 

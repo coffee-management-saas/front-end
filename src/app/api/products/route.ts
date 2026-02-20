@@ -3,6 +3,7 @@
 import { ApiError } from "@/lib/utils";
 import { createProduct, getProducts } from "@/services/product.service";
 import type { ProductFilter, ProductStatus } from "@/types/product";
+import { cookies } from "next/headers";
 
 function parseStatus(v: string | null): ProductStatus | undefined {
   if (v === "ACTIVE" || v === "INACTIVE") return v;
@@ -29,7 +30,12 @@ export async function GET(req: Request) {
     }
     if (status) filter.status = status;
 
-    const data = await getProducts(filter);
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    const data = await getProducts(filter, {
+      accessToken,
+      viaNextApi: false,
+    });
     return Response.json(data, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {

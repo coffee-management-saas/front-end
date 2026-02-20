@@ -18,6 +18,13 @@ async function parseJsonSafely(res: Response): Promise<unknown> {
   }
 }
 
+function shouldUseNextApi(options?: { viaNextApi?: boolean }) {
+  if (typeof options?.viaNextApi === "boolean") {
+    return options.viaNextApi;
+  }
+  return typeof window !== "undefined";
+}
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
@@ -182,16 +189,29 @@ function normalizeUpdateCategory(payload: unknown) {
 export async function getProductCategories(params: {
   page?: number;
   size?: number;
+  accessToken?: string;
+  options?: { viaNextApi?: boolean };
 }): Promise<ProductCategoriesResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const page = params.page ?? 0;
   const size = params.size ?? 10;
-
-  const beUrl = `${base}/product/categories?page=${page}&size=${size}`;
+  const useNextApi = shouldUseNextApi(params.options);
+  const filter = encodeURIComponent(JSON.stringify({ page, size }));
+  const beUrl = useNextApi
+    ? `/api/categories?page=${page}&size=${size}`
+    : `${base}/categories?filter=${filter}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi
+        ? {}
+        : params.accessToken
+          ? { Authorization: `Bearer ${params.accessToken}` }
+          : {}),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
     cache: "no-store",
   });
 
@@ -206,13 +226,17 @@ export async function getProductCategories(params: {
 // DELETE
 export async function deleteProductCategoryById(
   id: number,
+  accessToken?: string,
 ): Promise<DeleteResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/categories/${id}`;
+  const beUrl = `${base}/categories/${id}`;
 
   const res = await fetch(beUrl, {
     method: "DELETE",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
     cache: "no-store",
   });
 
@@ -243,15 +267,17 @@ export async function updateProductCategoryById(
     status?: string;
     createdAt?: string;
   },
+  accessToken?: string,
 ) {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/categories/${id}`;
+  const beUrl = `${base}/categories/${id}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify(body),
     cache: "no-store",
@@ -288,17 +314,25 @@ export async function createProductCategory(body: {
   name: string;
   status?: string;
   createdAt?: string;
+  accessToken?: string;
 }) {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/categories`;
+  const beUrl = `${base}/categories`;
 
   const res = await fetch(beUrl, {
     method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...(body.accessToken
+        ? { Authorization: `Bearer ${body.accessToken}` }
+        : {}),
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      name: body.name,
+      status: body.status,
+      createdAt: body.createdAt,
+    }),
     cache: "no-store",
   });
 

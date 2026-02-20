@@ -1,368 +1,319 @@
-﻿import React from "react";
+﻿"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { notFound } from "next/navigation";
-import { getPromotionById } from "@/services/promotion.service";
-import { ApiError } from "@/lib/utils";
+import { Clock, Calendar, Tag, CheckCircle2 } from "lucide-react";
+import { Promotion } from "@/types/promotion";
 
-const ALLOWED_IMAGE_HOSTS = ["i.pinimg.com", "s3-hcmc02.higiocloud.vn"];
+const moneyFormatter = new Intl.NumberFormat("vi-VN");
 
-function canUseImage(url: string | undefined): url is string {
+const getDiscountText = (
+  discountType: Promotion["discountType"],
+  discountValue: number,
+) => {
+  if (discountType === "PERCENTAGE") {
+    return `${discountValue}%`;
+  }
+
+  return `${moneyFormatter.format(discountValue)}đ`;
+};
+
+const buildPromoDescription = (promo: Promotion) => {
+  const discountText = getDiscountText(promo.discountType, promo.discountValue);
+  if (promo.minimumSpent > 0) {
+    return `Giảm ${discountText} cho đơn tối thiểu ${moneyFormatter.format(promo.minimumSpent)}đ.`;
+  }
+  return `Giảm ${discountText} áp dụng cho mọi đơn hàng.`;
+};
+
+const buildUsageSteps = (promo: Promotion) => {
+  const steps: string[] = [
+    `Nhập mã ${promo.promotionCode} khi thanh toán.`,
+    `Ưu đãi ${getDiscountText(promo.discountType, promo.discountValue)} sẽ được áp dụng tự động.`,
+  ];
+
+  if (promo.minimumSpent > 0) {
+    steps.push(
+      `Đơn hàng tối thiểu ${moneyFormatter.format(promo.minimumSpent)}đ.`,
+    );
+  }
+
+  return steps;
+};
+
+const buildTerms = (promo: Promotion) => {
+  const typeLabel =
+    promo.promotionType === "PRODUCT"
+      ? "Sản phẩm"
+      : promo.promotionType === "ORDER"
+        ? "Đơn hàng"
+        : promo.promotionType;
+
+  const terms: string[] = [
+    `Áp dụng cho loại khuyến mãi ${typeLabel}.`,
+    `Thời gian: ${formatDate(promo.startDate)} - ${formatDate(promo.endDate)}.`,
+  ];
+
+  if (promo.maxDiscountAmount > 0) {
+    terms.push(
+      `Giảm tối đa ${moneyFormatter.format(promo.maxDiscountAmount)}đ.`,
+    );
+  }
+
+  if (promo.minimumSpent > 0) {
+    terms.push(
+      `Không áp dụng cho đơn dưới ${moneyFormatter.format(promo.minimumSpent)}đ.`,
+    );
+  }
+
+  terms.push("Không áp dụng đồng thời với các chương trình khuyến mãi khác.");
+
+  return terms;
+};
+
+const formatDate = (value?: string) => {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleDateString("vi-VN");
+};
+
+const canUseImage = (url: string | undefined | null) => {
   if (!url) return false;
-  try {
-    const parsed = new URL(url);
-    return ALLOWED_IMAGE_HOSTS.includes(parsed.hostname);
-  } catch {
-    return false;
-  }
-}
 
-function formatNumber(n: number) {
-  return new Intl.NumberFormat("vi-VN").format(n);
-}
+  return /^https?:\/\//.test(url) || url.startsWith("/");
+};
 
-function formatMoney(n: number) {
-  return `${formatNumber(n)} đ`;
-}
+export default function PromotionDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const slugParam = Array.isArray(params.slug) ? params.slug[0] : params.slug;
+  const promotionId = useMemo(() => {
+    if (!slugParam) return null;
+    const match = String(slugParam).match(/-(\d+)$/);
+    return match ? Number(match[1]) : null;
+  }, [slugParam]);
 
-function formatDiscount(type: string, value: number) {
-  if (type === "PERCENTAGE") return `Giảm ${Math.round(value * 100)}%`;
-  return `Giảm ${formatMoney(value)}`;
-}
+  const [promotion, setPromotion] = useState<Promotion | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-function formatDateTime(input: string) {
-  const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return input;
-  return d.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
-}
+  useEffect(() => {
+    if (!promotionId) {
+      setError("Slug không hợp lệ.");
+      setLoading(false);
+      return;
+    }
 
-function statusLabel(status: string) {
-  switch (status) {
-    case "ACTIVE":
-      return "Đang áp dụng";
-    case "INACTIVE":
-      return "Tạm ngưng";
-    case "EXPIRED":
-      return "Hết hạn";
-    default:
-      return status;
-  }
-}
+    const controller = new AbortController();
 
-function statusPillClass(status: string) {
-  switch (status) {
-    case "ACTIVE":
-      return "bg-emerald-600 text-white";
-    case "INACTIVE":
-      return "bg-amber-500 text-white";
-    case "EXPIRED":
-      return "bg-rose-600 text-white";
-    default:
-      return "bg-gray-600 text-white";
-  }
-}
+    const fetchPromotion = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-function typeLabel(type: string) {
-  switch (type) {
-    case "ORDER":
-      return "Áp dụng cho đơn hàng";
-    default:
-      return "Áp dụng cho sản phẩm";
-  }
-}
+        const res = await fetch(`/api/promotion/${promotionId}`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          credentials: "same-origin",
+          cache: "no-store",
+          signal: controller.signal,
+        });
 
-function formatDateOnly(input: string) {
-  const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return input;
-  return d.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
-}
+        const text = await res.text();
+        const payload: unknown = text ? JSON.parse(text) : null;
 
-export default async function PromotionDetailPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
-  const promotionId = extractIdFromSlug(slug);
-  if (!promotionId) notFound();
+        if (!res.ok) {
+          const msg =
+            typeof payload === "object" &&
+            payload !== null &&
+            "message" in payload
+              ? String((payload as { message: unknown }).message)
+              : `Fetch promotion failed (status ${res.status})`;
+          throw new Error(msg);
+        }
 
-  let promotion: Awaited<ReturnType<typeof getPromotionById>>;
-  try {
-    promotion = await getPromotionById(promotionId);
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 404) notFound();
-    throw e;
-  }
+        if (!payload || typeof payload !== "object") {
+          throw new Error("Dữ liệu promotion không đúng format.");
+        }
 
-  const discountText = formatDiscount(
-    promotion.discountType,
-    promotion.discountValue,
-  );
+        setPromotion(payload as Promotion);
+      } catch (e: unknown) {
+        const isAbortError =
+          e instanceof DOMException && e.name === "AbortError";
+        if (isAbortError) return;
 
-  const minSpentText = formatMoney(promotion.minimumSpent);
+        setError(e instanceof Error ? e.message : String(e));
+        setPromotion(null);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const showMaxDiscount =
-    promotion.discountType === "PERCENTAGE" &&
-    typeof promotion.maxDiscountAmount === "number" &&
-    promotion.maxDiscountAmount >= 1;
+    fetchPromotion();
 
-  const maxDiscountText = showMaxDiscount
-    ? `Tối đa ${formatMoney(promotion.maxDiscountAmount)}`
-    : null;
-
-  const promoImage = canUseImage(promotion.imageUrl)
-    ? promotion.imageUrl
-    : null;
-
-  const statusText = statusLabel(promotion.promotionStatus);
+    return () => controller.abort();
+  }, [promotionId]);
 
   return (
-    <div className="min-h-screen bg-[#F9F7F5] pt-20 pb-10 px-3 text-slate-900">
-      <div className="mx-auto max-w-7xl grid gap-10 lg:gap-14 lg:grid-cols-[3fr_2fr] lg:items-start">
-        {/* LEFT */}
-        <section className="space-y-6">
-          {/* Header label */}
-          <div className="flex items-center gap-2 text-[#7d542b] font-semibold tracking-wide">
-            <span className="text-lg">✧</span>
-            <span className="uppercase text-sm">Chi tiết khuyến mãi</span>
-          </div>
+    <div className="min-h-screen bg-gradient-to-b from-[#F9F7F5] to-white">
+      <main className="w-full">
+        <div className="px-4 md:px-8 py-6 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="text-sm font-semibold text-[#693916] hover:text-[#876F60]"
+          >
+            ← Quay lại
+          </button>
+        </div>
 
-          {/* Big title */}
-          <h1 className="text-[42px] leading-tight md:text-[56px] font-extrabold">
-            <span className="text-[#2b2b2b]">{promotion.promotionName}</span>
-          </h1>
-
-          {/* Pills row */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${statusPillClass(
-                promotion.promotionStatus,
-              )}`}
-            >
-              <span className="h-2 w-2 rounded-full bg-white/90" />
-              {statusText}
-            </span>
-
-            <span className="inline-flex items-center gap-2 rounded-full bg-[#ef476f] text-white px-4 py-2 text-sm font-semibold">
-              🎁 {discountText}
-            </span>
-
-            <span className="inline-flex items-center gap-2 rounded-full bg-[#222] text-white px-4 py-2 text-sm font-semibold">
-              <span className="opacity-80">CODE:</span>{" "}
-              {promotion.promotionCode}
-            </span>
-
-            {maxDiscountText && (
-              <span className="inline-flex items-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-700 border border-black/5 shadow-sm">
-                {maxDiscountText}
-              </span>
-            )}
-          </div>
-
-          {/* Apply + date row */}
-          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-700">
-            <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-600" />
-              {typeLabel(promotion.promotionType)}
-            </span>
-
-            <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-sm border border-black/5">
-              <span className="text-[#ef476f]">📅</span>
-              <span className="text-gray-600">Từ</span>
-              <span className="font-semibold text-[#ef476f]">
-                {formatDateOnly(promotion.startDate)}
-              </span>
-              <span className="text-gray-400">→</span>
-              <span className="font-semibold text-[#ef476f]">
-                {formatDateOnly(promotion.endDate)}
-              </span>
-            </span>
-          </div>
-
-          {/* Conditions box */}
-          <div className="rounded-3xl bg-white shadow-sm border border-black/5 p-5 md:p-6">
-            <div className="flex items-start gap-3">
-              <div className="mt-1 h-6 w-1.5 rounded-full bg-[#ef476f]" />
-              <div className="w-full">
-                <h2 className="text-xl font-extrabold text-[#2b2b2b]">
-                  ĐIỀU KIỆN ÁP DỤNG
-                </h2>
-
-                <ul className="mt-4 space-y-3 text-gray-700">
-                  <li className="flex gap-3">
-                    <span className="mt-2 h-2 w-2 rounded-full bg-emerald-600" />
-                    <span>
-                      Áp dụng cho{" "}
-                      {typeLabel(promotion.promotionType).toLowerCase()} trên
-                      toàn hệ thống.
-                    </span>
-                  </li>
-
-                  <li className="flex gap-3">
-                    <span className="mt-2 h-2 w-2 rounded-full bg-amber-500" />
-                    <span>
-                      Đơn tối thiểu{" "}
-                      <b className="text-[#ef476f]">{minSpentText}</b>; mỗi
-                      khách tối đa{" "}
-                      <b className="text-[#ef476f]">
-                        {promotion.usageLimitPerUser}
-                      </b>{" "}
-                      lần.
-                    </span>
-                  </li>
-
-                  {maxDiscountText && (
-                    <li className="flex gap-3">
-                      <span className="mt-2 h-2 w-2 rounded-full bg-slate-400" />
-                      <span>Giảm tối đa: {maxDiscountText}.</span>
-                    </li>
-                  )}
-                </ul>
-
-                {/* CTA like image */}
-                <div className="mt-6 rounded-2xl bg-[#2d2f38] text-white p-4 md:p-5 flex items-center justify-between gap-4">
-                  <div>
-                    <div className="font-bold">
-                      Dùng mã này tại quầy hoặc khi đặt online
-                    </div>
-                    <div className="text-sm text-white/70 mt-1">
-                      Nhập mã trước khi thanh toán để được áp dụng ưu đãi.
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 rounded-xl bg-[#ef476f] px-5 py-3 font-extrabold">
-                    {discountText}
-                  </div>
-                </div>
-              </div>
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-amber-200 rounded-full"></div>
+              <div className="w-16 h-16 border-4 border-[#693916] border-t-transparent rounded-full animate-spin absolute top-0"></div>
             </div>
-          </div>
-
-          {/* Bottom alert like image */}
-          <div className="rounded-2xl border border-[#ef476f]/20 bg-[#fff0f4] p-4 flex items-start gap-3">
-            <div className="h-10 w-10 rounded-full bg-[#ef476f] text-white grid place-items-center font-bold">
-              ⏱
-            </div>
-            <div>
-              <div className="font-extrabold text-[#2b2b2b]">
-                Chương trình sắp kết thúc!
-              </div>
-              <div className="text-sm text-gray-600 mt-1">
-                Nhanh tay sử dụng mã để nhận ưu đãi đặc biệt
-              </div>
-
-              <div className="text-xs text-gray-500 mt-2">
-                Hiệu lực: {formatDateTime(promotion.startDate)} →{" "}
-                {formatDateTime(promotion.endDate)}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* RIGHT */}
-        <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
-          {/* Big image card */}
-          <div className="relative overflow-hidden rounded-3xl bg-white shadow-sm border border-black/5">
-            <div className="relative h-[360px] bg-[#ffe6ee]">
-              {promoImage ? (
-                <Image
-                  src={promoImage}
-                  alt={promotion.promotionName}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 1024px) 100vw, 520px"
-                  priority
-                />
-              ) : (
-                <div className="absolute inset-0 grid place-items-center text-sm text-gray-500">
-                  Không có hình ảnh
-                </div>
-              )}
-
-              {/* overlay badges */}
-              <div className="absolute left-4 top-4 flex gap-2">
-                <span className="rounded-full bg-emerald-600 text-white px-3 py-1 text-xs font-bold">
-                  {statusText}
-                </span>
-                <span className="rounded-full bg-[#ef476f] text-white px-3 py-1 text-xs font-bold">
-                  {discountText}
-                </span>
-              </div>
-
-              {/* bottom overlay */}
-              <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-black/60 via-black/10 to-transparent">
-                <div className="text-white font-extrabold text-2xl line-clamp-2">
-                  {promotion.promotionName}
-                </div>
-                <div className="mt-2 inline-flex rounded-full bg-white/20 text-white px-3 py-1 text-xs font-bold">
-                  CODE {promotion.promotionCode}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Two small cards (reuse same image, không thêm dữ liệu mới) */}
-          <div className="grid grid-cols-2 gap-5">
-            <SmallVisualCard
-              title={promotion.promotionName}
-              priceText={discountText}
-              image={promoImage}
-            />
-            <SmallVisualCard
-              title={typeLabel(promotion.promotionType)}
-              priceText={minSpentText}
-              image={promoImage}
-            />
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-function SmallVisualCard({
-  title,
-  priceText,
-  image,
-}: {
-  title: string;
-  priceText: string;
-  image: string | null;
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-3xl bg-white shadow-sm border border-black/5 h-[220px]">
-      <div className="absolute inset-0 bg-[#f7f7f7]">
-        {image ? (
-          <Image
-            src={image}
-            alt={title}
-            fill
-            className="object-cover"
-            sizes="240px"
-          />
-        ) : (
-          <div className="absolute inset-0 grid place-items-center text-[11px] text-gray-500">
-            Không có hình ảnh
+            <p className="mt-6 text-gray-500 font-medium">
+              Đang tải khuyến mãi...
+            </p>
           </div>
         )}
-      </div>
 
-      {/* pill top-right giống “25k” */}
-      <div className="absolute right-3 top-3 rounded-full bg-[#ef476f] text-white px-3 py-1 text-xs font-extrabold shadow">
-        {priceText}
-      </div>
+        {error && !loading && (
+          <div className="max-w-md mx-auto text-center py-12 px-6 bg-red-50 rounded-2xl border-2 border-red-100">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <p className="text-red-600 font-medium">{error}</p>
+          </div>
+        )}
 
-      <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/55 via-black/10 to-transparent">
-        <div className="text-white font-extrabold line-clamp-1">{title}</div>
-        <div className="text-white/90 text-xl md:text-2xl font-extrabold mt-1 line-clamp-1">
-          {priceText}
-        </div>
-      </div>
+        {promotion && !loading && !error && (
+          <div className="px-4 md:px-8 pb-12">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+              <div className="relative h-[520px] md:h-[680px] lg:h-[760px] rounded-3xl overflow-hidden shadow-xl">
+                <Image
+                  src={
+                    canUseImage(promotion.imageUrl)
+                      ? (promotion.imageUrl as string)
+                      : "/images/banner1.png"
+                  }
+                  alt={promotion.promotionName ?? "Promotion"}
+                  fill
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 px-5 md:px-6 pb-6 text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="h-0.5 w-10 bg-amber-400 rounded-full"></div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-amber-200">
+                      Khuyến Mãi Đặc Biệt
+                    </span>
+                  </div>
+                  <h1 className="mt-3 text-2xl md:text-3xl font-bold">
+                    {promotion.promotionName ?? promotion.promotionCode}
+                  </h1>
+                  <p className="mt-2 text-white/90 text-sm md:text-base">
+                    Mã ưu đãi:{" "}
+                    <span className="font-semibold">
+                      {promotion.promotionCode}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-8">
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 md:p-8 border-2 border-amber-200 border-dashed">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center">
+                      <span className="text-white font-bold text-xl">
+                        {promotion.discountType === "FIXED_AMOUNT" ? "đ" : "%"}
+                      </span>
+                    </div>
+                    <h3 className="text-xl md:text-2xl font-bold text-[#693916]">
+                      {`Ưu đãi ${getDiscountText(
+                        promotion.discountType,
+                        promotion.discountValue,
+                      )}`}
+                    </h3>
+                  </div>
+                  <p className="text-gray-700 leading-relaxed text-base md:text-lg">
+                    {buildPromoDescription(promotion)}
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-200">
+                    <Clock className="w-5 h-5 text-amber-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-gray-800 mb-1">
+                        Thời gian áp dụng
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        Theo điều kiện chương trình
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-200">
+                    <Calendar className="w-5 h-5 text-amber-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-gray-800 mb-1">
+                        Thời hạn khuyến mãi
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {`${formatDate(promotion.startDate)} - ${formatDate(
+                          promotion.endDate,
+                        )}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    Cách sử dụng
+                  </h4>
+                  <ol className="space-y-2 text-sm text-gray-700 ml-7">
+                    {buildUsageSteps(promotion).map((step, index) => (
+                      <li key={step} className="flex gap-2">
+                        <span className="font-semibold min-w-[20px]">
+                          {index + 1}.
+                        </span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="font-bold text-gray-800">
+                    Điều khoản & Điều kiện
+                  </h4>
+                  <ul className="space-y-2 text-sm text-gray-600">
+                    {buildTerms(promotion).map((term) => (
+                      <li key={term} className="flex gap-2">
+                        <span className="text-amber-600">•</span>
+                        <span>{term}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <button
+                  onClick={() => router.push("/menu")}
+                  className="w-full bg-gradient-to-r from-[#693916] to-[#876F60] hover:from-[#876F60] hover:to-[#693916] text-white font-bold py-4 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  Đặt hàng ngay
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
-}
-
-function extractIdFromSlug(slug?: string) {
-  if (!slug) return null;
-  const last = slug.split("-").pop();
-  return last && /^\d+$/.test(last) ? last : null;
 }

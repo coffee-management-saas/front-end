@@ -2,6 +2,7 @@
 
 import { ApiError } from "@/lib/utils";
 import { createTopping, getToppings } from "@/services/topping.service";
+import { cookies } from "next/headers";
 
 export async function GET(req: Request) {
   try {
@@ -10,7 +11,14 @@ export async function GET(req: Request) {
     const page = Number(searchParams.get("page") ?? "0");
     const size = Number(searchParams.get("size") ?? "10");
 
-    const data = await getToppings({ page, size });
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    const data = await getToppings({
+      page,
+      size,
+      accessToken,
+      options: { viaNextApi: false },
+    });
     return Response.json(data, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {
@@ -25,6 +33,13 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+
+    if (!accessToken) {
+      return Response.json({ message: "Unauthenticated" }, { status: 401 });
+    }
+
     const body = (await req.json().catch(() => null)) as {
       name?: string;
       price?: number;
@@ -51,7 +66,7 @@ export async function POST(req: Request) {
         : "ACTIVE") as "ACTIVE" | "INACTIVE",
     };
 
-    const data = await createTopping(payload);
+    const data = await createTopping({ ...payload, accessToken });
     return Response.json(
       { code: 201, status: "success", message: "Create success", data },
       { status: 201 },

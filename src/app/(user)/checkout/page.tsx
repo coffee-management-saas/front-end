@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { OrderResponse } from "@/types/order";
 import { getOrderById } from "@/services/order.service";
+import type { ProfileData } from "@/types/profile";
 import {
   ArrowRight,
   ArrowLeft,
@@ -44,7 +45,6 @@ import { cn } from "@/lib/utils";
 import { useCart } from "@/contexts/CartContext";
 import type { Promotion } from "@/types/promotion";
 import { useAppContext } from "@/app/AppProvider";
-import { getMyProfile, updateMyProfile } from "@/services/profile.service";
 import { toast } from "sonner";
 import { createOrder } from "@/services/order.service";
 import type { CreateOrderRequest } from "@/types/order";
@@ -87,7 +87,18 @@ const CheckoutContent = () => {
       const fetchProfile = async () => {
         setIsLoadingProfile(true);
         try {
-          const profile = await getMyProfile(accessToken);
+          const profile = await fetch("/api/profile", {
+            cache: "no-store",
+            credentials: "same-origin",
+          }).then(async (res) => {
+            const payload = await res.json().catch(() => null);
+            if (!res.ok) {
+              throw new Error(
+                payload?.message || `Load profile failed (${res.status})`,
+              );
+            }
+            return payload as ProfileData;
+          });
           if (profile.address) {
             setAddress(profile.address);
           }
@@ -144,7 +155,20 @@ const CheckoutContent = () => {
 
     try {
       setIsUpdatingAddress(true);
-      await updateMyProfile(accessToken, { address: address });
+      await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+        credentials: "same-origin",
+      }).then(async (res) => {
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(
+            payload?.message || `Update profile failed (${res.status})`,
+          );
+        }
+        return payload;
+      });
       toast.success("Đã cập nhật địa chỉ thành công!");
     } catch (error) {
       console.error(error);

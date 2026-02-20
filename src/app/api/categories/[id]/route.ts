@@ -3,6 +3,7 @@ import {
   deleteProductCategoryById,
   updateProductCategoryById,
 } from "@/services/category.service";
+import { cookies } from "next/headers";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -36,7 +37,9 @@ export async function DELETE(req: Request, ctx: Ctx) {
       );
     }
 
-    await deleteProductCategoryById(categoryId);
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    await deleteProductCategoryById(categoryId, accessToken);
     return Response.json({ message: "Delete success" }, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {
@@ -86,7 +89,9 @@ export async function PUT(req: Request, ctx: Ctx) {
       createdAt: body.createdAt,
     };
 
-    const data = await updateProductCategoryById(categoryId, payload);
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    const data = await updateProductCategoryById(categoryId, payload, accessToken);
     return Response.json(data, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {

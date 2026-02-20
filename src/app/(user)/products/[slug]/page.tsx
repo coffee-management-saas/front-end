@@ -12,11 +12,19 @@ import {
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
-import type { ApiEnvelope, Product, ProductVariant, Size } from "@/types/product";
+import type {
+  ApiEnvelope,
+  Product,
+  ProductVariant,
+  Size,
+} from "@/types/product";
 import { ToppingsResponse } from "@/types/topping";
 import Link from "next/link";
 import { useCart } from "@/contexts/CartContext";
-import { getProductVariants, getProductSizes } from "@/services/product.service";
+import {
+  getProductVariants,
+  getProductSizes,
+} from "@/services/product.service";
 import { toast } from "sonner";
 import { triggerFlyToCart } from "@/components/FlyingCartAnimation";
 
@@ -54,9 +62,12 @@ const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=1200&q=80";
 
 const getVariantName = (v: ProductVariant) => {
-  if (typeof v.size === 'string') return v.size;
-  if (v.size && typeof v.size === 'object' && 'code' in v.size) return (v.size as any).code;
-  if (v.size && typeof v.size === 'object' && 'name' in v.size) return (v.size as any).name;
+  if (typeof v.size === "string") return v.size;
+  if (v.size && typeof v.size === "object") {
+    const sizeObj = v.size as { code?: unknown; name?: unknown };
+    if (typeof sizeObj.code === "string") return sizeObj.code;
+    if (typeof sizeObj.name === "string") return sizeObj.name;
+  }
   return v.sizeCode || v.code || v.name || `Size ${v.id}`;
 };
 
@@ -67,7 +78,9 @@ const DetailProduct: React.FC = () => {
     [params?.slug],
   );
 
-  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(
+    null,
+  );
   const bestSellerRef = useRef<HTMLDivElement>(null);
   const [selectedIce, setSelectedIce] = useState<LevelOption>("Nhiều");
   const [quantity, setQuantity] = useState<number>(1);
@@ -146,18 +159,27 @@ const DetailProduct: React.FC = () => {
         const [productRes, variantsRes, sizesRes] = await Promise.all([
           fetch(`/api/products/${productId}`, { cache: "no-store" }),
           getProductVariants(productId).catch(() => ({ data: [] })),
-          getProductSizes().catch(() => ({ data: [] }))
+          getProductSizes().catch(() => ({ data: [] })),
         ]);
 
-        const productPayload = (await productRes.json()) as ApiEnvelope<Product> | { message?: string };
-        if (!productRes.ok || ("code" in productPayload && productPayload.code !== 200)) {
-          throw new Error(("message" in productPayload && productPayload.message) || "Load product failed");
+        const productPayload = (await productRes.json()) as
+          | ApiEnvelope<Product>
+          | { message?: string };
+        if (
+          !productRes.ok ||
+          ("code" in productPayload && productPayload.code !== 200)
+        ) {
+          throw new Error(
+            ("message" in productPayload && productPayload.message) ||
+              "Load product failed",
+          );
         }
         if ("data" in productPayload) {
           setProduct(productPayload.data as Product);
         }
 
-        const variantsData = (variantsRes as ApiEnvelope<ProductVariant[]>).data || [];
+        const variantsData =
+          (variantsRes as ApiEnvelope<ProductVariant[]>).data || [];
         const sizesData = (sizesRes as ApiEnvelope<Size[]>).data || [];
         setSizes(sizesData);
 
@@ -169,7 +191,7 @@ const DetailProduct: React.FC = () => {
 
         // Fallback if no sizes loaded
         if (Object.keys(sizeOrder).length === 0) {
-          Object.assign(sizeOrder, { "S": 1, "M": 2, "L": 3, "XL": 4 });
+          Object.assign(sizeOrder, { S: 1, M: 2, L: 3, XL: 4 });
         }
 
         variantsData.sort((a, b) => {
@@ -186,7 +208,6 @@ const DetailProduct: React.FC = () => {
         if (variantsData.length > 0) {
           setSelectedVariantId(variantsData[0].id);
         }
-
       } catch (e) {
         setError(e instanceof Error ? e.message : "Load product failed");
         setProduct(null);
@@ -221,14 +242,14 @@ const DetailProduct: React.FC = () => {
         if (!res.ok) {
           throw new Error(
             ("message" in payload && payload.message) ||
-            "Load suggestions failed",
+              "Load suggestions failed",
           );
         }
 
         if (!("code" in payload) || payload.code !== 200) {
           throw new Error(
             ("message" in payload && payload.message) ||
-            "Load suggestions failed",
+              "Load suggestions failed",
           );
         }
 
@@ -267,11 +288,8 @@ const DetailProduct: React.FC = () => {
     };
   }, [product]);
 
-
-
-
   const activeVariant = useMemo(() => {
-    return variants.find(v => v.id === selectedVariantId);
+    return variants.find((v) => v.id === selectedVariantId);
   }, [variants, selectedVariantId]);
 
   // Use price from variant; fallback to 0 if not found
@@ -315,7 +333,10 @@ const DetailProduct: React.FC = () => {
           </button>
           <span className="text-gray-300">|</span>
           <div className="text-sm text-gray-500">
-            Trang chủ / <span className="text-[#693916] font-medium">Chi tiết sản phẩm</span>
+            Trang chủ /{" "}
+            <span className="text-[#693916] font-medium">
+              Chi tiết sản phẩm
+            </span>
           </div>
         </div>
 
@@ -429,18 +450,21 @@ const DetailProduct: React.FC = () => {
                   Đá
                 </h3>
                 <div className="grid grid-cols-3 gap-2">
-                  {(["Ít", "Bình thường", "Nhiều"] as LevelOption[]).map((opt) => (
-                    <button
-                      key={opt}
-                      onClick={() => setSelectedIce(opt)}
-                      className={`h-9 rounded-lg font-semibold text-[10px] transition-all duration-300 ${selectedIce === opt
-                        ? "bg-gradient-to-br from-[#693916] to-[#876F60] text-white shadow-md scale-105"
-                        : "bg-gray-50 border border-gray-200 text-gray-700 hover:border-[#693916]"
+                  {(["Ít", "Bình thường", "Nhiều"] as LevelOption[]).map(
+                    (opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => setSelectedIce(opt)}
+                        className={`h-9 rounded-lg font-semibold text-[10px] transition-all duration-300 ${
+                          selectedIce === opt
+                            ? "bg-gradient-to-br from-[#693916] to-[#876F60] text-white shadow-md scale-105"
+                            : "bg-gray-50 border border-gray-200 text-gray-700 hover:border-[#693916]"
                         }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+                      >
+                        {opt}
+                      </button>
+                    ),
+                  )}
                 </div>
               </div>
             </div>
@@ -472,7 +496,9 @@ const DetailProduct: React.FC = () => {
                     className="flex items-center justify-between p-2 bg-gradient-to-r from-gray-50 to-amber-50 rounded-lg border border-gray-200 hover:border-amber-300 transition-all"
                   >
                     <div className="flex-1">
-                      <p className="text-xs font-semibold text-gray-900">{t.name}</p>
+                      <p className="text-xs font-semibold text-gray-900">
+                        {t.name}
+                      </p>
                       <p className="text-[10px] text-amber-600 font-medium mt-0">
                         +{formatPrice(t.price)}
                       </p>
@@ -543,7 +569,7 @@ const DetailProduct: React.FC = () => {
                 // Trigger flying animation
                 triggerFlyToCart(
                   product.image ?? FALLBACK_IMG,
-                  e.currentTarget
+                  e.currentTarget,
                 );
 
                 toast.success("Đã thêm vào giỏ hàng!");

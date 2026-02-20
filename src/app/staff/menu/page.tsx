@@ -28,8 +28,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-type Category = "coffee" | "tea" | "cake" | "juice" | "combo";
+import { ProductCategoriesResponse, ProductCategory } from "@/types/catagories";
+import {
+  getProductSizes,
+  getProductVariants,
+  getProducts,
+} from "@/services/product.service";
+import type { Product, ProductVariant, Size } from "@/types/product";
+import type { ToppingItem, ToppingsResponse } from "@/types/topping";
 
 type MenuItem = {
   id: number;
@@ -37,115 +43,30 @@ type MenuItem = {
   description: string;
   price: number;
   image: string;
-  category: Category;
+  category: string;
   tags?: string[];
   isNew?: boolean;
+};
+
+type LevelOption = "Ít" | "Bình thường" | "Nhiều";
+
+type SelectedTopping = {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
 };
 
 type CartItem = MenuItem & {
   quantity: number;
   note?: string;
-  size: "S" | "M" | "L";
-  sugar: string;
-  ice: string;
-  tea: "Ít" | "Vừa" | "Nhiều";
-  toppings: string[];
+  variantId: number;
+  size: string;
+  ice: LevelOption;
+  toppings: SelectedTopping[];
 };
 
-const CATEGORIES: { label: string; value: Category }[] = [
-  { label: "Cà phê", value: "coffee" },
-  { label: "Trà & sữa", value: "tea" },
-  { label: "Bánh", value: "cake" },
-  { label: "Nước ép", value: "juice" },
-  { label: "Combo", value: "combo" },
-];
-
-const MENU: MenuItem[] = [
-  {
-    id: 1,
-    name: "Cold Brew Cam Sành",
-    description: "Ủ lạnh 18h, cam sành tươi, vị chua ngọt cân bằng",
-    price: 58000,
-    image:
-      "https://i.pinimg.com/736x/5e/fe/ef/5efeefde66fb51a9c3cf727336312d5d.jpg",
-    category: "coffee",
-    tags: ["Best seller"],
-  },
-  {
-    id: 2,
-    name: "Latte Hạnh Nhân",
-    description: "Sữa hạnh nhân, shot espresso đôi",
-    price: 65000,
-    image:
-      "https://i.pinimg.com/736x/eb/fa/73/ebfa73187f0aa58158d36d28b86a6532.jpg",
-    category: "coffee",
-  },
-  {
-    id: 3,
-    name: "Trà Ô Long Sữa Rang",
-    description: "Ô long rang, kem sữa, ít đường",
-    price: 52000,
-    image:
-      "https://i.pinimg.com/736x/51/c6/07/51c6075b5b11f4e0cafc153d698fbe8e.jpg",
-    category: "tea",
-    tags: ["Giảm ngọt"],
-  },
-  {
-    id: 4,
-    name: "Trà Đào Cam Sả",
-    description: "Đào ngâm, cam vàng, sả tươi",
-    price: 49000,
-    image:
-      "https://i.pinimg.com/1200x/4a/ad/3a/4aad3ab445759dc77d1d0f47818411a6.jpg",
-    category: "tea",
-    isNew: true,
-  },
-  {
-    id: 5,
-    name: "Mousse Matcha",
-    description: "Bánh mousse matcha đế chocolate",
-    price: 45000,
-    image:
-      "https://i.pinimg.com/736x/64/d7/2e/64d72e14084b39358fad5c4354c4f05f.jpg",
-    category: "cake",
-  },
-  {
-    id: 6,
-    name: "Cheesecake Caramel",
-    description: "Cheesecake béo nhẹ, sốt caramel muối",
-    price: 39000,
-    image:
-      "https://i.pinimg.com/736x/95/49/0c/95490c7ff1918c006114347b834d6faf.jpg",
-    category: "cake",
-  },
-  {
-    id: 7,
-    name: "Nước ép Dưa hấu",
-    description: "Ép lạnh, không thêm đường",
-    price: 42000,
-    image:
-      "https://i.pinimg.com/736x/4a/0a/0f/4a0a0f55f41ea855c05605765c71be32.jpg",
-    category: "juice",
-    tags: ["Healthy"],
-  },
-  {
-    id: 8,
-    name: "Combo 2 Ly Latte + 1 Bánh",
-    description: "Ưu đãi mang đi buổi sáng",
-    price: 129000,
-    image:
-      "https://i.pinimg.com/736x/5e/fe/ef/5efeefde66fb51a9c3cf727336312d5d.jpg",
-    category: "combo",
-  },
-];
-
-const TOPPINGS = [
-  "Trân châu",
-  "Thạch cà phê",
-  "Kem cheese",
-  "Pudding trứng",
-  "Hạt điều",
-];
+const MENU: MenuItem[] = [];
 
 const formatVnd = (val: number) =>
   val.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
@@ -154,11 +75,21 @@ const StaffPosPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const categoryFromUrl =
-    (searchParams.get("category") as Category | null) || "coffee";
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [catLoading, setCatLoading] = useState(false);
+  const [catError, setCatError] = useState<string | null>(null);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(MENU);
+  const [menuLoading, setMenuLoading] = useState(false);
+  const [menuError, setMenuError] = useState<string | null>(null);
 
-  const [activeCategory, setActiveCategory] =
-    useState<Category>(categoryFromUrl);
+  const categoryIdFromUrl = useMemo(() => {
+    const v = searchParams.get("category");
+    return v ? String(v) : null;
+  }, [searchParams]);
+
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
+    categoryIdFromUrl,
+  );
   const [search, setSearch] = useState("");
   const [orderType, setOrderType] = useState<
     "dine-in" | "take-away" | "delivery"
@@ -168,61 +99,289 @@ const StaffPosPage = () => {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-  const [customSize, setCustomSize] = useState<"S" | "M" | "L">("M");
-  const [customSugar, setCustomSugar] = useState("50%");
-  const [customIce, setCustomIce] = useState("50%");
-  const [customTea, setCustomTea] = useState<CartItem["tea"]>("Vừa");
+  const [customIce, setCustomIce] = useState<LevelOption>("Bình thường");
   const [customQty, setCustomQty] = useState(1);
-  const [customToppings, setCustomToppings] = useState<string[]>([]);
+  const [toppings, setToppings] = useState<ToppingItem[]>([]);
+  const [topLoading, setTopLoading] = useState(false);
+  const [topError, setTopError] = useState<string | null>(null);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [variantLoading, setVariantLoading] = useState(false);
+  const [variantError, setVariantError] = useState<string | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
-    setActiveCategory(categoryFromUrl);
-  }, [categoryFromUrl]);
+    setActiveCategoryId(categoryIdFromUrl);
+  }, [categoryIdFromUrl]);
 
-  const onChangeCategory = (cat: Category) => {
-    setActiveCategory(cat);
+  useEffect(() => {
+    const run = async () => {
+      setCatLoading(true);
+      setCatError(null);
+      try {
+        const qs = new URLSearchParams({ page: "0", size: "50" });
+        const res = await fetch(`/api/categories?${qs.toString()}`, {
+          cache: "no-store",
+        });
+        const data = (await res.json()) as ProductCategoriesResponse;
+
+        if (!res.ok || data?.code !== 200) {
+          throw new Error(data?.message || "Load categories failed");
+        }
+
+        const items: ProductCategory[] = (data?.data ?? []).filter(
+          (c) => !c.status || c.status === "ACTIVE",
+        );
+        setCategories(items);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Load categories failed";
+        setCatError(msg);
+      } finally {
+        setCatLoading(false);
+      }
+    };
+
+    run();
+  }, []);
+
+  useEffect(() => {
+    if (!activeCategoryId && categories.length > 0) {
+      const firstId = String(categories[0].id);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("category", firstId);
+      router.replace(`?${params.toString()}`, { scroll: false });
+    }
+  }, [activeCategoryId, categories, router, searchParams]);
+
+  useEffect(() => {
+    if (!activeCategoryId) return;
+
+    const run = async () => {
+      setMenuLoading(true);
+      setMenuError(null);
+      try {
+        const categoryId = Number(activeCategoryId);
+        const result = await getProducts({
+          page: 0,
+          size: 50,
+          categoryId: Number.isFinite(categoryId) ? categoryId : undefined,
+          status: "ACTIVE",
+        });
+
+        const items: Product[] = result.data ?? [];
+        const mapped: MenuItem[] = items.map((p) => {
+          const priceRaw = (p as unknown as { price?: number }).price;
+          const price = Number.isFinite(priceRaw) ? Number(priceRaw) : 0;
+          return {
+            id: p.id,
+            name: p.name,
+            description: p.description ?? "",
+            price,
+            image:
+              p.image ??
+              "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=1200&q=80",
+            category: p.categoryName ?? "",
+          };
+        });
+
+        setMenuItems(mapped);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Load products failed";
+        setMenuError(msg);
+      } finally {
+        setMenuLoading(false);
+      }
+    };
+
+    run();
+  }, [activeCategoryId]);
+
+  useEffect(() => {
+    const run = async () => {
+      setTopLoading(true);
+      setTopError(null);
+      try {
+        const qs = new URLSearchParams({ page: "0", size: "50" });
+        const res = await fetch(`/api/products/toppings?${qs.toString()}`, {
+          cache: "no-store",
+        });
+
+        const payload = (await res.json()) as
+          | ToppingsResponse
+          | { message?: string };
+
+        if (!res.ok) {
+          throw new Error(
+            ("message" in payload && payload.message) || "Load toppings failed",
+          );
+        }
+
+        if (!("code" in payload) || payload.code !== 200) {
+          throw new Error(
+            ("message" in payload && payload.message) || "Load toppings failed",
+          );
+        }
+
+        const items: ToppingItem[] = payload.data
+          .filter((t) => t.status === "ACTIVE")
+          .map((t) => ({
+            id: String(t.id),
+            name: t.name,
+            price: t.price,
+            quantity: 0,
+          }));
+
+        setToppings(items);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Load toppings failed";
+        setTopError(msg);
+        setToppings([]);
+      } finally {
+        setTopLoading(false);
+      }
+    };
+
+    run();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+
+    const run = async () => {
+      setVariantLoading(true);
+      setVariantError(null);
+      try {
+        const [variantsRes, sizesRes] = await Promise.all([
+          getProductVariants(selectedItem.id).catch(() => ({ data: [] })),
+          getProductSizes().catch(() => ({ data: [] })),
+        ]);
+
+        const variantsData =
+          (variantsRes as { data?: ProductVariant[] }).data || [];
+        const sizesData = (sizesRes as { data?: Size[] }).data || [];
+        setSizes(sizesData);
+
+        const sizeOrder: Record<string, number> = {};
+        sizesData.forEach((s, idx) => {
+          sizeOrder[s.code] = idx + 1;
+          sizeOrder[s.name] = idx + 1;
+        });
+
+        if (Object.keys(sizeOrder).length === 0) {
+          Object.assign(sizeOrder, { S: 1, M: 2, L: 3, XL: 4 });
+        }
+
+        variantsData.sort((a, b) => {
+          const nameA = getVariantName(a).toUpperCase();
+          const nameB = getVariantName(b).toUpperCase();
+          const orderA = sizeOrder[nameA] || sizeOrder[a.code] || 99;
+          const orderB = sizeOrder[nameB] || sizeOrder[b.code] || 99;
+          return orderA - orderB;
+        });
+
+        setVariants(variantsData);
+        setSelectedVariantId(variantsData[0]?.id ?? null);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Load variants failed";
+        setVariantError(msg);
+        setVariants([]);
+        setSelectedVariantId(null);
+      } finally {
+        setVariantLoading(false);
+      }
+    };
+
+    setCustomIce("Bình thường");
+    setCustomQty(1);
+    setToppings((prev) => prev.map((t) => ({ ...t, quantity: 0 })));
+    run();
+  }, [selectedItem]);
+
+  const onChangeCategory = (categoryId: string) => {
+    setActiveCategoryId(categoryId);
     const params = new URLSearchParams(searchParams.toString());
-    params.set("category", cat);
+    params.set("category", categoryId);
     router.replace(`?${params.toString()}`, { scroll: false });
   };
 
   const filteredMenu = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    return MENU.filter(
+    const activeCategory = categories.find(
+      (c) => String(c.id) === activeCategoryId,
+    );
+    const activeCategoryName = activeCategory?.name?.trim().toLowerCase();
+    return menuItems.filter(
       (item) =>
-        item.category === activeCategory &&
+        (!activeCategoryName ||
+          item.category.trim().toLowerCase() === activeCategoryName) &&
         (!keyword ||
           item.name.toLowerCase().includes(keyword) ||
           item.tags?.some((t) => t.toLowerCase().includes(keyword))),
     );
-  }, [activeCategory, search]);
+  }, [activeCategoryId, categories, menuItems, search]);
 
-  const sameToppings = (a: string[], b: string[]) => {
+  const sameToppings = (a: SelectedTopping[], b: SelectedTopping[]) => {
     if (a.length !== b.length) return false;
-    const sa = [...a].sort().join("|");
-    const sb = [...b].sort().join("|");
+    const sa = [...a]
+      .map((t) => `${t.id}:${t.quantity}`)
+      .sort()
+      .join("|");
+    const sb = [...b]
+      .map((t) => `${t.id}:${t.quantity}`)
+      .sort()
+      .join("|");
     return sa === sb;
   };
 
+  const activeVariant = useMemo(
+    () => variants.find((v) => v.id === selectedVariantId) ?? null,
+    [variants, selectedVariantId],
+  );
+
+  const selectedToppings = useMemo(
+    () => toppings.filter((t) => t.quantity > 0),
+    [toppings],
+  );
+
+  const toppingTotal = useMemo(
+    () => selectedToppings.reduce((sum, t) => sum + t.price * t.quantity, 0),
+    [selectedToppings],
+  );
+
+  const basePrice =
+    activeVariant?.price ??
+    (Number.isFinite(selectedItem?.price) ? (selectedItem?.price ?? 0) : 0);
+
+  const perItemPrice = basePrice + toppingTotal;
+
+  const updateToppingQuantity = (id: string, delta: number) => {
+    setToppings((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, quantity: Math.max(0, t.quantity + delta) } : t,
+      ),
+    );
+  };
+
   const addToCart = (item: MenuItem) => {
+    if (!activeVariant) return;
+
     setCart((prev) => {
       const existed = prev.find(
         (c) =>
           c.id === item.id &&
-          c.size === customSize &&
-          c.sugar === customSugar &&
+          c.variantId === activeVariant.id &&
+          c.size === getVariantName(activeVariant) &&
           c.ice === customIce &&
-          c.tea === customTea &&
-          sameToppings(c.toppings, customToppings),
+          sameToppings(c.toppings, selectedToppings),
       );
       if (existed) {
         return prev.map((c) =>
           c.id === item.id &&
-          c.size === customSize &&
-          c.sugar === customSugar &&
+          c.variantId === activeVariant.id &&
+          c.size === getVariantName(activeVariant) &&
           c.ice === customIce &&
-          c.tea === customTea &&
-          sameToppings(c.toppings, customToppings)
+          sameToppings(c.toppings, selectedToppings)
             ? { ...c, quantity: c.quantity + customQty }
             : c,
         );
@@ -232,11 +391,11 @@ const StaffPosPage = () => {
         {
           ...item,
           quantity: customQty,
-          size: customSize,
-          sugar: customSugar,
+          variantId: activeVariant.id,
+          size: getVariantName(activeVariant),
           ice: customIce,
-          tea: customTea,
-          toppings: customToppings,
+          toppings: selectedToppings,
+          price: perItemPrice,
         },
       ];
     });
@@ -246,21 +405,19 @@ const StaffPosPage = () => {
 
   const updateQty = (
     id: number,
-    size: CartItem["size"],
-    sugar: string,
-    ice: string,
-    tea: CartItem["tea"],
-    toppings: string[],
+    variantId: number,
+    size: string,
+    ice: LevelOption,
+    toppings: SelectedTopping[],
     delta: number,
   ) => {
     setCart((prev) =>
       prev
         .map((c) =>
           c.id === id &&
+          c.variantId === variantId &&
           c.size === size &&
-          c.sugar === sugar &&
           c.ice === ice &&
-          c.tea === tea &&
           sameToppings(c.toppings, toppings)
             ? { ...c, quantity: Math.max(0, c.quantity + delta) }
             : c,
@@ -316,35 +473,47 @@ const StaffPosPage = () => {
         </div>
 
         <div className="flex flex-wrap gap-2 text-sm">
-          {CATEGORIES.map((cat) => (
-            <Button
-              key={cat.value}
-              size="sm"
-              variant={activeCategory === cat.value ? "default" : "outline"}
-              className="rounded-full h-8 px-3"
-              onClick={() => onChangeCategory(cat.value)}
-            >
-              {cat.label}
-            </Button>
-          ))}
+          {catLoading && (
+            <span className="text-xs text-gray-500">Đang tải danh mục...</span>
+          )}
+          {catError && <span className="text-xs text-red-600">{catError}</span>}
+          {!catLoading &&
+            !catError &&
+            categories.map((cat) => {
+              const idStr = String(cat.id);
+              return (
+                <Button
+                  key={cat.id}
+                  size="sm"
+                  variant={activeCategoryId === idStr ? "default" : "outline"}
+                  className="rounded-full h-8 px-3"
+                  onClick={() => onChangeCategory(idStr)}
+                >
+                  {cat.name}
+                </Button>
+              );
+            })}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+          {menuLoading && (
+            <p className="text-sm text-gray-500">Đang tải sản phẩm...</p>
+          )}
+          {menuError && <p className="text-sm text-red-600">{menuError}</p>}
+          {!menuLoading && !menuError && filteredMenu.length === 0 && (
+            <p className="text-sm text-gray-500">
+              Không có sản phẩm trong danh mục này.
+            </p>
+          )}
           {filteredMenu.map((item) => (
             <Card
               key={item.id}
-              className="h-full flex flex-col overflow-hidden border-amber-100 shadow-sm hover:shadow-md transition gap-2 py-2"
+              className="h-full flex flex-col overflow-hidden border-amber-100 shadow-sm hover:shadow-md transition gap-1.5 py-1.5"
             >
               <div
-                className="relative w-full aspect-[3/4] cursor-pointer"
+                className="relative w-full aspect-square cursor-pointer"
                 onClick={() => {
                   setSelectedItem(item);
-                  setCustomSize("M");
-                  setCustomSugar("50%");
-                  setCustomIce("50%");
-                  setCustomTea("Vừa");
-                  setCustomQty(1);
-                  setCustomToppings([]);
                 }}
                 role="button"
                 tabIndex={0}
@@ -373,31 +542,23 @@ const StaffPosPage = () => {
                 </div>
               </div>
 
-              <CardHeader className="px-2 pt-0 pb-1">
-                <CardTitle className="text-xs leading-snug line-clamp-2 min-h-[30px]">
+              <CardHeader className="px-2 pt-0 pb-0.5">
+                <CardTitle className="text-[11px] leading-tight line-clamp-1 min-h-[18px]">
                   {item.name}
                 </CardTitle>
-                <p className="text-[10px] text-gray-600 line-clamp-2 min-h-[26px]">
+                <p className="text-[10px] text-gray-600 line-clamp-1 min-h-[16px]">
                   {item.description}
                 </p>
               </CardHeader>
 
-              <CardContent className="mt-auto space-y-1.5 px-2 pb-2">
+              <CardContent className="mt-auto space-y-1 px-2 pb-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-amber-800">
-                    {formatVnd(item.price)}
-                  </p>
                   <Button
                     onClick={() => {
-                      setCustomSize("M");
-                      setCustomSugar("50%");
-                      setCustomIce("50%");
-                      setCustomTea("Vừa");
-                      setCustomQty(1);
-                      addToCart(item);
+                      setSelectedItem(item);
                     }}
                     size="sm"
-                    className="rounded-full h-8 px-2 text-[11px]"
+                    className="rounded-full h-7 px-2 text-[10px]"
                   >
                     Thêm
                   </Button>
@@ -431,7 +592,10 @@ const StaffPosPage = () => {
           <div className="space-y-3">
             {cart.map((item) => (
               <div
-                key={`${item.id}-${item.size}-${item.sugar}-${item.ice}-${item.tea}-${[...item.toppings].sort().join("-")}`}
+                key={`${item.id}-${item.variantId}-${item.size}-${item.ice}-${item.toppings
+                  .map((t) => `${t.id}:${t.quantity}`)
+                  .sort()
+                  .join("-")}`}
                 className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm"
               >
                 <div className="flex items-center gap-3">
@@ -449,15 +613,17 @@ const StaffPosPage = () => {
                       {item.name}
                     </p>
                     <p className="text-[11px] text-gray-600 line-clamp-1">
-                      Size {item.size} • Đường {item.sugar} • Đá {item.ice} •
-                      Trà {item.tea}
+                      Size {item.size} • Đá {item.ice}
                     </p>
                     <p className="text-sm font-semibold text-amber-800">
                       {formatVnd(item.price)}
                     </p>
                     {item.toppings.length > 0 && (
                       <p className="text-[11px] text-gray-500 line-clamp-1">
-                        Topping: {item.toppings.join(", ")}
+                        Topping:{" "}
+                        {item.toppings
+                          .map((t) => `${t.name} x${t.quantity}`)
+                          .join(", ")}
                       </p>
                     )}
                   </div>
@@ -466,10 +632,9 @@ const StaffPosPage = () => {
                       onClick={() =>
                         updateQty(
                           item.id,
+                          item.variantId,
                           item.size,
-                          item.sugar,
                           item.ice,
-                          item.tea,
                           item.toppings,
                           -1,
                         )
@@ -485,10 +650,9 @@ const StaffPosPage = () => {
                       onClick={() =>
                         updateQty(
                           item.id,
+                          item.variantId,
                           item.size,
-                          item.sugar,
                           item.ice,
-                          item.tea,
                           item.toppings,
                           1,
                         )
@@ -636,72 +800,53 @@ const StaffPosPage = () => {
                     {selectedItem.description}
                   </p>
                   <p className="text-base font-semibold text-amber-800 mt-1">
-                    {formatVnd(selectedItem.price)}
+                    {formatVnd(perItemPrice)}
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                {(["S", "M", "L"] as const).map((sz) => (
-                  <Button
-                    key={sz}
-                    variant={customSize === sz ? "default" : "outline"}
-                    onClick={() => setCustomSize(sz)}
-                    className="h-9 text-sm"
-                  >
-                    Size {sz}
-                  </Button>
-                ))}
-              </div>
-
               <div>
                 <p className="text-sm font-semibold text-stone-900 mb-1">
-                  Đường
+                  Size
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {["0%", "30%", "50%", "70%", "100%"].map((opt) => (
-                    <Button
-                      key={opt}
-                      variant={customSugar === opt ? "default" : "outline"}
-                      size="sm"
-                      className="h-8"
-                      onClick={() => setCustomSugar(opt)}
-                    >
-                      {opt}
-                    </Button>
-                  ))}
+                <div className="grid grid-cols-4 gap-2">
+                  {variantLoading && (
+                    <p className="text-xs text-gray-500 col-span-4">
+                      Đang tải size...
+                    </p>
+                  )}
+                  {variantError && (
+                    <p className="text-xs text-red-600 col-span-4">
+                      {variantError}
+                    </p>
+                  )}
+                  {!variantLoading &&
+                    !variantError &&
+                    variants.map((v) => (
+                      <Button
+                        key={v.id}
+                        variant={
+                          selectedVariantId === v.id ? "default" : "outline"
+                        }
+                        onClick={() => setSelectedVariantId(v.id)}
+                        className="h-8 text-xs"
+                      >
+                        {getVariantName(v)}
+                      </Button>
+                    ))}
                 </div>
               </div>
 
               <div>
                 <p className="text-sm font-semibold text-stone-900 mb-1">Đá</p>
                 <div className="flex flex-wrap gap-2">
-                  {["0%", "30%", "50%", "70%", "100%"].map((opt) => (
+                  {(["Ít", "Bình thường", "Nhiều"] as const).map((opt) => (
                     <Button
                       key={opt}
                       variant={customIce === opt ? "default" : "outline"}
                       size="sm"
                       className="h-8"
                       onClick={() => setCustomIce(opt)}
-                    >
-                      {opt}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold text-stone-900 mb-1">
-                  Lượng trà
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {(["Ít", "Vừa", "Nhiều"] as const).map((opt) => (
-                    <Button
-                      key={opt}
-                      variant={customTea === opt ? "default" : "outline"}
-                      size="sm"
-                      className="h-8"
-                      onClick={() => setCustomTea(opt)}
                     >
                       {opt}
                     </Button>
@@ -735,26 +880,42 @@ const StaffPosPage = () => {
                   Topping
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {TOPPINGS.map((tp) => {
-                    const active = customToppings.includes(tp);
-                    return (
-                      <Button
-                        key={tp}
-                        variant={active ? "default" : "outline"}
-                        size="sm"
-                        className="h-8"
-                        onClick={() =>
-                          setCustomToppings((prev) =>
-                            prev.includes(tp)
-                              ? prev.filter((t) => t !== tp)
-                              : [...prev, tp],
-                          )
-                        }
+                  {topLoading && (
+                    <p className="text-xs text-gray-500">Đang tải...</p>
+                  )}
+                  {topError && (
+                    <p className="text-xs text-red-600">{topError}</p>
+                  )}
+                  {!topLoading &&
+                    !topError &&
+                    toppings.map((tp) => (
+                      <div
+                        key={tp.id}
+                        className="flex items-center gap-2 rounded-full border border-gray-200 px-2 py-1"
                       >
-                        {tp}
-                      </Button>
-                    );
-                  })}
+                        <span className="text-xs text-gray-700">{tp.name}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => updateToppingQuantity(tp.id, -1)}
+                            disabled={tp.quantity === 0}
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-gray-600 disabled:opacity-50"
+                            type="button"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-4 text-center text-xs font-semibold text-stone-900">
+                            {tp.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateToppingQuantity(tp.id, 1)}
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-700 text-white"
+                            type="button"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                 </div>
               </div>
             </div>
@@ -770,12 +931,12 @@ const StaffPosPage = () => {
             </Button>
             <Button
               onClick={() => {
-                if (selectedItem) {
-                  addToCart(selectedItem);
-                }
+                if (!selectedItem || !activeVariant) return;
+                addToCart(selectedItem);
                 setSelectedItem(null);
               }}
               className="h-10"
+              disabled={!activeVariant}
             >
               Thêm vào giỏ
             </Button>
@@ -787,3 +948,14 @@ const StaffPosPage = () => {
 };
 
 export default StaffPosPage;
+
+const getVariantName = (v: ProductVariant) => {
+  if (typeof v.size === "string") return v.size;
+  if (v.size && typeof v.size === "object" && "code" in v.size) {
+    return (v.size as { code: string }).code;
+  }
+  if (v.size && typeof v.size === "object" && "name" in v.size) {
+    return (v.size as { name: string }).name;
+  }
+  return v.sizeCode || v.code || v.name || `Size ${v.id}`;
+};

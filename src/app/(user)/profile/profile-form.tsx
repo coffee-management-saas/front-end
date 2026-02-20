@@ -201,16 +201,18 @@ export default function ProfileForm() {
             <button
               key={item.id}
               onClick={() => handleTabChange(item.id)}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${activeTab === item.id
-                ? "bg-amber-50 border-l-4 border-amber-700"
-                : "hover:bg-gray-50"
-                }`}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
+                activeTab === item.id
+                  ? "bg-amber-50 border-l-4 border-amber-700"
+                  : "hover:bg-gray-50"
+              }`}
             >
               <div className="flex items-center gap-3">
                 <item.icon className={`w-5 h-5 ${item.color}`} />
                 <span
-                  className={`font-medium ${activeTab === item.id ? "text-amber-700" : "text-gray-700"
-                    }`}
+                  className={`font-medium ${
+                    activeTab === item.id ? "text-amber-700" : "text-gray-700"
+                  }`}
                 >
                   {item.label}
                 </span>
@@ -305,7 +307,9 @@ export default function ProfileForm() {
                     <input
                       type="email"
                       value={profile.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("email", e.target.value)
+                      }
                       className={inputClasses}
                       disabled={!isEditing}
                     />
@@ -317,7 +321,9 @@ export default function ProfileForm() {
                     <input
                       type="tel"
                       value={profile.phone}
-                      onChange={(e) => handleInputChange("phone", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("phone", e.target.value)
+                      }
                       className={inputClasses}
                       disabled={!isEditing}
                     />
@@ -329,7 +335,9 @@ export default function ProfileForm() {
                     <input
                       type="text"
                       value={profile.address}
-                      onChange={(e) => handleInputChange("address", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("address", e.target.value)
+                      }
                       className={inputClasses}
                       disabled={!isEditing}
                     />
@@ -353,38 +361,58 @@ export default function ProfileForm() {
                       {profile.rankId === "1" && (
                         <>
                           <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
-                            <span className="text-amber-700 font-bold text-sm">🥉</span>
+                            <span className="text-amber-700 font-bold text-sm">
+                              🥉
+                            </span>
                           </div>
-                          <span className="font-semibold text-amber-700">{rankLabel}</span>
+                          <span className="font-semibold text-amber-700">
+                            {rankLabel}
+                          </span>
                         </>
                       )}
                       {profile.rankId === "2" && (
                         <>
                           <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                            <span className="text-gray-600 font-bold text-sm">🥈</span>
+                            <span className="text-gray-600 font-bold text-sm">
+                              🥈
+                            </span>
                           </div>
-                          <span className="font-semibold text-gray-600">{rankLabel}</span>
+                          <span className="font-semibold text-gray-600">
+                            {rankLabel}
+                          </span>
                         </>
                       )}
                       {profile.rankId === "3" && (
                         <>
                           <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                            <span className="text-yellow-600 font-bold text-sm">🥇</span>
+                            <span className="text-yellow-600 font-bold text-sm">
+                              🥇
+                            </span>
                           </div>
-                          <span className="font-semibold text-yellow-600">{rankLabel}</span>
+                          <span className="font-semibold text-yellow-600">
+                            {rankLabel}
+                          </span>
                         </>
                       )}
                       {profile.rankId === "4" && (
                         <>
                           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600 font-bold text-sm">💎</span>
+                            <span className="text-blue-600 font-bold text-sm">
+                              💎
+                            </span>
                           </div>
-                          <span className="font-semibold text-blue-600">{rankLabel}</span>
+                          <span className="font-semibold text-blue-600">
+                            {rankLabel}
+                          </span>
                         </>
                       )}
-                      {!profile.rankId || (profile.rankId !== "1" && profile.rankId !== "2" && profile.rankId !== "3" && profile.rankId !== "4") && (
-                        <span className="text-gray-500">{rankLabel}</span>
-                      )}
+                      {!profile.rankId ||
+                        (profile.rankId !== "1" &&
+                          profile.rankId !== "2" &&
+                          profile.rankId !== "3" &&
+                          profile.rankId !== "4" && (
+                            <span className="text-gray-500">{rankLabel}</span>
+                          ))}
                       {profile.points !== undefined && (
                         <span className="ml-auto text-sm text-gray-500">
                           {profile.points.toLocaleString()} điểm

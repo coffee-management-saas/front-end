@@ -25,7 +25,10 @@ export async function GET(req: NextRequest) {
     const status = parseStatus(searchParams.get("status"));
 
     if (!productIdRaw) {
-      const data = await getProductVariants();
+      const data = await getProductVariants(undefined, {
+        accessToken,
+        viaNextApi: false,
+      });
       return Response.json(data, { status: 200 });
     }
 

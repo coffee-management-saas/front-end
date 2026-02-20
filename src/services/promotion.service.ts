@@ -16,15 +16,30 @@ async function parseJsonSafely<T>(res: Response): Promise<T | null> {
 function authHeaders(accessToken?: string): Record<string, string> {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
+
+function shouldUseNextApi(options?: { viaNextApi?: boolean }) {
+  if (typeof options?.viaNextApi === "boolean") {
+    return options.viaNextApi;
+  }
+  return typeof window !== "undefined";
+}
 // Get all promotions
 export async function getPromotions(
   accessToken?: string,
+  options?: { viaNextApi?: boolean },
 ): Promise<Promotion[]> {
-  const beUrl = `${envConfig.NEXT_PUBLIC_API_ENDPOINT}/promotions`;
+  const useNextApi = shouldUseNextApi(options);
+  const beUrl = useNextApi
+    ? "/api/promotion"
+    : `${envConfig.NEXT_PUBLIC_API_ENDPOINT}/promotion`;
 
   const res = await fetch(beUrl, {
     method: "GET",
-    headers: { Accept: "application/json", ...authHeaders(accessToken) },
+    headers: {
+      Accept: "application/json",
+      ...authHeaders(accessToken),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
     cache: "no-store",
   });
 
@@ -42,7 +57,7 @@ export async function getPromotionById(
   accessToken?: string,
 ): Promise<Promotion> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/promotions/${promotionId}`;
+  const beUrl = `${base}/promotion/${promotionId}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -51,7 +66,6 @@ export async function getPromotionById(
   });
 
   const data = await parseJsonSafely<Promotion>(res);
-  console.log("BE URL:", beUrl);
 
   if (!res.ok) {
     throw new ApiError("BE error", res.status, data);
@@ -70,8 +84,8 @@ export async function deletePromotionById(
 ): Promise<void> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
 
-  // swagger cũ ghi /promotions/{promotionId}; base đã có /api
-  const beUrl = `${base}/promotions/${promotionId}`;
+  // backend dùng /promotion/{id}
+  const beUrl = `${base}/promotion/${promotionId}`;
 
   const res = await fetch(beUrl, {
     method: "DELETE",
@@ -97,7 +111,7 @@ export async function createPromotion(
   accessToken?: string,
 ): Promise<Promotion> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/promotions`;
+  const beUrl = `${base}/promotion`;
 
   const res = await fetch(beUrl, {
     method: "POST",
@@ -129,7 +143,7 @@ export async function updatePromotionById(
   accessToken?: string,
 ): Promise<Promotion> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/promotions/${promotionId}`;
+  const beUrl = `${base}/promotion/${promotionId}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
@@ -160,16 +174,23 @@ export async function uploadPromotionImage(
   file: File,
   accessToken?: string,
 ): Promise<Promotion | { imageUrl?: string } | null> {
+  const useNextApi = shouldUseNextApi();
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/promotions/${promotionId}/image`;
+  const beUrl = useNextApi
+    ? `/api/promotion/${promotionId}/image`
+    : `${base}/promotion/${promotionId}/image`;
 
   const formData = new FormData();
   formData.append("image", file);
 
   const res = await fetch(beUrl, {
     method: "PATCH",
-    headers: { Accept: "application/json", ...authHeaders(accessToken) },
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi ? {} : authHeaders(accessToken)),
+    },
     body: formData,
+    credentials: useNextApi ? "same-origin" : "omit",
     cache: "no-store",
   });
 

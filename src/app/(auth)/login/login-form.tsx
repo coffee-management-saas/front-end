@@ -106,7 +106,7 @@ export default function LoginForm() {
         throw new Error(data?.message || `Login failed (${res.status})`);
       }
 
-      // toast.success("Đăng nhập thành công!");
+      // toast.success("�ang nh?p th�nh c�ng!");
 
       await fetch("/api/auth", {
         method: "POST",
@@ -122,7 +122,7 @@ export default function LoginForm() {
         return resultFromNextServer;
       });
 
-      // setTokens phải lấy từ data (login backend), không phải từ /api/auth
+      // setTokens ph?i l?y t? data (login backend), kh�ng ph?i t? /api/auth
       setTokens({
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
@@ -210,7 +210,7 @@ export default function LoginForm() {
                     {...field}
                     id="password"
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="��������"
                     autoComplete="current-password"
                     aria-invalid={fieldState.invalid}
                     className="h-10 text-base placeholder:text-sm"
@@ -232,7 +232,7 @@ export default function LoginForm() {
           <Button
             type="submit"
             form="form-rhf-demo"
-            className="h-8 px-10 text-sm bg-amber-700 hover:bg-amber-800 text-white"
+            className="h-8 px-10 text-sm bg-[#7a4a2a] hover:bg-[#8b5e44] text-white"
             disabled={isSubmitDisabled}
             aria-disabled={isSubmitDisabled}
             aria-busy={loading}
@@ -245,7 +245,7 @@ export default function LoginForm() {
           Chưa có tài khoản?{" "}
           <Link
             href="/register"
-            className="font-semibold text-amber-700 hover:text-amber-800 hover:underline"
+            className="font-semibold text-[#7a4a2a] hover:text-[#8b5e44] hover:underline"
           >
             Đăng ký ngay
           </Link>

@@ -27,13 +27,13 @@ function BeverageCard({ beverage, index = 0 }: BeverageCardProps) {
   return (
     <div
       className={cn(
-        "group bg-card rounded-2xl overflow-hidden shadow-soft border border-border/30",
+        "group bg-card rounded-2xl overflow-hidden shadow-soft border border-border/30 min-h-[320px]",
         "hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300",
         "animate-scale-in",
       )}
       style={{ animationDelay: `${index * 80}ms` }}
     >
-      <div className="relative h-40 overflow-hidden bg-secondary/30">
+      <div className="relative h-52 overflow-hidden bg-secondary/30">
         <Link href={`/products/${slug}`} className="block h-full w-full">
           <img
             src={beverage.image}
@@ -144,7 +144,7 @@ export default function MenuPage() {
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
         {beverages.map((b, i) => (
           <BeverageCard key={b.id} beverage={b} index={i} />
         ))}

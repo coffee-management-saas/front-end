@@ -117,11 +117,11 @@ export default function RegisterForm() {
         throw new Error(data?.message || `Register failed (${res.status})`);
       }
 
-      toast.success("Đăng ký thành công!");
+      toast.success("Đăng kí thành công!");
       router.replace("/login");
     } catch (error) {
-      console.error("Login error:", error);
-      toast.error("Đăng ký thất bại, vui lòng thử lại");
+      console.error("Register error:", error);
+      toast.error("Đăng kí thất bại, vui lòng thử lại");
     } finally {
       setLoading(false);
     }
@@ -145,7 +145,7 @@ export default function RegisterForm() {
 
         <CardHeader className="pt-0 pb-0 px-4 space-y-0">
           <CardTitle className="text-xl font-bold text-center">
-            Đăng ký
+            Đăng kí
           </CardTitle>
           <CardDescription className="text-sm font-semibold text-center">
             Chào mừng bạn đến với Cafe
@@ -256,7 +256,7 @@ export default function RegisterForm() {
                         {...field}
                         id="password"
                         type="password"
-                        placeholder="••••••••"
+                        placeholder="********"
                         autoComplete="new-password"
                         aria-invalid={fieldState.invalid}
                         className="h-10 text-base placeholder:text-sm"
@@ -281,7 +281,7 @@ export default function RegisterForm() {
                       className="space-y-0"
                     >
                       <FieldLabel className="text-sm mb-0" htmlFor="phone">
-                        SĐT
+                        Số điện thoại
                       </FieldLabel>
                       <Input
                         {...field}
@@ -371,18 +371,21 @@ export default function RegisterForm() {
             <Button
               type="submit"
               form="form-rhf-demo"
-              className="h-8 px-10 text-sm bg-amber-700 hover:bg-amber-800 text-white"
+              className="h-8 px-10 text-sm bg-[#7a4a2a] hover:bg-[#8b5e44] text-white"
               disabled={isSubmitDisabled}
               aria-disabled={isSubmitDisabled}
               aria-busy={loading}
             >
-              {loading ? "Đang đăng ký..." : "Đăng kí ngay"}
+              {loading ? "Đang đăng kí..." : "Đăng kí ngay"}
             </Button>
           </Field>
 
           <div className="text-center text-sm">
             Đã có tài khoản?{" "}
-            <Link href="/login" className="font-semibold text-amber-700 hover:text-amber-800 hover:underline">
+            <Link
+              href="/login"
+              className="font-semibold text-[#7a4a2a] hover:text-[#8b5e44] hover:underline"
+            >
               Đăng nhập
             </Link>
           </div>

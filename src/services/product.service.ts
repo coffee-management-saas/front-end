@@ -21,10 +21,23 @@ async function parseJsonSafely<T>(res: Response): Promise<T> {
   }
 }
 
+function authHeaders(accessToken?: string): Record<string, string> {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
+function shouldUseNextApi(options?: { viaNextApi?: boolean }) {
+  if (typeof options?.viaNextApi === "boolean") {
+    return options.viaNextApi;
+  }
+  return typeof window !== "undefined";
+}
+
 export async function getProducts(
   filter: ProductFilter,
+  options?: { accessToken?: string; viaNextApi?: boolean },
 ): Promise<ProductsResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const useNextApi = shouldUseNextApi(options);
 
   const qs = new URLSearchParams({
     page: String(filter.page),
@@ -41,11 +54,17 @@ export async function getProducts(
     qs.set("status", filter.status);
   }
 
-  const beUrl = `${base}/product/products?${qs.toString()}`;
+  const beUrl = useNextApi
+    ? `/api/products?${qs.toString()}`
+    : `${base}/product/products?${qs.toString()}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi ? {} : authHeaders(options?.accessToken)),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
     cache: "no-store",
   });
 
@@ -57,13 +76,23 @@ export async function getProducts(
 
   return data;
 }
-export async function getProductById(id: number | string): Promise<Product> {
+export async function getProductById(
+  id: number | string,
+  accessToken?: string,
+): Promise<Product> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/products/${id}`;
+  const useNextApi = shouldUseNextApi();
+  const beUrl = useNextApi
+    ? `/api/products/${id}`
+    : `${base}/product/products/${id}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi ? {} : authHeaders(accessToken)),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
     cache: "no-store",
   });
 
@@ -102,16 +131,22 @@ export async function createProduct(payload: ProductInput): Promise<Product> {
 export async function updateProductById(
   id: number | string,
   payload: ProductInput,
+  accessToken?: string,
 ): Promise<Product> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/products/${id}`;
+  const useNextApi = shouldUseNextApi();
+  const beUrl = useNextApi
+    ? `/api/products/${id}`
+    : `${base}/product/products/${id}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...(useNextApi ? {} : authHeaders(accessToken)),
     },
+    credentials: useNextApi ? "same-origin" : "omit",
     body: JSON.stringify(payload),
     cache: "no-store",
   });
@@ -145,14 +180,22 @@ export async function deleteProductById(id: number | string): Promise<void> {
 
 export async function getProductVariants(
   productId?: number | string,
+  options?: { accessToken?: string; viaNextApi?: boolean },
 ): Promise<ApiEnvelope<ProductVariant[]>> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const useNextApi = shouldUseNextApi(options);
   const qs = productId ? `?productId=${productId}` : "";
-  const beUrl = `${base}/product/variants${qs}`;
+  const beUrl = useNextApi
+    ? `/api/variants${qs}`
+    : `${base}/product/variants${qs}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi ? {} : authHeaders(options?.accessToken)),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
     cache: "no-store",
   });
 
@@ -165,13 +208,21 @@ export async function getProductVariants(
   return payload;
 }
 
-export async function getProductSizes(): Promise<ApiEnvelope<Size[]>> {
+export async function getProductSizes(options?: {
+  accessToken?: string;
+  viaNextApi?: boolean;
+}): Promise<ApiEnvelope<Size[]>> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/sizes`;
+  const useNextApi = shouldUseNextApi(options);
+  const beUrl = useNextApi ? "/api/sizes" : `${base}/product/sizes`;
 
   const res = await fetch(beUrl, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi ? {} : authHeaders(options?.accessToken)),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
     cache: "no-store",
   });
 

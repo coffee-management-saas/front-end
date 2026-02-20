@@ -5,6 +5,13 @@ import {
   createProductCategory,
   getProductCategories,
 } from "@/services/category.service";
+import { cookies } from "next/headers";
+
+function getTokenFromAuthHeader(value: string | null | undefined) {
+  if (!value) return undefined;
+  const match = value.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1] : value;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,8 +19,15 @@ export async function GET(req: NextRequest) {
 
     const page = Number(searchParams.get("page") ?? "0");
     const size = Number(searchParams.get("size") ?? "10");
-
-    const data = await getProductCategories({ page, size });
+    const cookieStore = await cookies();
+    const headerToken = getTokenFromAuthHeader(req.headers.get("authorization"));
+    const accessToken = headerToken ?? cookieStore.get("accessToken")?.value;
+    const data = await getProductCategories({
+      page,
+      size,
+      accessToken,
+      options: { viaNextApi: false },
+    });
     return Response.json(data, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {
@@ -28,6 +42,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+
+    if (!accessToken) {
+      return Response.json({ message: "Unauthenticated" }, { status: 401 });
+    }
+
     const body = (await req.json().catch(() => null)) as {
       name?: string;
       status?: string;
@@ -44,7 +65,7 @@ export async function POST(req: NextRequest) {
       createdAt: body.createdAt,
     };
 
-    const data = await createProductCategory(payload);
+    const data = await createProductCategory({ ...payload, accessToken });
     return Response.json(data, { status: 201 });
   } catch (err) {
     if (err instanceof ApiError) {

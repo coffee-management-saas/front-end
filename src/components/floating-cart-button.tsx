@@ -1,12 +1,16 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { ShoppingCart } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { CartModal } from "./cart-modal";
 import { cn } from "@/lib/utils";
 
 export function FloatingCartButton() {
+    const pathname = usePathname();
+    if (pathname.startsWith("/admin")) return null;
+
     const [modalOpen, setModalOpen] = useState(false);
     const { totalItems } = useCart();
 

@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import type { Promotion } from "@/types/promotion";
 import { uploadPromotionImage } from "@/services/promotion.service";
 
-type PromotionStatus = "active" | "inactive" | "expired" | "deleted";
+type PromotionStatus = "active" | "inactive" | "deleted";
 
 type PromotionRow = {
   id: string;
@@ -61,8 +61,6 @@ const mapStatus = (status?: string): PromotionStatus => {
       return "active";
     case "INACTIVE":
       return "inactive";
-    case "EXPIRED":
-      return "expired";
     case "DELETED":
       return "deleted";
     default:
@@ -179,8 +177,6 @@ const statusLabel = (status: PromotionStatus) => {
       return "Đang áp dụng";
     case "inactive":
       return "Tạm ngưng";
-    case "expired":
-      return "Hết hạn";
     default:
       return "Đã xóa";
   }
@@ -192,8 +188,6 @@ const statusBadgeClass = (status: PromotionStatus) => {
       return "admin-badge admin-badge-active";
     case "inactive":
       return "admin-badge admin-badge-inactive";
-    case "expired":
-      return "admin-badge bg-amber-100 text-amber-700 border-amber-200";
     default:
       return "admin-badge bg-slate-100 text-slate-600 border-slate-200";
   }
@@ -219,7 +213,7 @@ const formatMoney = (n: number) => `${formatNumber(n)} đ`;
 
 const formatPercent = (value: number) =>
   `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(
-    value * 100,
+    value,
   )}%`;
 
 const formatDiscountValue = (
@@ -411,6 +405,7 @@ export default function PromotionsManagerPage() {
     if (!createForm) return;
     setCreateSaving(true);
     try {
+      const discountValue = Number(createForm.discountValue) || 0;
       const payload = {
         promotionName: createForm.promotionName.trim(),
         promotionCode: createForm.promotionCode.trim(),
@@ -419,7 +414,7 @@ export default function PromotionsManagerPage() {
         minimumSpent: Number(createForm.minimumSpent) || 0,
         quantity: Number(createForm.quantity) || 0,
         discountType: createForm.discountType,
-        discountValue: Number(createForm.discountValue) || 0,
+        discountValue,
         maxDiscountAmount: Number(createForm.maxDiscountAmount) || 0,
         usageLimitPerUser: Number(createForm.usageLimitPerUser) || 0,
         startDate: toIsoOrUndefined(createForm.startDate),
@@ -493,6 +488,7 @@ export default function PromotionsManagerPage() {
         }
       }
 
+      const discountValue = Number(editForm.discountValue) || 0;
       const payload = {
         promotionName: editForm.promotionName.trim(),
         promotionCode: editForm.promotionCode.trim(),
@@ -500,7 +496,7 @@ export default function PromotionsManagerPage() {
         minimumSpent: Number(editForm.minimumSpent) || 0,
         quantity: Number(editForm.quantity) || 0,
         discountType: editForm.discountType,
-        discountValue: Number(editForm.discountValue) || 0,
+        discountValue,
         maxDiscountAmount: Number(editForm.maxDiscountAmount) || 0,
         usageLimitPerUser: Number(editForm.usageLimitPerUser) || 0,
         startDate: toIsoOrUndefined(editForm.startDate),
@@ -527,10 +523,6 @@ export default function PromotionsManagerPage() {
   };
 
   const activeCount = promotions.filter((p) => p.status === "active").length;
-  const inactiveCount = promotions.filter(
-    (p) => p.status === "inactive",
-  ).length;
-  const expiredCount = promotions.filter((p) => p.status === "expired").length;
 
   return (
     <>
@@ -551,7 +543,7 @@ export default function PromotionsManagerPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
           <div className="admin-card p-5 bg-gray-100">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -572,29 +564,6 @@ export default function PromotionsManagerPage() {
               <div>
                 <p className="text-2xl font-bold">{activeCount}</p>
                 <p className="text-sm text-muted-foreground">Đang áp dụng</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="admin-card p-5 bg-gray-100">
-            <div className="flex items-center gap-4 ">
-              <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-                <Tag className="w-6 h-6 text-accent" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{inactiveCount}</p>
-                <p className="text-sm text-muted-foreground">Tạm ngưng</p>
-              </div>
-            </div>
-          </div>
-          <div className="admin-card p-5 bg-gray-100">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
-                <Tag className="w-6 h-6 text-destructive" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{expiredCount}</p>
-                <p className="text-sm text-muted-foreground">Hết hạn</p>
               </div>
             </div>
           </div>
@@ -977,7 +946,6 @@ export default function PromotionsManagerPage() {
                   >
                     <option value="ACTIVE">Đang áp dụng</option>
                     <option value="INACTIVE">Tạm ngưng</option>
-                    <option value="EXPIRED">Hết hạn</option>
                     <option value="DELETED">Đã xóa</option>
                   </select>
                 </div>
@@ -1233,18 +1201,6 @@ export default function PromotionsManagerPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium">Shop ID</label>
-                  <Input
-                    type="number"
-                    value={createForm.shopId}
-                    onChange={(e) =>
-                      setCreateForm((prev) =>
-                        prev ? { ...prev, shopId: e.target.value } : prev,
-                      )
-                    }
-                  />
-                </div>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">
                     Giá trị đơn tối thiểu

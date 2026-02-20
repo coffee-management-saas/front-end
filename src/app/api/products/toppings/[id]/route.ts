@@ -4,6 +4,7 @@ import {
   getToppingById,
   updateToppingById,
 } from "@/services/topping.service";
+import { cookies } from "next/headers";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -37,7 +38,9 @@ export async function GET(req: Request, ctx: Ctx) {
       );
     }
 
-    const data = await getToppingById(toppingId);
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    const data = await getToppingById(toppingId, accessToken);
     return Response.json(
       { code: 200, status: "success", message: "Get success", data },
       { status: 200 },
@@ -107,7 +110,9 @@ export async function PUT(req: Request, ctx: Ctx) {
         : undefined,
     };
 
-    const data = await updateToppingById(toppingId, payload);
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    const data = await updateToppingById(toppingId, payload, accessToken);
     return Response.json(
       { code: 200, status: "success", message: "Update success", data },
       { status: 200 },
@@ -139,7 +144,9 @@ export async function DELETE(req: Request, ctx: Ctx) {
       );
     }
 
-    await deleteToppingById(toppingId);
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    await deleteToppingById(toppingId, accessToken);
     return Response.json({ message: "Delete success" }, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {

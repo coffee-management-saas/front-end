@@ -74,6 +74,13 @@ function toSize(x: unknown): Size {
   };
 }
 
+function unwrapData(payload: unknown): unknown {
+  if (isRecord(payload) && "data" in payload) {
+    return payload.data;
+  }
+  return payload;
+}
+
 function normalizeSizes(payload: unknown): Size[] {
   if (Array.isArray(payload)) {
     return payload.map(toSize);
@@ -146,7 +153,7 @@ export async function createSize(
     );
   }
 
-  return toSize(data);
+  return toSize(unwrapData(data));
 }
 
 export async function updateSize(
@@ -180,7 +187,7 @@ export async function updateSize(
     );
   }
 
-  return toSize(data);
+  return toSize(unwrapData(data));
 }
 
 export async function deleteSize(
