@@ -90,6 +90,16 @@ export async function GET(req: Request) {
       const data = await getPromotions(undefined);
       return Response.json(data, { status: 200 });
     } catch (publicErr) {
+      if (publicErr instanceof ApiError) {
+        console.warn(
+          "[/api/promotion] Public attempt failed",
+          JSON.stringify({
+            status: publicErr.status,
+            payload: publicErr.payload ?? null,
+          }),
+        );
+      }
+
       // Nếu public bị chặn, thử gọi có token
       if (
         publicErr instanceof ApiError &&

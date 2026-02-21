@@ -61,6 +61,7 @@ const menuItems: MenuItem[] = [
     icon: Layers,
   },
   { title: "Nhân viên", href: "/admin/employees-manager", icon: Users },
+  { title: "Kiểm tra tồn kho", href: "/admin/stock-manager", icon: Users },
   { title: "Cài đặt", href: "/settings", icon: Settings },
 ];
 

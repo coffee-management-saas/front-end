@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  Eye,
   Package2,
   Pencil,
   Plus,
@@ -134,7 +135,9 @@ export default function IngredientsManagerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
+  const [dialogMode, setDialogMode] = useState<"create" | "edit" | "view">(
+    "create",
+  );
   const [selectedIngredient, setSelectedIngredient] =
     useState<IngredientDto | null>(null);
   const [form, setForm] = useState<IngredientForm>(() => toForm());
@@ -216,6 +219,31 @@ export default function IngredientsManagerPage() {
     if (!res.ok || !data) {
       throw new ApiError(
         data?.message || "Update ingredient failed",
+        res.status,
+        data,
+      );
+    }
+
+    if ("data" in data && (data as { data?: IngredientDto }).data) {
+      return (data as { data: IngredientDto }).data;
+    }
+
+    return data as unknown as IngredientDto;
+  };
+
+  const getIngredientByIdClient = async (id: number | string) => {
+    const res = await fetch(`/api/ingredients/${id}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+
+    const data = await parseJsonSafely<{ message?: string }>(res);
+
+    if (!res.ok || !data) {
+      throw new ApiError(
+        data?.message || "Get ingredient failed",
         res.status,
         data,
       );
@@ -313,11 +341,36 @@ export default function IngredientsManagerPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (item: IngredientDto) => {
+  const openEdit = async (item: IngredientDto) => {
     setDialogMode("edit");
     setSelectedIngredient(item);
     setForm(toForm(item));
     setDialogOpen(true);
+
+    try {
+      const fresh = await getIngredientByIdClient(item.id);
+      setSelectedIngredient(fresh);
+      setForm(toForm(fresh));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Get ingredient failed";
+      toast.error(msg);
+    }
+  };
+
+  const openView = async (item: IngredientDto) => {
+    setDialogMode("view");
+    setSelectedIngredient(item);
+    setForm(toForm(item));
+    setDialogOpen(true);
+
+    try {
+      const fresh = await getIngredientByIdClient(item.id);
+      setSelectedIngredient(fresh);
+      setForm(toForm(fresh));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Get ingredient failed";
+      toast.error(msg);
+    }
   };
 
   const handleSave = async () => {
@@ -327,7 +380,8 @@ export default function IngredientsManagerPage() {
       baseUnit: form.baseUnit,
       minStockAlert: Number(form.minStockAlert) || 0,
       storageType: form.storageType,
-      inventoryStatus: form.inventoryStatus,
+      inventoryStatus:
+        dialogMode === "create" ? "ACTIVE" : form.inventoryStatus,
     };
 
     if (!payload.name) {
@@ -337,6 +391,16 @@ export default function IngredientsManagerPage() {
 
     if (!payload.skuCode) {
       toast.error("Vui lòng nhập mã SKU");
+      return;
+    }
+
+    const currentStock =
+      dialogMode === "create"
+        ? null
+        : Number(selectedIngredient?.totalStockQuantity ?? 0);
+
+    if (currentStock !== null && payload.minStockAlert > currentStock) {
+      toast.error("Ngưỡng cảnh báo phải nhỏ hơn hoặc bằng tồn kho hiện tại");
       return;
     }
 
@@ -520,6 +584,14 @@ export default function IngredientsManagerPage() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => openView(item)}
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => openEdit(item)}
                             className="h-8 w-8 text-muted-foreground hover:text-primary"
                           >
@@ -548,15 +620,19 @@ export default function IngredientsManagerPage() {
             <DialogTitle>
               {dialogMode === "create"
                 ? "Thêm nguyên liệu"
-                : "Chỉnh sửa nguyên liệu"}
+                : dialogMode === "edit"
+                  ? "Chỉnh sửa nguyên liệu"
+                  : "Chi tiết nguyên liệu"}
             </DialogTitle>
             <DialogDescription>
-              Nhập thông tin cơ bản và ngưỡng cảnh báo tồn kho.
+              {dialogMode === "view"
+                ? "Thông tin nguyên liệu."
+                : "Nhập thông tin cơ bản và ngưỡng cảnh báo tồn kho."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="name">Tên nguyên liệu</Label>
               <Input
                 id="name"
@@ -565,6 +641,8 @@ export default function IngredientsManagerPage() {
                   setForm((f) => ({ ...f, name: e.target.value }))
                 }
                 placeholder="Ví dụ: Đường trắng"
+                readOnly={dialogMode === "view"}
+                className={dialogMode === "view" ? "w-full bg-muted" : "w-full"}
               />
             </div>
 
@@ -577,6 +655,8 @@ export default function IngredientsManagerPage() {
                   setForm((f) => ({ ...f, skuCode: e.target.value }))
                 }
                 placeholder="ING-SUGAR-001"
+                readOnly={dialogMode === "view"}
+                className={dialogMode === "view" ? "w-full bg-muted" : "w-full"}
               />
             </div>
 
@@ -584,7 +664,9 @@ export default function IngredientsManagerPage() {
               <Label htmlFor="baseUnit">Đơn vị cơ bản</Label>
               <select
                 id="baseUnit"
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className={`h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20${
+                  dialogMode === "view" ? " appearance-none" : ""
+                }`}
                 value={form.baseUnit}
                 onChange={(e) =>
                   setForm((f) => ({
@@ -592,6 +674,7 @@ export default function IngredientsManagerPage() {
                     baseUnit: e.target.value as IngredientBaseUnit,
                   }))
                 }
+                disabled={dialogMode === "view"}
               >
                 {baseUnitOptions.map((unit) => (
                   <option key={unit} value={unit}>
@@ -605,7 +688,9 @@ export default function IngredientsManagerPage() {
               <Label htmlFor="storageType">Kho lưu trữ</Label>
               <select
                 id="storageType"
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className={`h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20${
+                  dialogMode === "view" ? " appearance-none" : ""
+                }`}
                 value={form.storageType}
                 onChange={(e) =>
                   setForm((f) => ({
@@ -613,6 +698,7 @@ export default function IngredientsManagerPage() {
                     storageType: e.target.value as IngredientStorageType,
                   }))
                 }
+                disabled={dialogMode === "view"}
               >
                 {storageTypeOptions.map((type) => (
                   <option key={type} value={type}>
@@ -622,39 +708,85 @@ export default function IngredientsManagerPage() {
               </select>
             </div>
 
+            {dialogMode !== "create" && (
+              <div className="space-y-2">
+                <Label htmlFor="status">Trạng thái</Label>
+                <select
+                  id="status"
+                  className={`h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20${
+                    dialogMode === "view" ? " appearance-none" : ""
+                  }`}
+                  value={form.inventoryStatus}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      inventoryStatus: e.target
+                        .value as IngredientInventoryStatus,
+                    }))
+                  }
+                  disabled={dialogMode === "view"}
+                >
+                  {statusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {statusLabel(status)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="status">Trạng thái</Label>
-              <select
-                id="status"
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                value={form.inventoryStatus}
+              <Label htmlFor="minStockAlert">Ngưỡng cảnh báo</Label>
+              <Input
+                id="minStockAlert"
+                type="number"
+                step="0.1"
+                className={
+                  dialogMode === "view"
+                    ? "w-full bg-muted [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    : "w-full"
+                }
+                value={form.minStockAlert}
                 onChange={(e) =>
                   setForm((f) => ({
                     ...f,
-                    inventoryStatus: e.target
-                      .value as IngredientInventoryStatus,
+                    minStockAlert:
+                      e.target.value === "" ? 0 : Number(e.target.value),
                   }))
                 }
-              >
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {statusLabel(status)}
-                  </option>
-                ))}
-              </select>
+                placeholder="2000"
+                readOnly={dialogMode === "view"}
+              />
             </div>
+
+            {dialogMode !== "create" && (
+              <div className="space-y-2">
+                <Label htmlFor="totalStockQuantity">Tồn kho hiện tại</Label>
+                <Input
+                  id="totalStockQuantity"
+                  className="w-full bg-muted"
+                  value={formatStock(
+                    selectedIngredient?.totalStockQuantity,
+                    form.baseUnit,
+                  )}
+                  readOnly
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Hủy
+              Đóng
             </Button>
-            <Button
-              className="bg-primary hover:bg-primary/90"
-              onClick={handleSave}
-            >
-              {dialogMode === "create" ? "Lưu nguyên liệu" : "Cập nhật"}
-            </Button>
+            {dialogMode !== "view" && (
+              <Button
+                className="bg-primary hover:bg-primary/90"
+                onClick={handleSave}
+              >
+                {dialogMode === "create" ? "Lưu nguyên liệu" : "Cập nhật"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

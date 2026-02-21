@@ -40,6 +40,10 @@ import type {
 } from "@/types/variants";
 import type { ProductsResponse } from "@/types/product";
 import type { Size } from "@/types/size";
+import type {
+  ProductCategoriesResponse,
+  ProductCategory,
+} from "@/types/catagories";
 
 type VariantRow = {
   id: string;
@@ -118,6 +122,10 @@ export default function VariantsManagerPage() {
     null,
   );
 
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
   const [sizes, setSizes] = useState<Size[]>([]);
   const [sizesLoading, setSizesLoading] = useState(false);
 
@@ -126,7 +134,8 @@ export default function VariantsManagerPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [productSearch, setProductSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ACTIVE");
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
   const [filterOpen, setFilterOpen] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -165,10 +174,41 @@ export default function VariantsManagerPage() {
 
   useEffect(() => {
     const run = async () => {
+      setCategoriesLoading(true);
+      setCategoriesError(null);
+      try {
+        const qs = new URLSearchParams({ page: "0", size: "200" });
+        const res = await fetch(`/api/categories?${qs.toString()}`, {
+          cache: "no-store",
+        });
+        const data = (await res
+          .json()
+          .catch(() => null)) as ProductCategoriesResponse | null;
+
+        if (!res.ok || !data || data.code !== 200) {
+          throw new Error(data?.message || "Load categories failed");
+        }
+
+        setCategories(data.data ?? []);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Load categories failed";
+        setCategoriesError(msg);
+        toast.error(msg);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+
+    run();
+  }, []);
+
+  useEffect(() => {
+    const run = async () => {
       setProductsLoading(true);
       setProductsError(null);
       try {
         const qs = new URLSearchParams({ page: "0", size: "200" });
+        if (categoryFilter) qs.set("categoryId", categoryFilter);
         const res = await fetch(`/api/products?${qs.toString()}`, {
           cache: "no-store",
         });
@@ -192,9 +232,9 @@ export default function VariantsManagerPage() {
 
         const selectedStillValid = selectedProduct
           ? activeItems.some((p) => p.id === selectedProduct.id)
-          : false;
+          : true;
         if (!selectedStillValid) {
-          setSelectedProduct(activeItems.length > 0 ? activeItems[0] : null);
+          setSelectedProduct(categoryFilter ? (activeItems[0] ?? null) : null);
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Load products failed";
@@ -206,7 +246,7 @@ export default function VariantsManagerPage() {
     };
 
     run();
-  }, [selectedProduct]);
+  }, [selectedProduct, categoryFilter]);
 
   useEffect(() => {
     const run = async () => {
@@ -230,7 +270,11 @@ export default function VariantsManagerPage() {
   }, []);
 
   const fetchVariants = useCallback(async () => {
-    if (!selectedProduct) return;
+    if (!categoryFilter || !selectedProduct) {
+      setLoadError(null);
+      setVariants([]);
+      return;
+    }
 
     setIsLoading(true);
     setLoadError(null);
@@ -238,8 +282,8 @@ export default function VariantsManagerPage() {
       const qs = new URLSearchParams({
         page: "0",
         size: "200",
-        productId: String(selectedProduct.id),
       });
+      if (selectedProduct) qs.set("productId", String(selectedProduct.id));
       if (statusFilter) qs.set("status", statusFilter);
 
       const res = await fetch(`/api/variants?${qs.toString()}`, {
@@ -262,12 +306,10 @@ export default function VariantsManagerPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedProduct, statusFilter]);
+  }, [selectedProduct, statusFilter, categoryFilter]);
 
   useEffect(() => {
-    if (selectedProduct) {
-      fetchVariants();
-    }
+    fetchVariants();
   }, [fetchVariants, selectedProduct]);
 
   const filteredVariants = useMemo(() => {
@@ -287,6 +329,12 @@ export default function VariantsManagerPage() {
     if (!q) return products;
     return products.filter((p) => p.name.toLowerCase().includes(q));
   }, [products, productSearch]);
+
+  const activeSizes = useMemo(
+    () =>
+      sizes.filter((s) => String(s.status ?? "").toUpperCase() === "ACTIVE"),
+    [sizes],
+  );
 
   const activeCount = variants.filter((v) => v.status === "ACTIVE").length;
 
@@ -344,6 +392,7 @@ export default function VariantsManagerPage() {
     try {
       const res = await fetch(`/api/variants/${variant.id}`, {
         cache: "no-store",
+        credentials: "same-origin",
       });
       const data = (await res
         .json()
@@ -389,6 +438,7 @@ export default function VariantsManagerPage() {
     try {
       const res = await fetch(`/api/variants/${variant.id}`, {
         cache: "no-store",
+        credentials: "same-origin",
       });
       const data = (await res
         .json()
@@ -431,6 +481,7 @@ export default function VariantsManagerPage() {
       const res = await fetch("/api/variants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           productId: Number(createForm.productId),
           sizeId: Number(createForm.sizeId),
@@ -476,6 +527,7 @@ export default function VariantsManagerPage() {
       const res = await fetch(`/api/variants/${editForm.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           productId: Number(editForm.productId),
           sizeId: Number(editForm.sizeId),
@@ -590,6 +642,34 @@ export default function VariantsManagerPage() {
                   <div className="grid gap-3">
                     <div className="grid gap-2">
                       <label className="text-xs font-medium uppercase text-muted-foreground">
+                        Danh mục
+                      </label>
+                      <select
+                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        value={categoryFilter}
+                        onChange={(e) => {
+                          setCategoryFilter(e.target.value);
+                          setSelectedProduct(null);
+                        }}
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={String(c.id)}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      {categoriesLoading ? (
+                        <p className="text-xs text-muted-foreground">
+                          Đang tải danh mục...
+                        </p>
+                      ) : categoriesError ? (
+                        <p className="text-xs text-destructive">
+                          {categoriesError}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-2">
+                      <label className="text-xs font-medium uppercase text-muted-foreground">
                         Sản phẩm
                       </label>
                       <div className="grid gap-2">
@@ -608,25 +688,33 @@ export default function VariantsManagerPage() {
                             <div className="p-2 text-sm text-destructive">
                               {productsError}
                             </div>
-                          ) : filteredProducts.length === 0 ? (
+                          ) : products.length === 0 ? (
                             <div className="p-2 text-sm text-muted-foreground">
-                              Không tìm thấy sản phẩm
+                              Chưa có sản phẩm nào
                             </div>
                           ) : (
-                            filteredProducts.map((p) => (
-                              <button
-                                key={p.id}
-                                type="button"
-                                onClick={() => setSelectedProduct(p)}
-                                className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/50 ${
-                                  selectedProduct?.id === p.id
-                                    ? "bg-muted/50"
-                                    : ""
-                                }`}
-                              >
-                                <div className="font-medium">{p.name}</div>
-                              </button>
-                            ))
+                            <>
+                              {filteredProducts.length === 0 ? (
+                                <div className="p-2 text-sm text-muted-foreground">
+                                  Không tìm thấy sản phẩm
+                                </div>
+                              ) : (
+                                filteredProducts.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => setSelectedProduct(p)}
+                                    className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/50 ${
+                                      selectedProduct?.id === p.id
+                                        ? "bg-muted/50"
+                                        : ""
+                                    }`}
+                                  >
+                                    <div className="font-medium">{p.name}</div>
+                                  </button>
+                                ))
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
@@ -662,7 +750,7 @@ export default function VariantsManagerPage() {
                           setFilterOpen(false);
                           fetchVariants();
                         }}
-                        disabled={!selectedProduct}
+                        disabled={!categoryFilter || !selectedProduct}
                       >
                         Lọc
                       </Button>
@@ -677,7 +765,6 @@ export default function VariantsManagerPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold">ID</TableHead>
                   <TableHead className="font-semibold">SKU</TableHead>
                   <TableHead className="font-semibold">Size</TableHead>
                   <TableHead className="font-semibold">Sản phẩm</TableHead>
@@ -715,13 +802,13 @@ export default function VariantsManagerPage() {
                       {loadError}
                     </TableCell>
                   </TableRow>
-                ) : !selectedProduct ? (
+                ) : !categoryFilter || !selectedProduct ? (
                   <TableRow>
                     <TableCell
                       colSpan={8}
                       className="text-center py-10 text-muted-foreground"
                     >
-                      Chọn sản phẩm để xem biến thể
+                      Chọn danh mục và sản phẩm để xem biến thể
                     </TableCell>
                   </TableRow>
                 ) : filteredVariants.length === 0 ? (
@@ -730,15 +817,12 @@ export default function VariantsManagerPage() {
                       colSpan={8}
                       className="text-center py-10 text-muted-foreground"
                     >
-                      Không tìm thấy variant nào
+                      Không tìm thấy biến thể nào
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredVariants.map((variant) => (
                     <TableRow key={variant.id} className="admin-table-row">
-                      <TableCell className="font-medium">
-                        {variant.id}
-                      </TableCell>
                       <TableCell>{variant.skuCode}</TableCell>
                       <TableCell>{variant.sizeCode}</TableCell>
                       <TableCell>{variant.productName}</TableCell>
@@ -825,7 +909,7 @@ export default function VariantsManagerPage() {
                   }
                 >
                   <option value="">Chọn size</option>
-                  {sizes.map((s) => (
+                  {activeSizes.map((s) => (
                     <option key={s.id} value={String(s.id)}>
                       {s.code}
                     </option>
@@ -1035,13 +1119,17 @@ export default function VariantsManagerPage() {
           <div className="grid gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <label className="text-sm font-medium">ID</label>
-                <Input value={viewForm.id} readOnly className="bg-muted" />
-              </div>
-              <div className="grid gap-2">
                 <label className="text-sm font-medium">Sản phẩm</label>
                 <Input
                   value={viewForm.productName}
+                  readOnly
+                  className="bg-muted"
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Trạng thái</label>
+                <Input
+                  value={statusLabel(viewForm.status)}
                   readOnly
                   className="bg-muted"
                 />
@@ -1072,17 +1160,6 @@ export default function VariantsManagerPage() {
                 <label className="text-sm font-medium">Giá vốn</label>
                 <Input
                   value={viewForm.costPrice}
-                  readOnly
-                  className="bg-muted"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Trạng thái</label>
-                <Input
-                  value={statusLabel(viewForm.status)}
                   readOnly
                   className="bg-muted"
                 />

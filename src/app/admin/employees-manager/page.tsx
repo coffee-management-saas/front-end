@@ -1,557 +1,118 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Plus, Search, Pencil, Trash2, Users } from "lucide-react";
-import { EmployeeDialog } from "@/components/admin/EmployeeDialog";
-import { DeleteConfirmDialog } from "@/components/admin/DeleteConfirmDialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { toast } from "sonner";
-import type {
-  CreateEmployeeResponse,
-  Employee,
-  EmployeeResponse,
-} from "@/types/employee";
-import type { ScheduleDto, SchedulesResponse } from "@/types/schedules";
 
-type EmployeeRow = {
-  id: string;
-  employeeType: string;
-  hourlyWage: number;
-  weeklyHourLimit: number;
-  shopId: number | null;
-  userProfileId: number | null;
-  updatedAt: string;
+import { useState } from "react";
+import { Plus, Users } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  EmployeeDialog,
+  type EmployeeDialogData,
+} from "@/components/admin/EmployeeDialog";
+import { createShopEmployee } from "@/services/employee.service";
+import { useAppContext } from "@/app/AppProvider";
+
+const requiredFields = (payload: EmployeeDialogData) => {
+  if (!payload.username.trim()) return "Thiếu username";
+  if (!payload.fullname.trim()) return "Thiếu họ tên";
+  if (!payload.email.trim()) return "Thiếu email";
+  if (!payload.phone.trim()) return "Thiếu số điện thoại";
+  if (!payload.dob.trim()) return "Thiếu ngày sinh";
+  return null;
 };
 
-const mapEmployee = (e: Employee): EmployeeRow => ({
-  id: String(e.employeeId),
-  employeeType: e.employeeType,
-  hourlyWage: Number(e.hourlyWage ?? 0),
-  weeklyHourLimit: Number(e.weeklyHourLimit ?? 0),
-  shopId: e.shopId ?? null,
-  userProfileId: e.userProfileId ?? null,
-  updatedAt: e.updatedAt,
-});
-
-const formatMoney = (value: number) => `${value.toLocaleString("vi-VN")} VND`;
-
-export default function EmployeesManager() {
-  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [schedules, setSchedules] = useState<ScheduleDto[]>([]);
-  const [schedulesLoading, setSchedulesLoading] = useState(false);
-  const [schedulesError, setSchedulesError] = useState<string | null>(null);
-  const [activeTable, setActiveTable] = useState<"employees" | "schedules">(
-    "employees",
-  );
-
+export default function EmployeesManagerPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeRow | null>(
-    null,
-  );
-  const [dialogMode, setDialogMode] = useState<"view" | "edit" | "create">(
-    "view",
-  );
-
-  const loadEmployees = async () => {
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const qs = new URLSearchParams({ page: "0", size: "100" });
-      const res = await fetch(`/api/employees?${qs.toString()}`, {
-        cache: "no-store",
-      });
-      const data = (await res.json()) as EmployeeResponse;
-
-      if (!res.ok || data?.code < 200 || data?.code >= 300) {
-        throw new Error(data?.message || "Load employees failed");
-      }
-
-      const items = (data?.data ?? []).map(mapEmployee);
-      setEmployees(items);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Load employees failed";
-      setLoadError(msg);
-      toast.error(msg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [dialogMode] = useState<"view" | "edit" | "create">("create");
+  const [isSaving, setIsSaving] = useState(false);
+  const { accessToken } = useAppContext();
 
   const handleCreate = () => {
-    setSelectedEmployee(null);
-    setDialogMode("create");
     setDialogOpen(true);
   };
 
-  const handleEdit = (employee: EmployeeRow) => {
-    setSelectedEmployee(employee);
-    setDialogMode("edit");
-    setDialogOpen(true);
-  };
-
-  const handleDelete = (employee: EmployeeRow) => {
-    setSelectedEmployee(employee);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleSave = async (payload: {
-    id?: string;
-    employeeType: string;
-    hourlyWage: number;
-    weeklyHourLimit: number;
-    shopId: number | null;
-    userProfileId: number | null;
-  }) => {
-    try {
-      if (dialogMode === "create") {
-        const res = await fetch("/api/employees", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = (await res
-          .json()
-          .catch(() => null)) as CreateEmployeeResponse | null;
-
-        if (!res.ok || !data || data.code < 200 || data.code >= 300) {
-          throw new Error(data?.message || "Create employee failed");
-        }
-        if (!data.data) {
-          throw new Error("Create employee failed (missing data)");
-        }
-
-        const created = mapEmployee(data.data);
-        setEmployees((prev) => [created, ...prev]);
-        toast.success("Đã thêm nhân viên");
-      } else if (dialogMode === "edit" && selectedEmployee) {
-        const res = await fetch(`/api/employees/${selectedEmployee.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = (await res
-          .json()
-          .catch(() => null)) as CreateEmployeeResponse | null;
-
-        if (!res.ok || !data || data.code < 200 || data.code >= 300) {
-          throw new Error(data?.message || "Update employee failed");
-        }
-        if (!data.data) {
-          throw new Error("Update employee failed (missing data)");
-        }
-
-        const updated = mapEmployee(data.data);
-        setEmployees((prev) =>
-          prev.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
-        );
-        toast.success("Đã cập nhật nhân viên");
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Save employee failed";
-      toast.error(msg);
+  const handleSave = async (payload: EmployeeDialogData) => {
+    const missing = requiredFields(payload);
+    if (missing) {
+      toast.error(missing);
+      return;
     }
-  };
+    if (!accessToken) {
+      toast.error("Bạn chưa đăng nhập hoặc token hết hạn");
+      return;
+    }
 
-  const confirmDelete = async () => {
-    if (!selectedEmployee) return;
     try {
-      const res = await fetch(`/api/employees/${selectedEmployee.id}`, {
-        method: "DELETE",
-      });
-      const data = (await res
-        .json()
-        .catch(() => null)) as { code?: number; message?: string } | null;
-
-      if (
-        !res.ok ||
-        !data ||
-        (data.code && (data.code < 200 || data.code >= 300))
-      ) {
-        throw new Error(data?.message || "Delete employee failed");
-      }
-
-      setEmployees((prev) => prev.filter((e) => e.id !== selectedEmployee.id));
-      toast.success("Đã xóa nhân viên");
+      setIsSaving(true);
+      await createShopEmployee(
+        {
+          username: payload.username,
+          password: payload.password,
+          fullname: payload.fullname,
+          email: payload.email,
+          phone: payload.phone,
+          address: payload.address,
+          dob: payload.dob,
+          employeeType: payload.employeeType,
+          hourlyWage: payload.hourlyWage,
+          weeklyHourLimit: payload.weeklyHourLimit,
+          employee: {
+            employeeType: payload.employeeType,
+            hourlyWage: payload.hourlyWage,
+            weeklyHourLimit: payload.weeklyHourLimit,
+          },
+        },
+        { accessToken },
+      );
+      toast.success("Đã thêm nhân viên");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Delete employee failed";
+      const msg = e instanceof Error ? e.message : "Tạo nhân viên thất bại";
       toast.error(msg);
     } finally {
-      setDeleteDialogOpen(false);
-      setSelectedEmployee(null);
+      setIsSaving(false);
     }
   };
-  useEffect(() => {
-    loadEmployees();
-  }, []);
-
-  useEffect(() => {
-    const run = async () => {
-      setSchedulesLoading(true);
-      setSchedulesError(null);
-      try {
-        const qs = new URLSearchParams({ page: "0", size: "10" });
-        const res = await fetch(`/api/schedules?${qs.toString()}`, {
-          cache: "no-store",
-        });
-        const data = (await res
-          .json()
-          .catch(() => null)) as SchedulesResponse | null;
-
-        if (!res.ok || !data || data.code < 200 || data.code >= 300) {
-          throw new Error(data?.message || "Load schedules failed");
-        }
-
-        setSchedules(data.data ?? []);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Load schedules failed";
-        setSchedulesError(msg);
-        toast.error(msg);
-      } finally {
-        setSchedulesLoading(false);
-      }
-    };
-
-    run();
-  }, []);
-
-  const filteredEmployees = employees.filter((item) => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      item.id.toLowerCase().includes(q) ||
-      item.employeeType.toLowerCase().includes(q)
-    );
-  });
 
   return (
     <>
       <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Nhân viên</h1>
-          <p className="text-muted-foreground mt-1">
-            Quản lý danh sách nhân viên
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Nhân viên</h1>
+            <p className="text-muted-foreground mt-1">
+              Quản lý nhân viên của quán
+            </p>
+          </div>
+          <Button
+            onClick={handleCreate}
+            className="bg-primary hover:bg-primary/90"
+            disabled={isSaving}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Thêm nhân viên
+          </Button>
         </div>
-        <Button
-          onClick={handleCreate}
-          className="bg-primary hover:bg-primary/90"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Thêm nhân viên
-        </Button>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="admin-card p-5 bg-gray-100">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
               <Users className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{employees.length}</p>
+              <p className="text-2xl font-bold">Tạo nhanh nhân viên</p>
               <p className="text-sm text-muted-foreground">
-                Số lượng nhân viên
+                Nhấn “Thêm nhân viên” để nhập thông tin
               </p>
             </div>
           </div>
         </div>
-
-        <div className="admin-card p-5 bg-gray-100">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
-              <Users className="w-6 h-6 text-success" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {employees.filter((e) => e.employeeType === "FULL_TIME").length}
-              </p>
-              <p className="text-sm text-muted-foreground">Full-time</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="admin-card p-5 bg-gray-100">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-muted/40 flex items-center justify-center">
-              <Users className="w-6 h-6 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {employees.filter((e) => e.employeeType !== "FULL_TIME").length}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Part-time / Temporary
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="admin-card">
-        <div className="p-4 border-b border-border">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative max-w-sm w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Tìm kiếm nhân viên..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-background"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant={activeTable === "employees" ? "default" : "outline"}
-                onClick={() => setActiveTable("employees")}
-                className="h-9"
-              >
-                Nhân viên
-              </Button>
-              <Button
-                type="button"
-                variant={activeTable === "schedules" ? "default" : "outline"}
-                onClick={() => setActiveTable("schedules")}
-                className="h-9"
-              >
-                Lịch làm việc
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {activeTable === "employees" ? (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="font-semibold">Mã NV</TableHead>
-                <TableHead className="font-semibold text-center">
-                  Lọai
-                </TableHead>
-                <TableHead className="font-semibold text-center">
-                  Lương/giờ
-                </TableHead>
-                <TableHead className="font-semibold text-center">
-                  Giờ/tuần
-                </TableHead>
-
-                <TableHead className="font-semibold text-center">
-                  Profile ID
-                </TableHead>
-                <TableHead className="font-semibold">Cập nhật</TableHead>
-                <TableHead className="font-semibold text-right">
-                  Thao tác
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="text-center py-10 text-muted-foreground"
-                  >
-                    Đang tải nhân viên...
-                  </TableCell>
-                </TableRow>
-              ) : loadError ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="text-center py-10 text-destructive"
-                  >
-                    {loadError}
-                  </TableCell>
-                </TableRow>
-              ) : filteredEmployees.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="text-center py-10 text-muted-foreground"
-                  >
-                    Không tìm thấy nhân viên nào
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredEmployees.map((employee) => (
-                  <TableRow key={employee.id} className="admin-table-row">
-                    <TableCell className="font-medium">{employee.id}</TableCell>
-                    <TableCell className="text-center">
-                      {employee.employeeType}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {formatMoney(employee.hourlyWage)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {employee.weeklyHourLimit}
-                    </TableCell>
-
-                    <TableCell className="text-center">
-                      {employee.userProfileId ?? "-"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {employee.updatedAt
-                        ? new Date(employee.updatedAt).toLocaleString("vi-VN", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(employee)}
-                          className="h-8 w-8 text-muted-foreground hover:text-primary"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(employee)}
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        ) : (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="font-semibold">Nhân viên</TableHead>
-                <TableHead className="font-semibold text-center">
-                  Loại
-                </TableHead>
-                <TableHead className="font-semibold text-center">
-                  Thứ
-                </TableHead>
-                <TableHead className="font-semibold text-center">
-                  Bắt đầu
-                </TableHead>
-                <TableHead className="font-semibold text-center">
-                  Kết thúc
-                </TableHead>
-                <TableHead className="font-semibold text-center">
-                  Lặp lại
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {schedulesLoading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="text-center py-10 text-muted-foreground"
-                  >
-                    Đang tải lịch làm việc...
-                  </TableCell>
-                </TableRow>
-              ) : schedulesError ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="text-center py-10 text-destructive"
-                  >
-                    {schedulesError}
-                  </TableCell>
-                </TableRow>
-              ) : schedules.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="text-center py-10 text-muted-foreground"
-                  >
-                    Chưa có lịch làm việc.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                schedules.map((s) => (
-                  <TableRow key={s.scheduleId} className="admin-table-row">
-                    <TableCell className="font-medium">
-                      {s.employeeName}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {s.employeeType}
-                    </TableCell>
-                    <TableCell className="text-center">{s.dayOfWeek}</TableCell>
-                    <TableCell className="text-center">
-                      {s.startTime
-                        ? new Date(s.startTime).toLocaleString("vi-VN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            day: "2-digit",
-                            month: "2-digit",
-                          })
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {s.endTime
-                        ? new Date(s.endTime).toLocaleString("vi-VN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            day: "2-digit",
-                            month: "2-digit",
-                          })
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {s.isRecurring ? "Có" : "Không"}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        )}
-      </div>
       </div>
 
       <EmployeeDialog
-        key={`${dialogMode}-${selectedEmployee?.id ?? "new"}`}
+        key="create-employee"
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        employee={selectedEmployee}
         onSave={handleSave}
         mode={dialogMode}
-      />
-
-      <DeleteConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        onConfirm={confirmDelete}
-        itemName={selectedEmployee?.id ? `Nhân viên #${selectedEmployee.id}` : ""}
-        title="Xác nhận xóa nhân viên"
-        description="Bạn có chắc chắn muốn xóa nhân viên này? Hành động này không thể hoàn tác."
-        confirmLabel="Xóa"
       />
     </>
   );

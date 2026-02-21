@@ -1,44 +1,50 @@
-// types/employee.ts
+export type EmployeeType = "FULL_TIME" | "PART_TIME" | "TEMPORARY" | string;
 
-// 1. Employee type
-export type EmployeeType = "PART_TIME" | "FULL_TIME" | "TEMPORARY";
-
-// 2. Core employee model (BE trả về)
-export interface Employee {
-  employeeId: number;
+export type ShopEmployeeDetail = {
+  employeeId?: number;
+  shopId?: number;
+  userProfileId?: number;
   employeeType: EmployeeType;
   hourlyWage: number;
   weeklyHourLimit: number;
-  shopId: number | null;
-  userProfileId: number | null;
-  updatedAt: string; // ISO date string
-}
+  updatedAt?: string;
+};
 
-// 3. Pagination meta
-export interface PaginationMeta {
-  currentPage: number;
-  size: number;
-  lastPage: number;
-  totalElements: number;
-}
+export type ShopEmployeeProfile = {
+  userProfileId?: number;
+  username: string;
+  fullname: string;
+  email: string;
+  phone: string;
+  address: string;
+  dob: string;
+  createdAt?: string;
+  employee?: ShopEmployeeDetail;
+};
 
-// 4. Generic API response
-export interface ApiResponse<T> {
-  code: number;
-  status: string;
-  message: string;
-  data: T;
-  meta?: PaginationMeta;
-}
+export type CreateShopEmployeeRequest = {
+  userProfileId?: number;
+  username: string;
+  password?: string;
+  fullname: string;
+  email: string;
+  phone: string;
+  address: string;
+  dob: string;
+  createdAt?: string;
+  employee?: ShopEmployeeDetail;
+  employeeType?: EmployeeType;
+  hourlyWage?: number;
+  weeklyHourLimit?: number;
+  shopId?: number;
+};
 
-// 5. API responses
-export type EmployeeResponse = ApiResponse<Employee[]>;
-export type CreateEmployeeResponse = ApiResponse<Employee>;
-
-// 6. Create employee request (form / submit)
-export interface CreateEmployeeRequest {
-  userProfileId: number;
-  employeeType: EmployeeType;
-  hourlyWage: number;
-  weeklyHourLimit: number;
-}
+export type CreateShopEmployeeResponse =
+  | {
+      code?: number;
+      status?: string;
+      message?: string;
+      data?: ShopEmployeeProfile | null;
+    }
+  | ShopEmployeeProfile
+  | null;

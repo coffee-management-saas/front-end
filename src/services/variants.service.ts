@@ -126,7 +126,30 @@ export async function updateVariant(
     cache: "no-store",
   });
 
-  const data = await parseJsonSafely<UpdateVariantResponse>(res);
+  const raw = await res.text();
+  if (!raw) {
+    if (!res.ok) {
+      throw new ApiError("BE tra ve rong", res.status);
+    }
+    return {
+      id: Number(id),
+      productId: Number(payload.productId),
+      sizeId: Number(payload.sizeId),
+      price: payload.price,
+      costPrice: payload.costPrice,
+      skuCode: payload.skuCode,
+      status: payload.status,
+      productName: "",
+      sizeCode: "",
+    };
+  }
+
+  let data: UpdateVariantResponse;
+  try {
+    data = JSON.parse(raw) as UpdateVariantResponse;
+  } catch {
+    throw new ApiError("BE tra ve khong phai JSON", 502, raw);
+  }
 
   if (!res.ok || data?.code !== 200) {
     throw new ApiError(data?.message || "BE error", res.status, data);

@@ -131,7 +131,7 @@ export default function LoginForm() {
 
       const role = getRoleFromAccessToken(data.accessToken);
       const destination =
-        role === "SHOP" ? "/staff" : role === "SYSTEM" ? "/admin" : "/";
+        role === "SHOP" ? "/admin" : role === "SYSTEM" ? "/staff" : "/";
 
       router.replace(destination);
     } catch (error) {

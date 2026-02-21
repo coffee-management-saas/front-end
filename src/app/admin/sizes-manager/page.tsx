@@ -313,7 +313,6 @@ export default function SizesManagerPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold">ID</TableHead>
                   <TableHead className="font-semibold">Mã size</TableHead>
                   <TableHead className="font-semibold text-center">
                     Trạng thái
@@ -328,7 +327,7 @@ export default function SizesManagerPage() {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
+                      colSpan={3}
                       className="text-center py-10 text-muted-foreground"
                     >
                       Đang tải sizes...
@@ -337,7 +336,7 @@ export default function SizesManagerPage() {
                 ) : loadError ? (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
+                      colSpan={3}
                       className="text-center py-10 text-destructive"
                     >
                       {loadError}
@@ -346,7 +345,7 @@ export default function SizesManagerPage() {
                 ) : filteredSizes.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
+                      colSpan={3}
                       className="text-center py-10 text-muted-foreground"
                     >
                       Không tìm thấy size nào
@@ -355,7 +354,6 @@ export default function SizesManagerPage() {
                 ) : (
                   filteredSizes.map((size) => (
                     <TableRow key={size.id} className="admin-table-row">
-                      <TableCell className="font-medium">{size.id}</TableCell>
                       <TableCell>{size.code}</TableCell>
                       <TableCell className="text-center">
                         <span className={statusBadgeClass(size.status)}>

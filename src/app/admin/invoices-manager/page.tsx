@@ -855,15 +855,24 @@ export default function InvoicesManagerPage() {
                                   <div className="text-muted-foreground">
                                     Đơn vị
                                   </div>
-                                  <Input
-                                    value={item.inputUnit}
+                                  <select
+                                    className="h-9 text-sm w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                    value={item.inputUnit || ""}
                                     onChange={(e) =>
                                       updateCreateItem(index, {
                                         inputUnit: e.target.value,
                                       })
                                     }
-                                    placeholder="BOX"
-                                  />
+                                  >
+                                    <option value="" disabled>
+                                      Chọn đơn vị
+                                    </option>
+                                    {fromUnitOptions.map((unit) => (
+                                      <option key={unit} value={unit}>
+                                        {unit}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
                                 <div className="grid grid-cols-[160px_1fr] gap-2">
                                   <div className="text-muted-foreground">

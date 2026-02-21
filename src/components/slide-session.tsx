@@ -48,6 +48,7 @@ export default function SlideSession() {
     lockRef.current = true;
     try {
       const res = await refreshFromNextClientToNextServer();
+      if (!res?.data?.accessToken) return;
 
       setTokens((prev) => ({
         ...prev,

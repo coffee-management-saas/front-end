@@ -3,6 +3,13 @@ import { cookies } from "next/headers";
 import { ApiError } from "@/lib/utils";
 import { getVariantById, updateVariant } from "@/services/variants.service";
 import type { VariantStatus } from "@/types/variants";
+import envConfig from "@/config";
+
+function getTokenFromAuthHeader(value: string | null | undefined) {
+  if (!value) return undefined;
+  const match = value.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1] : value;
+}
 
 function parseStatus(v: string | null): VariantStatus | undefined {
   if (!v) return undefined;
@@ -11,13 +18,56 @@ function parseStatus(v: string | null): VariantStatus | undefined {
   return undefined;
 }
 
+async function refreshAccessToken(
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+) {
+  const refreshToken = cookieStore.get("refreshToken")?.value;
+  if (!refreshToken) return null;
+
+  const backendRes = await fetch(
+    `${envConfig.NEXT_PUBLIC_API_ENDPOINT}/auth/refresh`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+      cache: "no-store",
+    },
+  );
+
+  const backendData = await backendRes.json().catch(() => null);
+  if (!backendRes.ok) return null;
+
+  const newAccessToken: string | undefined = backendData?.accessToken;
+  const newRefreshToken: string | undefined = backendData?.refreshToken;
+  if (!newAccessToken) return null;
+
+  cookieStore.set("accessToken", newAccessToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+  });
+
+  if (newRefreshToken) {
+    cookieStore.set("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+    });
+  }
+
+  return newAccessToken;
+}
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const cookieStore = await cookies();
-    const accessToken = cookieStore.get("accessToken")?.value;
+    const headerToken = getTokenFromAuthHeader(req.headers.get("authorization"));
+    const accessToken = headerToken ?? cookieStore.get("accessToken")?.value;
 
     const { id: idParam } = await params;
     const id = Number(idParam);
@@ -68,7 +118,25 @@ export async function PUT(
       );
     }
 
-    const data = await updateVariant(id, payload, accessToken);
+    if (!accessToken) {
+      return Response.json({ message: "Unauthenticated" }, { status: 401 });
+    }
+
+    let data: Awaited<ReturnType<typeof updateVariant>>;
+    try {
+      data = await updateVariant(id, payload, accessToken);
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        const refreshed = await refreshAccessToken(cookieStore);
+        if (refreshed) {
+          data = await updateVariant(id, payload, refreshed);
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
     return Response.json(
       {
         code: 200,
@@ -95,7 +163,8 @@ export async function GET(
 ) {
   try {
     const cookieStore = await cookies();
-    const accessToken = cookieStore.get("accessToken")?.value;
+    const headerToken = getTokenFromAuthHeader(_req.headers.get("authorization"));
+    const accessToken = headerToken ?? cookieStore.get("accessToken")?.value;
 
     const { id: idParam } = await params;
     const id = Number(idParam);
@@ -103,7 +172,25 @@ export async function GET(
       return Response.json({ message: "Invalid id" }, { status: 400 });
     }
 
-    const data = await getVariantById(id, accessToken);
+    if (!accessToken) {
+      return Response.json({ message: "Unauthenticated" }, { status: 401 });
+    }
+
+    let data: Awaited<ReturnType<typeof getVariantById>>;
+    try {
+      data = await getVariantById(id, accessToken);
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        const refreshed = await refreshAccessToken(cookieStore);
+        if (refreshed) {
+          data = await getVariantById(id, refreshed);
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
     return Response.json(
       {
         code: 200,
