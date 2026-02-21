@@ -3,6 +3,7 @@
 import PhucLongHeader from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
 import Footer from "@/components/footer";
+import ChatbotWidget from "@/components/ChatbotWidget";
 
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -28,6 +29,7 @@ export default function LayoutContent({
         {!hideShell && <PhucLongHeader />}
         {children}
         {!hideShell && <Footer />}
+        {!hideShell && <ChatbotWidget />}
       </div>
     );
   }
@@ -42,6 +44,8 @@ export default function LayoutContent({
       {!hideShell && <PhucLongHeader />}
       <div className={!hideShell ? "pt-16" : ""}>{children}</div>
       {!hideShell && <Footer />}
+      {!hideShell && <ChatbotWidget />}
     </ThemeProvider>
   );
 }
+

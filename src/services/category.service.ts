@@ -187,7 +187,7 @@ export async function getProductCategories(params: {
   const page = params.page ?? 0;
   const size = params.size ?? 10;
 
-  const beUrl = `${base}/product/categories?page=${page}&size=${size}`;
+  const beUrl = `${base}/categories?page=${page}&size=${size}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -208,7 +208,7 @@ export async function deleteProductCategoryById(
   id: number,
 ): Promise<DeleteResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/categories/${id}`;
+  const beUrl = `${base}/categories/${id}`;
 
   const res = await fetch(beUrl, {
     method: "DELETE",
@@ -245,7 +245,7 @@ export async function updateProductCategoryById(
   },
 ) {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/categories/${id}`;
+  const beUrl = `${base}/categories/${id}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
@@ -290,7 +290,7 @@ export async function createProductCategory(body: {
   createdAt?: string;
 }) {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/categories`;
+  const beUrl = `${base}/categories`;
 
   const res = await fetch(beUrl, {
     method: "POST",

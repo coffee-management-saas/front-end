@@ -82,6 +82,10 @@ const CheckoutContent = () => {
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
   const [successOrder, setSuccessOrder] = useState<OrderResponse | null>(null);
 
+  // Chatbot mode – đọc orderRequest được AI thu thập từ sessionStorage
+  const [isChatbotMode, setIsChatbotMode] = useState(false);
+  const [chatbotOrderRequest, setChatbotOrderRequest] = useState<CreateOrderRequest | null>(null);
+
   useEffect(() => {
     if (accessToken) {
       const fetchProfile = async () => {
@@ -101,7 +105,26 @@ const CheckoutContent = () => {
     }
   }, [accessToken]);
 
+  // Khi mode=chatbot: đọc orderRequest từ sessionStorage và nhảy thẳng sang bước chọn thanh toán
   const searchParams = useSearchParams();
+  useEffect(() => {
+    const mode = searchParams.get("mode");
+    if (mode === "chatbot") {
+      const raw = sessionStorage.getItem("chatbot_order_request");
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as CreateOrderRequest;
+          setChatbotOrderRequest(parsed);
+          setIsChatbotMode(true);
+          setCurrentStep(1); // Bỏ qua step 0 (giỏ hàng), nhảy thẳng sang chọn thanh toán
+          sessionStorage.removeItem("chatbot_order_request"); // Xóa sau khi đọc
+        } catch (e) {
+          console.error("[Checkout] Không thể đọc chatbot_order_request:", e);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [paymentStatus, setPaymentStatus] = useState<"success" | "failed" | null>(null);
 
   useEffect(() => {
@@ -155,6 +178,44 @@ const CheckoutContent = () => {
   };
 
   const handlePlaceOrder = async () => {
+    // Chatbot mode: dùng orderRequest từ AI
+    if (isChatbotMode && chatbotOrderRequest) {
+      if (!accessToken) {
+        toast.error("Vui lòng đăng nhập để đặt hàng");
+        return;
+      }
+      setIsPlacingOrder(true);
+      try {
+        const payload: CreateOrderRequest = {
+          ...chatbotOrderRequest,
+          orderType: chatbotOrderRequest.orderType || "ONLINE",  // Đảm bảo luôn có orderType
+          paymentGateway: paymentMethod.toUpperCase(),
+          returnUrl: window.location.href,
+          promotionCode: appliedVoucher?.promotionCode ?? chatbotOrderRequest.promotionCode,
+        };
+
+        const res = await createOrder(accessToken, payload);
+        setCreatedOrderId(res.orderId);
+        setSuccessOrder(res);
+
+        if (paymentMethod === "momo" && res.payUrl) {
+          window.location.href = res.payUrl;
+          return;
+        }
+
+        toast.success("Đặt hàng thành công!");
+        setCurrentStep(2);
+        window.scrollTo(0, 0);
+      } catch (error) {
+        console.error("Checkout Chatbot Error:", error);
+        toast.error(error instanceof Error ? error.message : "Đặt hàng thất bại");
+      } finally {
+        setIsPlacingOrder(false);
+      }
+      return;
+    }
+
+    // Normal mode: dùng giỏ hàng
     if (items.length === 0) {
       toast.error("Giỏ hàng đang trống");
       return;
@@ -185,17 +246,16 @@ const CheckoutContent = () => {
       const res = await createOrder(accessToken, payload);
 
       setCreatedOrderId(res.orderId);
-      setSuccessOrder(res); // Save for success step
+      setSuccessOrder(res);
 
       if (paymentMethod === "momo" && res.payUrl) {
         window.location.href = res.payUrl;
-        return; // Stop execution to wait for redirect
+        return;
       }
 
       toast.success("Đặt hàng thành công!");
       clearCart();
 
-      // If just cash or no payUrl, just show success
       setCurrentStep(2);
       window.scrollTo(0, 0);
 
@@ -620,79 +680,116 @@ const CheckoutContent = () => {
               </>
             ) : currentStep === 1 ? (
               // Step 2: Payment Selection
-              <Card className="border-amber-200 bg-white shadow-md transition-all">
-                <CardHeader>
-                  <CardTitle className="text-xl">Hình thức thanh toán</CardTitle>
-                  <CardDescription>
-                    Chọn phương thức thanh toán an toàn và tiện lợi nhất.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod("momo")}
-                      className={cn(
-                        "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
-                        paymentMethod === "momo"
-                          ? "border-pink-300 bg-pink-50 ring-2 ring-pink-100 shadow-sm"
-                          : "border-gray-100 hover:border-pink-200 hover:bg-pink-50/30",
-                      )}
-                    >
-                      <div className="h-12 w-12 rounded-lg bg-pink-600 flex items-center justify-center text-white shrink-0 shadow-sm overflow-hidden">
-                        <Image
-                          src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png"
-                          alt="MoMo"
-                          width={48}
-                          height={48}
-                          className="object-contain"
-                        />
+              <>
+                {/* Tóm tắt đơn hàng từ Chatbot (chỉ hiển thị khi isChatbotMode) */}
+                {isChatbotMode && chatbotOrderRequest && (
+                  <Card className="border-amber-100 bg-amber-50/60 shadow-sm">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="text-lg">🤖</span>
+                        Đơn hàng từ AI Chatbot
+                      </CardTitle>
+                      <CardDescription>
+                        Xem lại đơn hàng bạn đã đặt qua chatbot trước khi thanh toán.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {chatbotOrderRequest.orderItems?.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between rounded-lg bg-white border border-amber-100 px-3 py-2 text-sm">
+                            <div>
+                              <span className="font-medium text-stone-900">Sản phẩm #{item.productVariantId}</span>
+                              <span className="text-gray-500 ml-2">x{item.quantity}</span>
+                              {item.toppingItems && item.toppingItems.length > 0 && (
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  Topping: {item.toppingItems.map(t => `#${t.toppingId} x${t.quantity}`).join(", ")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        {chatbotOrderRequest.promotionCode && (
+                          <p className="text-xs text-green-700 font-medium">✓ Mã KM: {chatbotOrderRequest.promotionCode}</p>
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-stone-900 text-lg">Ví MoMo</p>
-                        <p className="text-sm text-gray-600">Thanh toán nhanh chóng, an toàn qua ứng dụng MoMo.</p>
-                      </div>
-                      <div className={cn(
-                        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
-                        paymentMethod === "momo" ? "border-pink-600 bg-pink-600" : "border-gray-300"
-                      )}>
-                        {paymentMethod === "momo" && <div className="w-2 h-2 rounded-full bg-white" />}
-                      </div>
-                    </button>
+                    </CardContent>
+                  </Card>
+                )}
 
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod("cash")}
-                      className={cn(
-                        "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
-                        paymentMethod === "cash"
-                          ? "border-amber-300 bg-amber-50 ring-2 ring-amber-100 shadow-sm"
-                          : "border-gray-100 hover:border-amber-200 hover:bg-amber-50/30",
-                      )}
-                    >
-                      <div className="h-12 w-12 rounded-lg bg-amber-800 flex items-center justify-center text-white shrink-0 shadow-sm">
-                        <MapPin className="w-7 h-7" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-stone-900 text-lg">Tiền mặt</p>
-                        <p className="text-sm text-gray-600">Thanh toán trực tiếp khi nhận hàng hoặc tại quầy.</p>
-                      </div>
-                      <div className={cn(
-                        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
-                        paymentMethod === "cash" ? "border-amber-800 bg-amber-800" : "border-gray-300"
-                      )}>
-                        {paymentMethod === "cash" && <div className="w-2 h-2 rounded-full bg-white" />}
-                      </div>
-                    </button>
-                  </div>
+                <Card className="border-amber-200 bg-white shadow-md transition-all">
+                  <CardHeader>
+                    <CardTitle className="text-xl">Hình thức thanh toán</CardTitle>
+                    <CardDescription>
+                      Chọn phương thức thanh toán an toàn và tiện lợi nhất.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod("momo")}
+                        className={cn(
+                          "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
+                          paymentMethod === "momo"
+                            ? "border-pink-300 bg-pink-50 ring-2 ring-pink-100 shadow-sm"
+                            : "border-gray-100 hover:border-pink-200 hover:bg-pink-50/30",
+                        )}
+                      >
+                        <div className="h-12 w-12 rounded-lg bg-pink-600 flex items-center justify-center text-white shrink-0 shadow-sm overflow-hidden">
+                          <Image
+                            src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png"
+                            alt="MoMo"
+                            width={48}
+                            height={48}
+                            className="object-contain"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-bold text-stone-900 text-lg">Ví MoMo</p>
+                          <p className="text-sm text-gray-600">Thanh toán nhanh chóng, an toàn qua ứng dụng MoMo.</p>
+                        </div>
+                        <div className={cn(
+                          "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                          paymentMethod === "momo" ? "border-pink-600 bg-pink-600" : "border-gray-300"
+                        )}>
+                          {paymentMethod === "momo" && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                      </button>
 
-                  <div className="rounded-lg bg-gray-50 p-4 border border-gray-100 mt-6">
-                    <p className="text-sm text-gray-600 italic">
-                      Lưu ý: Bạn có thể đổi hình thức thanh toán bất cứ lúc nào trước khi xác nhận đơn hàng.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod("cash")}
+                        className={cn(
+                          "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
+                          paymentMethod === "cash"
+                            ? "border-amber-300 bg-amber-50 ring-2 ring-amber-100 shadow-sm"
+                            : "border-gray-100 hover:border-amber-200 hover:bg-amber-50/30",
+                        )}
+                      >
+                        <div className="h-12 w-12 rounded-lg bg-amber-800 flex items-center justify-center text-white shrink-0 shadow-sm">
+                          <MapPin className="w-7 h-7" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-bold text-stone-900 text-lg">Tiền mặt</p>
+                          <p className="text-sm text-gray-600">Thanh toán trực tiếp khi nhận hàng hoặc tại quầy.</p>
+                        </div>
+                        <div className={cn(
+                          "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                          paymentMethod === "cash" ? "border-amber-800 bg-amber-800" : "border-gray-300"
+                        )}>
+                          {paymentMethod === "cash" && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                      </button>
+                    </div>
+
+                    <div className="rounded-lg bg-gray-50 p-4 border border-gray-100 mt-6">
+                      <p className="text-sm text-gray-600 italic">
+                        Lưu ý: Bạn có thể đổi hình thức thanh toán bất cứ lúc nào trước khi xác nhận đơn hàng.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
             ) : (
               // Step 3: Order Success
               // Step 3: Order Success
@@ -743,7 +840,7 @@ const CheckoutContent = () => {
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-600">Tổng thanh toán</span>
                       <span className="font-bold text-lg text-amber-700">
-                        {successOrder ? formatCurrency(successOrder.paidPrice) : formatCurrency(totals.total)}
+                        {successOrder ? formatCurrency(successOrder.paidPrice ?? 0) : formatCurrency(totals.total)}
                       </span>
                     </div>
                   </div>
@@ -932,7 +1029,7 @@ const CheckoutContent = () => {
                 <div className="flex flex-col gap-3 pt-2">
                   <Button
                     className="w-full h-12 text-base font-bold bg-[#693916] hover:bg-amber-900 shadow-warm"
-                    disabled={isEmpty}
+                    disabled={isChatbotMode ? false : isEmpty}
                     onClick={() => {
                       if (currentStep === 0) {
                         setCurrentStep(1);

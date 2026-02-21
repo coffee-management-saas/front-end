@@ -85,3 +85,45 @@ export async function getOrderById(accessToken: string, orderId: number): Promis
 
     return parseJsonSafely<OrderResponse>(res);
 }
+
+export async function confirmCashPayment(accessToken: string, orderId: number): Promise<OrderResponse> {
+    const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+    const beUrl = `${base}/orders/${orderId}/confirm-cash`;
+
+    const res = await fetch(beUrl, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+        },
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const errorData = await parseJsonSafely<any>(res).catch(() => null);
+        throw new ApiError(errorData?.message || "Failed to confirm cash payment", res.status);
+    }
+
+    return parseJsonSafely<OrderResponse>(res);
+}
+
+export async function payWithMomo(accessToken: string, orderId: number): Promise<OrderResponse> {
+    const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+    const beUrl = `${base}/orders/${orderId}/momo-payment`;
+
+    const res = await fetch(beUrl, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+        },
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const errorData = await parseJsonSafely<any>(res).catch(() => null);
+        throw new ApiError(errorData?.message || "Failed to initiate MoMo payment", res.status);
+    }
+
+    return parseJsonSafely<OrderResponse>(res);
+}

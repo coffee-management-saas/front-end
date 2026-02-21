@@ -20,7 +20,7 @@ function authHeaders(accessToken?: string): Record<string, string> {
 export async function getPromotions(
   accessToken?: string,
 ): Promise<Promotion[]> {
-  const beUrl = `${envConfig.NEXT_PUBLIC_API_ENDPOINT}/promotions`;
+  const beUrl = `${envConfig.NEXT_PUBLIC_API_ENDPOINT}/promotion`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -42,7 +42,7 @@ export async function getPromotionById(
   accessToken?: string,
 ): Promise<Promotion> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/promotions/${promotionId}`;
+  const beUrl = `${base}/promotion/${promotionId}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -71,7 +71,7 @@ export async function deletePromotionById(
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
 
   // swagger cũ ghi /promotions/{promotionId}; base đã có /api
-  const beUrl = `${base}/promotions/${promotionId}`;
+  const beUrl = `${base}/promotion/${promotionId}`;
 
   const res = await fetch(beUrl, {
     method: "DELETE",
@@ -97,7 +97,7 @@ export async function createPromotion(
   accessToken?: string,
 ): Promise<Promotion> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/promotions`;
+  const beUrl = `${base}/promotion`;
 
   const res = await fetch(beUrl, {
     method: "POST",
@@ -129,7 +129,7 @@ export async function updatePromotionById(
   accessToken?: string,
 ): Promise<Promotion> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/promotions/${promotionId}`;
+  const beUrl = `${base}/promotion/${promotionId}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
@@ -161,7 +161,7 @@ export async function uploadPromotionImage(
   accessToken?: string,
 ): Promise<Promotion | { imageUrl?: string } | null> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/promotions/${promotionId}/image`;
+  const beUrl = `${base}/promotion/${promotionId}/image`;
 
   const formData = new FormData();
   formData.append("image", file);
