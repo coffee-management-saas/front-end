@@ -44,7 +44,10 @@ export async function PUT(
 
     const payload = await req.json().catch(() => null);
     if (!payload || typeof payload !== "object") {
-      return Response.json({ message: "Invalid request body" }, { status: 400 });
+      return Response.json(
+        { message: "Invalid request body" },
+        { status: 400 },
+      );
     }
 
     const data = await updateProductById(id, payload, accessToken);

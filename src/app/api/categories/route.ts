@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
     const page = Number(searchParams.get("page") ?? "0");
     const size = Number(searchParams.get("size") ?? "10");
     const cookieStore = await cookies();
-    const headerToken = getTokenFromAuthHeader(req.headers.get("authorization"));
+    const headerToken = getTokenFromAuthHeader(
+      req.headers.get("authorization"),
+    );
     const accessToken = headerToken ?? cookieStore.get("accessToken")?.value;
     const data = await getProductCategories({
       page,

@@ -49,7 +49,7 @@ export default function VerificationPhoneForm() {
           },
 
           method: "POST",
-        }
+        },
       ).then(async (res) => {
         const payload = await res.json();
         const data = {

@@ -12,9 +12,9 @@ export async function POST(req: Request) {
       return Response.json({ message: "Unauthenticated" }, { status: 401 });
     }
 
-    const body = (await req.json().catch(() => null)) as
-      | Partial<StockCheckApprovePayload>
-      | null;
+    const body = (await req
+      .json()
+      .catch(() => null)) as Partial<StockCheckApprovePayload> | null;
 
     if (!body || typeof body !== "object") {
       return Response.json(

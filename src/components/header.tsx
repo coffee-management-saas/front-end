@@ -101,7 +101,7 @@ export default function PhucLongHeader() {
 
   const handleSelectDeliveryMethod = (
     method: "delivery" | "pickup",
-    data?: any
+    data?: any,
   ) => {
     setDeliveryMethod({ type: method, data });
 
@@ -114,7 +114,7 @@ export default function PhucLongHeader() {
     // Save to localStorage for persistence
     localStorage.setItem(
       "deliveryMethod",
-      JSON.stringify({ type: method, data })
+      JSON.stringify({ type: method, data }),
     );
   };
 

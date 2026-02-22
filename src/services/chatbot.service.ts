@@ -1,0 +1,71 @@
+import type { CreateOrderRequest } from "@/types/order";
+
+export interface ChatBotResponse {
+    action: "INFO" | "COLLECTING" | "ORDER";
+    message: string;
+    orderRequest?: CreateOrderRequest;
+    redirectToPayment?: boolean;
+    orderId?: number;
+}
+
+export async function sendChatMessage(
+    message: string,
+    accessToken?: string,
+): Promise<ChatBotResponse> {
+    let res: Response;
+    try {
+        res = await fetch("/api/ai/chat", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+            },
+            body: JSON.stringify({ message }),
+            cache: "no-store",
+        });
+    } catch (networkErr) {
+        // Lỗi mạng / backend không chạy
+        console.error("[Chatbot] Network error:", networkErr);
+        return {
+            action: "INFO",
+            message: "Không kết nối được tới máy chủ. Vui lòng kiểm tra kết nối mạng.",
+        };
+    }
+
+    // Đọc body dù status là gì
+    let data: ChatBotResponse | null = null;
+    try {
+        const raw = await res.json();
+        if (typeof raw === "string") {
+            data = { action: "INFO", message: raw };
+        } else {
+            data = raw as ChatBotResponse;
+        }
+    } catch {
+        // Body không phải JSON (timeout HTML page, etc.)
+        const text = await res.text().catch(() => "");
+        console.error("[Chatbot] Non-JSON response:", text.substring(0, 200));
+        return {
+            action: "INFO",
+            message: "AI đang bận, vui lòng thử lại sau vài giây.",
+        };
+    }
+
+    // Nếu server trả lỗi có message → hiển thị thay vì crash
+    if (!res.ok) {
+        console.error(`[Chatbot] Server error ${res.status}:`, data);
+        return {
+            action: "INFO",
+            message:
+                (data as any)?.message ||
+                `Lỗi máy chủ (${res.status}). Vui lòng thử lại sau.`,
+        };
+    }
+
+    // Đảm bảo message không rỗng
+    if (!data?.message) {
+        return { action: "INFO", message: "AI không trả lời được. Vui lòng thử lại." };
+    }
+
+    return data;
+}

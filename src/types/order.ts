@@ -1,5 +1,6 @@
 export type OrderType = "ONLINE" | "OFFLINE";
 
+// ---- Request types ----
 export interface ToppingItemRequest {
     toppingId: number;
     quantity: number;
@@ -21,15 +22,33 @@ export interface CreateOrderRequest {
     returnUrl?: string;
 }
 
+// ---- Response types ----
+export interface ToppingPerOrderItemResponse {
+    toppingPerOrderItemId?: number;
+    toppingName?: string;
+    price?: number;
+    quantity?: number;
+}
+
+export interface OrderItemResponse {
+    orderItemId?: number;
+    productName?: string;
+    sizeName?: string;
+    unitPrice?: number;
+    quantity?: number;
+    orderItemStatus?: string;
+    toppingPerOrderItems?: ToppingPerOrderItemResponse[];
+}
+
 export interface OrderResponse {
     orderId: number;
-    orderType: OrderType;
-    basePrice: number;
-    paidPrice: number;
-    orderStatus: string;
-    createdAt: string;
+    orderType?: OrderType;
+    basePrice?: number;
+    paidPrice?: number;
+    orderStatus?: string;
     paymentGateway?: string;
-    payUrl?: string; // For Momo if applicable
-    message?: string; // In case of error
-    orderItems?: any[]; // Allow any for now to hold item details
+    createdAt?: string;
+    payUrl?: string;
+    message?: string;
+    orderItems?: OrderItemResponse[];
 }

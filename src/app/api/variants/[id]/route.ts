@@ -66,7 +66,9 @@ export async function PUT(
 ) {
   try {
     const cookieStore = await cookies();
-    const headerToken = getTokenFromAuthHeader(req.headers.get("authorization"));
+    const headerToken = getTokenFromAuthHeader(
+      req.headers.get("authorization"),
+    );
     const accessToken = headerToken ?? cookieStore.get("accessToken")?.value;
 
     const { id: idParam } = await params;
@@ -126,7 +128,10 @@ export async function PUT(
     try {
       data = await updateVariant(id, payload, accessToken);
     } catch (err) {
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+      if (
+        err instanceof ApiError &&
+        (err.status === 401 || err.status === 403)
+      ) {
         const refreshed = await refreshAccessToken(cookieStore);
         if (refreshed) {
           data = await updateVariant(id, payload, refreshed);
@@ -163,7 +168,9 @@ export async function GET(
 ) {
   try {
     const cookieStore = await cookies();
-    const headerToken = getTokenFromAuthHeader(_req.headers.get("authorization"));
+    const headerToken = getTokenFromAuthHeader(
+      _req.headers.get("authorization"),
+    );
     const accessToken = headerToken ?? cookieStore.get("accessToken")?.value;
 
     const { id: idParam } = await params;
@@ -180,7 +187,10 @@ export async function GET(
     try {
       data = await getVariantById(id, accessToken);
     } catch (err) {
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+      if (
+        err instanceof ApiError &&
+        (err.status === 401 || err.status === 403)
+      ) {
         const refreshed = await refreshAccessToken(cookieStore);
         if (refreshed) {
           data = await getVariantById(id, refreshed);

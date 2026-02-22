@@ -67,11 +67,13 @@ const STEP_ITEMS = [
 
 const CheckoutContent = () => {
   const router = useRouter();
-  const { items, updateQuantity, removeItem, totalPrice, clearCart } = useCart();
+  const { items, updateQuantity, removeItem, totalPrice, clearCart } =
+    useCart();
   const { accessToken } = useAppContext();
 
   const [currentStep, setCurrentStep] = useState(0);
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("delivery");
+  const [deliveryMethod, setDeliveryMethod] =
+    useState<DeliveryMethod>("delivery");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "momo">("cash");
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<Promotion | null>(null);
@@ -113,7 +115,9 @@ const CheckoutContent = () => {
   }, [accessToken]);
 
   const searchParams = useSearchParams();
-  const [paymentStatus, setPaymentStatus] = useState<"success" | "failed" | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<
+    "success" | "failed" | null
+  >(null);
 
   useEffect(() => {
     const resultCode = searchParams.get("resultCode");
@@ -126,11 +130,13 @@ const CheckoutContent = () => {
         setCurrentStep(2);
         if (orderId && accessToken) {
           getOrderById(accessToken, Number(orderId))
-            .then(order => {
+            .then((order) => {
               setSuccessOrder(order);
               setCreatedOrderId(order.orderId);
             })
-            .catch(err => console.error("Failed to fetch momo order details", err));
+            .catch((err) =>
+              console.error("Failed to fetch momo order details", err),
+            );
         }
 
         toast.success("Thanh toán MoMo thành công!");
@@ -140,7 +146,7 @@ const CheckoutContent = () => {
         toast.error(`Thanh toán thất bại: ${message}`);
       }
       const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
+      window.history.replaceState({}, "", newUrl);
     }
   }, [searchParams, clearCart]);
 
@@ -222,7 +228,6 @@ const CheckoutContent = () => {
       // If just cash or no payUrl, just show success
       setCurrentStep(2);
       window.scrollTo(0, 0);
-
     } catch (error) {
       console.error("Checkout Error:", error);
       toast.error(error instanceof Error ? error.message : "Đặt hàng thất bại");
@@ -232,7 +237,8 @@ const CheckoutContent = () => {
   };
 
   const [promotions, setPromotions] = useState<Promotion[]>([]);
-  const [tempSelectedVoucher, setTempSelectedVoucher] = useState<Promotion | null>(null);
+  const [tempSelectedVoucher, setTempSelectedVoucher] =
+    useState<Promotion | null>(null);
   const [isPromoDialogOpen, setIsPromoDialogOpen] = useState(false);
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -268,7 +274,8 @@ const CheckoutContent = () => {
 
         setPromotions(payload as Promotion[]);
       } catch (e: unknown) {
-        const isAbortError = e instanceof DOMException && e.name === "AbortError";
+        const isAbortError =
+          e instanceof DOMException && e.name === "AbortError";
         if (isAbortError) return;
 
         setPromoError(e instanceof Error ? e.message : String(e));
@@ -291,7 +298,7 @@ const CheckoutContent = () => {
       if (appliedVoucher.discountType === "PERCENTAGE") {
         voucherDiscount = Math.min(
           (subtotal * (appliedVoucher.discountValue || 0)) / 100,
-          40000
+          40000,
         );
       } else if (appliedVoucher.discountType === "FIXED_AMOUNT") {
         voucherDiscount = appliedVoucher.discountValue || 0;
@@ -311,7 +318,7 @@ const CheckoutContent = () => {
     }
 
     const promo = promotions.find(
-      (p) => p.promotionCode.toUpperCase() === code && p.status === "ACTIVE"
+      (p) => p.promotionCode.toUpperCase() === code && p.status === "ACTIVE",
     );
 
     if (promo) {
@@ -336,7 +343,7 @@ const CheckoutContent = () => {
                 size="sm"
                 onClick={() => {
                   if (currentStep > 0) {
-                    setCurrentStep(prev => prev - 1);
+                    setCurrentStep((prev) => prev - 1);
                   } else {
                     router.back();
                   }
@@ -384,10 +391,12 @@ const CheckoutContent = () => {
                     <p className="text-xs font-bold">{step.title}</p>
                   </div>
                   {idx < STEP_ITEMS.length - 1 && (
-                    <div className={cn(
-                      "h-px w-6",
-                      isCompleted ? "bg-green-300" : "bg-gray-200"
-                    )} />
+                    <div
+                      className={cn(
+                        "h-px w-6",
+                        isCompleted ? "bg-green-300" : "bg-gray-200",
+                      )}
+                    />
                   )}
                 </div>
               );
@@ -395,10 +404,14 @@ const CheckoutContent = () => {
           </div>
         </header>
 
-        <div className={cn(
-          "grid gap-6 transition-all duration-500",
-          currentStep === 2 ? "grid-cols-1 max-w-2xl mx-auto" : "grid-cols-1 lg:grid-cols-3"
-        )}>
+        <div
+          className={cn(
+            "grid gap-6 transition-all duration-500",
+            currentStep === 2
+              ? "grid-cols-1 max-w-2xl mx-auto"
+              : "grid-cols-1 lg:grid-cols-3",
+          )}
+        >
           <div className="lg:col-span-2 space-y-5">
             {currentStep === 0 ? (
               <>
@@ -476,7 +489,11 @@ const CheckoutContent = () => {
                         <Textarea
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
-                          placeholder={isLoadingProfile ? "Đang tải địa chỉ..." : "Số nhà, tên đường, phường/xã, quận/huyện..."}
+                          placeholder={
+                            isLoadingProfile
+                              ? "Đang tải địa chỉ..."
+                              : "Số nhà, tên đường, phường/xã, quận/huyện..."
+                          }
                           className="bg-white border-amber-100 focus-visible:ring-amber-200 min-h-[80px]"
                         />
                         <div className="flex justify-end pt-1">
@@ -489,11 +506,14 @@ const CheckoutContent = () => {
                             disabled={isUpdatingAddress || isLoadingProfile}
                             className="text-xs border-amber-200 hover:bg-amber-50 text-amber-800 h-8"
                           >
-                            {isUpdatingAddress ? "Đang lưu..." : "Xác nhận địa chỉ"}
+                            {isUpdatingAddress
+                              ? "Đang lưu..."
+                              : "Xác nhận địa chỉ"}
                           </Button>
                         </div>
                         <p className="text-xs text-gray-500 italic">
-                          * Phí giao hàng sẽ được tính toán dựa trên khoảng cách.
+                          * Phí giao hàng sẽ được tính toán dựa trên khoảng
+                          cách.
                         </p>
                       </div>
                     )}
@@ -538,9 +558,11 @@ const CheckoutContent = () => {
                         const sizeDelta = item.size === "M" ? -4000 : 0;
                         const toppingTotal = item.toppings.reduce(
                           (sum, t) => sum + t.price * t.quantity,
-                          0
+                          0,
                         );
-                        const itemPrice = (item.basePrice + sizeDelta + toppingTotal) * item.quantity;
+                        const itemPrice =
+                          (item.basePrice + sizeDelta + toppingTotal) *
+                          item.quantity;
 
                         return (
                           <div
@@ -586,7 +608,10 @@ const CheckoutContent = () => {
 
                                 {item.toppings.length > 0 && (
                                   <div className="text-xs text-gray-600">
-                                    Topping: {item.toppings.map(t => `${t.name} x${t.quantity}`).join(", ")}
+                                    Topping:{" "}
+                                    {item.toppings
+                                      .map((t) => `${t.name} x${t.quantity}`)
+                                      .join(", ")}
                                   </div>
                                 )}
                               </div>
@@ -595,7 +620,9 @@ const CheckoutContent = () => {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <button
-                                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                  onClick={() =>
+                                    updateQuantity(item.id, item.quantity - 1)
+                                  }
                                   disabled={item.quantity <= 1}
                                   className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 text-amber-800 transition hover:bg-amber-50 disabled:opacity-50"
                                 >
@@ -605,7 +632,9 @@ const CheckoutContent = () => {
                                   {item.quantity}
                                 </span>
                                 <button
-                                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                  onClick={() =>
+                                    updateQuantity(item.id, item.quantity + 1)
+                                  }
                                   className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 bg-[#693916] text-white transition hover:bg-amber-900"
                                 >
                                   <Plus className="w-3 h-3" />
@@ -646,7 +675,9 @@ const CheckoutContent = () => {
               // Step 2: Payment Selection
               <Card className="border-amber-200 bg-white shadow-md transition-all">
                 <CardHeader>
-                  <CardTitle className="text-xl">Hình thức thanh toán</CardTitle>
+                  <CardTitle className="text-xl">
+                    Hình thức thanh toán
+                  </CardTitle>
                   <CardDescription>
                     Chọn phương thức thanh toán an toàn và tiện lợi nhất.
                   </CardDescription>
@@ -673,14 +704,24 @@ const CheckoutContent = () => {
                         />
                       </div>
                       <div className="flex-1">
-                        <p className="font-bold text-stone-900 text-lg">Ví MoMo</p>
-                        <p className="text-sm text-gray-600">Thanh toán nhanh chóng, an toàn qua ứng dụng MoMo.</p>
+                        <p className="font-bold text-stone-900 text-lg">
+                          Ví MoMo
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Thanh toán nhanh chóng, an toàn qua ứng dụng MoMo.
+                        </p>
                       </div>
-                      <div className={cn(
-                        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
-                        paymentMethod === "momo" ? "border-pink-600 bg-pink-600" : "border-gray-300"
-                      )}>
-                        {paymentMethod === "momo" && <div className="w-2 h-2 rounded-full bg-white" />}
+                      <div
+                        className={cn(
+                          "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                          paymentMethod === "momo"
+                            ? "border-pink-600 bg-pink-600"
+                            : "border-gray-300",
+                        )}
+                      >
+                        {paymentMethod === "momo" && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
                       </div>
                     </button>
 
@@ -698,21 +739,32 @@ const CheckoutContent = () => {
                         <MapPin className="w-7 h-7" />
                       </div>
                       <div className="flex-1">
-                        <p className="font-bold text-stone-900 text-lg">Tiền mặt</p>
-                        <p className="text-sm text-gray-600">Thanh toán trực tiếp khi nhận hàng hoặc tại quầy.</p>
+                        <p className="font-bold text-stone-900 text-lg">
+                          Tiền mặt
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Thanh toán trực tiếp khi nhận hàng hoặc tại quầy.
+                        </p>
                       </div>
-                      <div className={cn(
-                        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
-                        paymentMethod === "cash" ? "border-amber-800 bg-amber-800" : "border-gray-300"
-                      )}>
-                        {paymentMethod === "cash" && <div className="w-2 h-2 rounded-full bg-white" />}
+                      <div
+                        className={cn(
+                          "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                          paymentMethod === "cash"
+                            ? "border-amber-800 bg-amber-800"
+                            : "border-gray-300",
+                        )}
+                      >
+                        {paymentMethod === "cash" && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
                       </div>
                     </button>
                   </div>
 
                   <div className="rounded-lg bg-gray-50 p-4 border border-gray-100 mt-6">
                     <p className="text-sm text-gray-600 italic">
-                      Lưu ý: Bạn có thể đổi hình thức thanh toán bất cứ lúc nào trước khi xác nhận đơn hàng.
+                      Lưu ý: Bạn có thể đổi hình thức thanh toán bất cứ lúc nào
+                      trước khi xác nhận đơn hàng.
                     </p>
                   </div>
                 </CardContent>
@@ -729,23 +781,35 @@ const CheckoutContent = () => {
                 </div>
 
                 <div className="text-center space-y-3 mb-8">
-                  <h2 className="text-2xl font-bold text-gray-900">Đặt hàng thành công!</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Đặt hàng thành công!
+                  </h2>
                   <p className="text-gray-500 text-sm leading-relaxed max-w-xs mx-auto">
-                    Đơn hàng <span className="font-semibold text-gray-900">#{createdOrderId}</span> đã được ghi nhận. <br />
+                    Đơn hàng{" "}
+                    <span className="font-semibold text-gray-900">
+                      #{createdOrderId}
+                    </span>{" "}
+                    đã được ghi nhận. <br />
                     Chúng tôi sẽ sớm liên hệ để xác nhận.
                   </p>
                 </div>
 
                 <Card className="w-full border-gray-100 bg-gray-50/50 mb-8 overflow-hidden">
                   <div className="p-4 border-b border-gray-100 bg-white flex justify-between items-center">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mã đơn hàng</span>
-                    <span className="font-mono text-sm font-bold text-gray-900">#{createdOrderId}</span>
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Mã đơn hàng
+                    </span>
+                    <span className="font-mono text-sm font-bold text-gray-900">
+                      #{createdOrderId}
+                    </span>
                   </div>
                   <div className="p-4 bg-white">
                     <div className="flex justify-between items-center mb-3 text-sm">
-                      <span className="text-gray-600">Phương thức thanh toán</span>
+                      <span className="text-gray-600">
+                        Phương thức thanh toán
+                      </span>
                       <span className="font-medium text-gray-900 flex items-center gap-2">
-                        {paymentMethod === 'momo' ? (
+                        {paymentMethod === "momo" ? (
                           <>
                             <Image
                               src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png"
@@ -767,7 +831,9 @@ const CheckoutContent = () => {
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-600">Tổng thanh toán</span>
                       <span className="font-bold text-lg text-amber-700">
-                        {successOrder ? formatCurrency(successOrder.paidPrice) : formatCurrency(totals.total)}
+                        {successOrder
+                          ? formatCurrency(successOrder.paidPrice)
+                          : formatCurrency(totals.total)}
                       </span>
                     </div>
                   </div>
@@ -798,10 +864,12 @@ const CheckoutContent = () => {
             )}
           </div>
 
-          <div className={cn(
-            "space-y-4 lg:sticky lg:top-28 transition-all duration-300",
-            currentStep === 2 ? "hidden" : "lg:col-span-1 block"
-          )}>
+          <div
+            className={cn(
+              "space-y-4 lg:sticky lg:top-28 transition-all duration-300",
+              currentStep === 2 ? "hidden" : "lg:col-span-1 block",
+            )}
+          >
             <Card className="border-amber-200 bg-white shadow-lg">
               <CardHeader className="pb-4 border-b border-gray-50">
                 <CardTitle className="flex items-center justify-between text-xl">
@@ -835,7 +903,10 @@ const CheckoutContent = () => {
                     </Button>
                   </div>
 
-                  <Dialog open={isPromoDialogOpen} onOpenChange={setIsPromoDialogOpen}>
+                  <Dialog
+                    open={isPromoDialogOpen}
+                    onOpenChange={setIsPromoDialogOpen}
+                  >
                     <DialogTrigger asChild>
                       <Button
                         variant="link"
@@ -853,11 +924,15 @@ const CheckoutContent = () => {
                     <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
                       <DialogHeader>
                         <DialogTitle>Mã khuyến mãi của bạn</DialogTitle>
-                        <DialogDescription>Chọn mã ưu đãi để áp dụng vào đơn hàng</DialogDescription>
+                        <DialogDescription>
+                          Chọn mã ưu đãi để áp dụng vào đơn hàng
+                        </DialogDescription>
                       </DialogHeader>
                       <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-2 scrollbar-thin">
                         {promoLoading ? (
-                          <div className="text-center py-4 text-gray-500">Đang tải mã...</div>
+                          <div className="text-center py-4 text-gray-500">
+                            Đang tải mã...
+                          </div>
                         ) : promotions.length === 0 ? (
                           <div className="text-center py-8 text-gray-500 flex flex-col items-center">
                             <TicketPercent className="w-10 h-10 text-gray-300 mb-2" />
@@ -865,32 +940,49 @@ const CheckoutContent = () => {
                           </div>
                         ) : (
                           promotions
-                            .filter(p => p.status === "ACTIVE" || p.promotionStatus === "ACTIVE")
+                            .filter(
+                              (p) =>
+                                p.status === "ACTIVE" ||
+                                p.promotionStatus === "ACTIVE",
+                            )
                             .map((promo) => (
                               <div
                                 key={promo.promotionId}
                                 className={cn(
                                   "border rounded-lg p-3 flex gap-3 cursor-pointer transition-all hover:bg-amber-50 active:scale-[0.98]",
-                                  tempSelectedVoucher?.promotionId === promo.promotionId ? "border-amber-500 bg-amber-50 ring-1 ring-amber-500" : "border-gray-200"
+                                  tempSelectedVoucher?.promotionId ===
+                                    promo.promotionId
+                                    ? "border-amber-500 bg-amber-50 ring-1 ring-amber-500"
+                                    : "border-gray-200",
                                 )}
                                 onClick={() => setTempSelectedVoucher(promo)}
                               >
                                 <div className="h-12 w-12 bg-amber-100 text-amber-700 rounded-md flex items-center justify-center shrink-0 font-bold text-xs uppercase text-center p-1">
-                                  {promo.discountType === "PERCENTAGE" ? `${promo.discountValue}%` : `${promo.discountValue / 1000}k`}
+                                  {promo.discountType === "PERCENTAGE"
+                                    ? `${promo.discountValue}%`
+                                    : `${promo.discountValue / 1000}k`}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex justify-between items-start">
-                                    <p className="font-semibold text-stone-900 truncate">{promo.promotionCode}</p>
+                                    <p className="font-semibold text-stone-900 truncate">
+                                      {promo.promotionCode}
+                                    </p>
                                     <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
                                       {promo.promotionType}
                                     </span>
                                   </div>
-                                  <p className="text-xs text-gray-600 line-clamp-1">{promo.promotionName}</p>
+                                  <p className="text-xs text-gray-600 line-clamp-1">
+                                    {promo.promotionName}
+                                  </p>
                                   <p className="text-[10px] text-gray-400 mt-1">
-                                    HSD: {new Date(promo.endDate).toLocaleDateString('vi-VN')}
+                                    HSD:{" "}
+                                    {new Date(promo.endDate).toLocaleDateString(
+                                      "vi-VN",
+                                    )}
                                   </p>
                                 </div>
-                                {tempSelectedVoucher?.promotionId === promo.promotionId && (
+                                {tempSelectedVoucher?.promotionId ===
+                                  promo.promotionId && (
                                   <div className="self-center">
                                     <CheckCircle2 className="w-5 h-5 text-amber-600" />
                                   </div>
@@ -900,7 +992,12 @@ const CheckoutContent = () => {
                         )}
                       </div>
                       <div className="pt-4 border-t border-gray-100 flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setIsPromoDialogOpen(false)}>Hủy</Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsPromoDialogOpen(false)}
+                        >
+                          Hủy
+                        </Button>
                         <Button
                           className="bg-[#693916] hover:bg-amber-900 text-white"
                           onClick={() => {
@@ -921,7 +1018,8 @@ const CheckoutContent = () => {
 
                   {appliedVoucher ? (
                     <p className="text-xs text-green-700 font-medium">
-                      ✓ Đã áp dụng mã <strong>{appliedVoucher.promotionCode}</strong>
+                      ✓ Đã áp dụng mã{" "}
+                      <strong>{appliedVoucher.promotionCode}</strong>
                     </p>
                   ) : (
                     <p className="text-xs text-gray-400">
@@ -931,22 +1029,39 @@ const CheckoutContent = () => {
                 </div>
 
                 <div className="space-y-3 py-2 border-b border-gray-50 text-sm">
-                  <Row label="Tạm tính" value={formatCurrency(totals.subtotal)} />
                   <Row
-                    label={deliveryMethod === "delivery" ? "Phí giao" : "Nhận tại quầy"}
-                    value={deliveryMethod === "delivery" ? formatCurrency(totals.shipping) : "Miễn phí"}
+                    label="Tạm tính"
+                    value={formatCurrency(totals.subtotal)}
+                  />
+                  <Row
+                    label={
+                      deliveryMethod === "delivery"
+                        ? "Phí giao"
+                        : "Nhận tại quầy"
+                    }
+                    value={
+                      deliveryMethod === "delivery"
+                        ? formatCurrency(totals.shipping)
+                        : "Miễn phí"
+                    }
                     highlight={deliveryMethod === "pickup"}
                   />
                   <Row
                     label="Giảm giá"
-                    value={appliedVoucher ? `- ${formatCurrency(totals.voucherDiscount)}` : "-"}
+                    value={
+                      appliedVoucher
+                        ? `- ${formatCurrency(totals.voucherDiscount)}`
+                        : "-"
+                    }
                     highlight={Boolean(appliedVoucher)}
                   />
                 </div>
 
                 <div className="rounded-xl p-4 shadow-md">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm opacity-80 font-medium">Tổng thanh toán</p>
+                    <p className="text-sm opacity-80 font-medium">
+                      Tổng thanh toán
+                    </p>
                     <p className="text-2xl font-bold">
                       {formatCurrency(totals.total)}
                     </p>
@@ -966,7 +1081,11 @@ const CheckoutContent = () => {
                       }
                     }}
                   >
-                    {isPlacingOrder ? "Đang xử lý..." : (currentStep === 0 ? "Tiếp tục thanh toán" : "Xác nhận đặt hàng")}
+                    {isPlacingOrder
+                      ? "Đang xử lý..."
+                      : currentStep === 0
+                        ? "Tiếp tục thanh toán"
+                        : "Xác nhận đặt hàng"}
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
 
@@ -985,18 +1104,28 @@ const CheckoutContent = () => {
 
             {remainingForFreeShip > 0 && currentStep === 0 && (
               <div className="rounded-lg bg-blue-50 p-4 border border-blue-100 flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0 text-xs font-bold">!</div>
+                <div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0 text-xs font-bold">
+                  !
+                </div>
                 <p className="text-xs text-blue-700 leading-relaxed font-medium">
-                  Mua thêm <span className="font-bold">{formatCurrency(remainingForFreeShip)}</span> nữa thôi để nhận được ưu đãi <span className="font-bold underline">MIỄN PHÍ VẬN CHUYỂN</span> bạn nhé!
+                  Mua thêm{" "}
+                  <span className="font-bold">
+                    {formatCurrency(remainingForFreeShip)}
+                  </span>{" "}
+                  nữa thôi để nhận được ưu đãi{" "}
+                  <span className="font-bold underline">
+                    MIỄN PHÍ VẬN CHUYỂN
+                  </span>{" "}
+                  bạn nhé!
                 </p>
               </div>
             )}
           </div>
         </div>
       </div>
-    </div >
+    </div>
   );
-}
+};
 
 function Row({
   label,
@@ -1024,7 +1153,13 @@ function Row({
 
 export default function CheckoutPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Đang tải...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          Đang tải...
+        </div>
+      }
+    >
       <CheckoutContent />
     </Suspense>
   );

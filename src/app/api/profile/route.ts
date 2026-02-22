@@ -22,7 +22,9 @@ async function parseJsonSafely(res: Response): Promise<unknown> {
 export async function GET(req: Request) {
   try {
     const cookieStore = await cookies();
-    const headerToken = getTokenFromAuthHeader(req.headers.get("authorization"));
+    const headerToken = getTokenFromAuthHeader(
+      req.headers.get("authorization"),
+    );
     const accessToken = headerToken ?? cookieStore.get("accessToken")?.value;
 
     if (!accessToken) {
@@ -62,7 +64,9 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   try {
     const cookieStore = await cookies();
-    const headerToken = getTokenFromAuthHeader(req.headers.get("authorization"));
+    const headerToken = getTokenFromAuthHeader(
+      req.headers.get("authorization"),
+    );
     const accessToken = headerToken ?? cookieStore.get("accessToken")?.value;
 
     if (!accessToken) {

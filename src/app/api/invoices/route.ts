@@ -42,7 +42,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = await createInvoice(body as Parameters<typeof createInvoice>[0], accessToken);
+    const data = await createInvoice(
+      body as Parameters<typeof createInvoice>[0],
+      accessToken,
+    );
     return Response.json({ code: 200, data }, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {

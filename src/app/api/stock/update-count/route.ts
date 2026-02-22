@@ -12,9 +12,9 @@ export async function PUT(req: Request) {
       return Response.json({ message: "Unauthenticated" }, { status: 401 });
     }
 
-    const body = (await req.json().catch(() => null)) as
-      | Partial<StockCheckUpdatePayload>
-      | null;
+    const body = (await req
+      .json()
+      .catch(() => null)) as Partial<StockCheckUpdatePayload> | null;
 
     if (!body || typeof body !== "object") {
       return Response.json(
@@ -28,11 +28,18 @@ export async function PUT(req: Request) {
       details: Array.isArray(body.details)
         ? body.details
             .map((detail) => ({
-              ingredientId: Number((detail as { ingredientId?: unknown }).ingredientId ?? 0),
-              actualQuantity: Number((detail as { actualQuantity?: unknown }).actualQuantity ?? 0),
-              reason: String((detail as { reason?: unknown }).reason ?? "") || null,
+              ingredientId: Number(
+                (detail as { ingredientId?: unknown }).ingredientId ?? 0,
+              ),
+              actualQuantity: Number(
+                (detail as { actualQuantity?: unknown }).actualQuantity ?? 0,
+              ),
+              reason:
+                String((detail as { reason?: unknown }).reason ?? "") || null,
             }))
-            .filter((d) => Number.isFinite(d.ingredientId) && d.ingredientId > 0)
+            .filter(
+              (d) => Number.isFinite(d.ingredientId) && d.ingredientId > 0,
+            )
         : [],
     };
 

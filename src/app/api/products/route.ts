@@ -52,7 +52,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return Response.json({ message: "Invalid request body" }, { status: 400 });
+      return Response.json(
+        { message: "Invalid request body" },
+        { status: 400 },
+      );
     }
 
     const payload = {

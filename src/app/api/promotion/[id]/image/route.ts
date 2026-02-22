@@ -70,7 +70,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
       throw new ApiError("BE error", res.status, payload);
     }
 
-    return Response.json(payload ?? { message: "Upload success" }, { status: 200 });
+    return Response.json(payload ?? { message: "Upload success" }, {
+      status: 200,
+    });
   } catch (err) {
     if (err instanceof ApiError) {
       return Response.json(

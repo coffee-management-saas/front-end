@@ -107,7 +107,9 @@ export async function createTopping(
 ): Promise<ToppingDto> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const useNextApi = shouldUseNextApi();
-  const beUrl = useNextApi ? "/api/products/toppings" : `${base}/product/toppings`;
+  const beUrl = useNextApi
+    ? "/api/products/toppings"
+    : `${base}/product/toppings`;
 
   const res = await fetch(beUrl, {
     method: "POST",

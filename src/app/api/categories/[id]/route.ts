@@ -68,13 +68,11 @@ export async function PUT(req: Request, ctx: Ctx) {
       );
     }
 
-    const body = (await req.json().catch(() => null)) as
-      | {
-          name?: string;
-          status?: string;
-          createdAt?: string;
-        }
-      | null;
+    const body = (await req.json().catch(() => null)) as {
+      name?: string;
+      status?: string;
+      createdAt?: string;
+    } | null;
 
     if (!body || (!body.name && !body.status && !body.createdAt)) {
       return Response.json(
@@ -91,7 +89,11 @@ export async function PUT(req: Request, ctx: Ctx) {
 
     const cookieStore = await cookies();
     const accessToken = cookieStore.get("accessToken")?.value;
-    const data = await updateProductCategoryById(categoryId, payload, accessToken);
+    const data = await updateProductCategoryById(
+      categoryId,
+      payload,
+      accessToken,
+    );
     return Response.json(data, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {
