@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -154,6 +154,7 @@ export default function IngredientsManagerPage() {
     const res = await fetch(`/api/ingredients?${qs.toString()}`, {
       method: "GET",
       headers: { Accept: "application/json" },
+      credentials: "same-origin",
       cache: "no-store",
     });
 
@@ -179,6 +180,7 @@ export default function IngredientsManagerPage() {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
+      credentials: "same-origin",
       body: JSON.stringify(payload),
       cache: "no-store",
     });
@@ -210,6 +212,7 @@ export default function IngredientsManagerPage() {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
+      credentials: "same-origin",
       body: JSON.stringify(payload),
       cache: "no-store",
     });

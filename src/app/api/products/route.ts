@@ -79,8 +79,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const data = await createProduct(payload);
-    return Response.json(data, { status: 200 });
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    if (!accessToken) {
+      return Response.json({ message: "Unauthenticated" }, { status: 401 });
+    }
+    const data = await createProduct(payload, {
+      accessToken,
+      viaNextApi: false,
+    });
+    return Response.json(
+      { code: 200, status: "OK", message: "OK", data },
+      { status: 200 },
+    );
   } catch (err) {
     if (err instanceof ApiError) {
       return Response.json(

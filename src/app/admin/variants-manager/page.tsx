@@ -287,6 +287,7 @@ export default function VariantsManagerPage() {
       if (statusFilter) qs.set("status", statusFilter);
 
       const res = await fetch(`/api/variants?${qs.toString()}`, {
+        credentials: "same-origin",
         cache: "no-store",
       });
       const data = (await res

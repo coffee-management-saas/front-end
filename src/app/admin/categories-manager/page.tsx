@@ -59,9 +59,10 @@ export default function Categories() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const qs = new URLSearchParams({ page: "0", size: "100" });
-        const res = await fetch(`/api/categories?${qs.toString()}`, {
+        // Load all categories without pagination
+        const res = await fetch(`/api/categories`, {
           cache: "no-store",
+          credentials: "include",
         });
         const data = (await res.json()) as ProductCategoriesResponse;
 
@@ -79,6 +80,7 @@ export default function Categories() {
           .filter((c) => c.status?.toUpperCase() !== "DELETED")
           .map(mapCategory);
 
+        // Load product counts for each category
         const counts = await Promise.all(
           items.map(async (c) => {
             try {
@@ -89,6 +91,7 @@ export default function Categories() {
               });
               const res = await fetch(`/api/products?${qs.toString()}`, {
                 cache: "no-store",
+                credentials: "include",
               });
               const pdata = (await res.json()) as ProductsResponse;
 
@@ -100,6 +103,7 @@ export default function Categories() {
           }),
         );
 
+        // Merge product counts with categories
         const withCounts = items.map((c, i) => ({
           ...c,
           productCount: counts[i] ?? 0,
@@ -118,22 +122,45 @@ export default function Categories() {
     run();
   }, []);
 
-  const filteredCategories = categories.filter((cat) => {
-    const q = searchQuery.toLowerCase();
-    return cat.name.toLowerCase().includes(q);
-  });
+  // Load product count for a specific category
+  const loadProductCount = async (categoryId: string): Promise<number> => {
+    try {
+      const qs = new URLSearchParams({
+        page: "0",
+        size: "1",
+        categoryId,
+      });
+      const res = await fetch(`/api/products?${qs.toString()}`, {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const pdata = (await res.json()) as ProductsResponse;
 
-  const handleView = (category: Category) => {
-    setSelectedCategory(category);
+      if (!res.ok || pdata?.code !== 200) return 0;
+      return pdata?.meta?.totalElements ?? pdata?.data?.length ?? 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const handleView = async (category: Category) => {
+    const count = await loadProductCount(category.id);
+    setSelectedCategory({ ...category, productCount: count });
     setDialogMode("view");
     setDialogOpen(true);
   };
 
-  const handleEdit = (category: Category) => {
-    setSelectedCategory(category);
+  const handleEdit = async (category: Category) => {
+    const count = await loadProductCount(category.id);
+    setSelectedCategory({ ...category, productCount: count });
     setDialogMode("edit");
     setDialogOpen(true);
   };
+
+  const filteredCategories = categories.filter((cat) => {
+    const q = searchQuery.toLowerCase();
+    return cat.name.toLowerCase().includes(q);
+  });
 
   const handleCreate = () => {
     setSelectedCategory(null);
@@ -152,6 +179,7 @@ export default function Categories() {
     try {
       const res = await fetch(`/api/categories/${selectedCategory.id}`, {
         method: "DELETE",
+        credentials: "include",
       });
       const data = await res.json().catch(() => null);
 
@@ -179,6 +207,7 @@ export default function Categories() {
         const res = await fetch("/api/categories", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             name: categoryData.name ?? "",
             status,
@@ -210,6 +239,7 @@ export default function Categories() {
         const res = await fetch(`/api/categories/${selectedCategory.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             name: categoryData.name ?? selectedCategory.name,
             status,

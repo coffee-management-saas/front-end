@@ -1,9 +1,14 @@
-import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { ApiError } from "@/lib/utils";
-import { createInvoice, getInvoices } from "@/services/invoices.service";
+import {
+  createInvoice,
+  getInvoices,
+} from "@/services/invoices.service";
+import type { InvoiceCreateInput } from "@/types/invoice";
+import { cookies } from "next/headers";
 
-export async function GET(req: NextRequest) {
+export const dynamic = "force-dynamic";
+
+export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const page = Number(searchParams.get("page") ?? "0");
@@ -11,8 +16,13 @@ export async function GET(req: NextRequest) {
 
     const cookieStore = await cookies();
     const accessToken = cookieStore.get("accessToken")?.value;
-
-    const data = await getInvoices({ page, size }, accessToken);
+    const data = await getInvoices(
+      {
+        page: Number.isFinite(page) ? page : 0,
+        size: Number.isFinite(size) ? size : 10,
+      },
+      accessToken,
+    );
     return Response.json(data, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {
@@ -25,16 +35,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get("accessToken")?.value;
-
-    if (!accessToken) {
-      return Response.json({ message: "Unauthenticated" }, { status: 401 });
-    }
-
-    const body = await req.json().catch(() => null);
+    const body = (await req.json().catch(() => null)) as InvoiceCreateInput | null;
     if (!body || typeof body !== "object") {
       return Response.json(
         { message: "Invalid request body" },
@@ -42,11 +45,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = await createInvoice(
-      body as Parameters<typeof createInvoice>[0],
-      accessToken,
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    if (!accessToken) {
+      return Response.json({ message: "Unauthenticated" }, { status: 401 });
+    }
+
+    const data = await createInvoice(body, accessToken);
+    return Response.json(
+      { code: 200, status: "OK", message: "OK", data },
+      { status: 200 },
     );
-    return Response.json({ code: 200, data }, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {
       return Response.json(

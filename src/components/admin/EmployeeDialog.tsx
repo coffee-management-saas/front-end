@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { EmployeeType } from "@/types/employee";
 
 export type EmployeeDialogData = {
   id?: string;
@@ -19,10 +20,9 @@ export type EmployeeDialogData = {
   phone: string;
   address: string;
   dob: string;
-  employeeType: string;
+  employeeType: EmployeeType;
   hourlyWage: number;
   weeklyHourLimit: number;
-  shopId: number | null;
 };
 
 interface EmployeeDialogProps {
@@ -41,10 +41,9 @@ type FormState = {
   phone: string;
   address: string;
   dob: string;
-  employeeType: string;
+  employeeType: EmployeeType;
   hourlyWage: string;
   weeklyHourLimit: string;
-  shopId: string;
 };
 
 const toFormState = (employee?: EmployeeDialogData | null): FormState => ({
@@ -59,15 +58,7 @@ const toFormState = (employee?: EmployeeDialogData | null): FormState => ({
   hourlyWage: employee?.hourlyWage != null ? String(employee.hourlyWage) : "0",
   weeklyHourLimit:
     employee?.weeklyHourLimit != null ? String(employee.weeklyHourLimit) : "0",
-  shopId: employee?.shopId != null ? String(employee.shopId) : "",
 });
-
-const toNumberOrNull = (value: string): number | null => {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const n = Number(trimmed);
-  return Number.isFinite(n) ? n : null;
-};
 
 export function EmployeeDialog({
   open,
@@ -97,10 +88,9 @@ export function EmployeeDialog({
       phone: formData.phone.trim(),
       address: formData.address.trim(),
       dob: formData.dob.trim(),
-      employeeType: formData.employeeType.trim() || "FULL_TIME",
+      employeeType: (formData.employeeType?.trim() || "FULL_TIME") as EmployeeType,
       hourlyWage: Number(formData.hourlyWage || 0),
       weeklyHourLimit: Number(formData.weeklyHourLimit || 0),
-      shopId: toNumberOrNull(formData.shopId),
     });
     onOpenChange(false);
   };
@@ -114,14 +104,14 @@ export function EmployeeDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-[640px] bg-card"
+        className="sm:max-w-[640px] bg-card flex max-h-[85vh] flex-col gap-3 overflow-hidden p-4"
         showCloseButton={false}
       >
         <DialogHeader>
           <DialogTitle className="text-xl">{title}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-2 pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
@@ -131,6 +121,8 @@ export function EmployeeDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, username: e.target.value })
                 }
+                autoComplete="username"
+                placeholder="employee1"
                 disabled={isViewMode}
                 className="bg-background"
               />
@@ -146,6 +138,7 @@ export function EmployeeDialog({
                   setFormData({ ...formData, password: e.target.value })
                 }
                 placeholder={mode === "edit" ? "De trong neu khong doi" : ""}
+                autoComplete={mode === "create" ? "new-password" : "current-password"}
                 disabled={isViewMode}
                 className="bg-background"
               />
@@ -160,6 +153,8 @@ export function EmployeeDialog({
               onChange={(e) =>
                 setFormData({ ...formData, fullname: e.target.value })
               }
+              autoComplete="name"
+              placeholder="Nguyen Van A"
               disabled={isViewMode}
               className="bg-background"
             />
@@ -175,6 +170,8 @@ export function EmployeeDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
                 }
+                autoComplete="email"
+                placeholder="employee1@gmail.com"
                 disabled={isViewMode}
                 className="bg-background"
               />
@@ -188,6 +185,8 @@ export function EmployeeDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, phone: e.target.value })
                 }
+                autoComplete="tel"
+                placeholder="0916693078"
                 disabled={isViewMode}
                 className="bg-background"
               />
@@ -202,6 +201,8 @@ export function EmployeeDialog({
               onChange={(e) =>
                 setFormData({ ...formData, address: e.target.value })
               }
+              autoComplete="street-address"
+              placeholder="123 Nguyen Trai, Q1, TP.HCM"
               disabled={isViewMode}
               className="bg-background"
             />
@@ -217,6 +218,7 @@ export function EmployeeDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, dob: e.target.value })
                 }
+                autoComplete="bday"
                 disabled={isViewMode}
                 className="bg-background"
               />
@@ -225,16 +227,24 @@ export function EmployeeDialog({
 
           <div className="space-y-2">
             <Label htmlFor="employeeType">Loai nhan vien</Label>
-            <Input
-              id="employeeType"
-              value={formData.employeeType}
-              onChange={(e) =>
-                setFormData({ ...formData, employeeType: e.target.value })
-              }
-              placeholder="FULL_TIME / PART_TIME / TEMPORARY"
-              disabled={isViewMode}
-              className="bg-background"
-            />
+            <div className="flex gap-2">
+              <select
+                id="employeeType"
+                value={formData.employeeType}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    employeeType: e.target.value as EmployeeType,
+                  })
+                }
+                disabled={isViewMode}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="FULL_TIME">FULL_TIME</option>
+                <option value="PART_TIME">PART_TIME</option>
+                <option value="TEMPORARY">TEMPORARY</option>
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -248,6 +258,7 @@ export function EmployeeDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, hourlyWage: e.target.value })
                 }
+                placeholder="25000"
                 disabled={isViewMode}
                 className="bg-background"
               />
@@ -263,6 +274,7 @@ export function EmployeeDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, weeklyHourLimit: e.target.value })
                 }
+                placeholder="20"
                 disabled={isViewMode}
                 className="bg-background"
               />

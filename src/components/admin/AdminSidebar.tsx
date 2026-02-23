@@ -17,6 +17,7 @@ import {
   Leaf,
   ReceiptText,
   NotebookPen,
+  Calendar,
 } from "lucide-react";
 
 import {
@@ -55,6 +56,7 @@ const menuItems: MenuItem[] = [
   { title: "Toppings", href: "/admin/toppings-manager", icon: Package },
   { title: "Công thức", href: "/admin/recipes-manager", icon: NotebookPen },
   { title: "Sizes", href: "/admin/sizes-manager", icon: Ruler },
+  { title: "Lịch làm việc", href: "/admin/schedules-manager", icon: Calendar },
   {
     title: "Biến thể sản phẩm",
     href: "/admin/variants-manager",
@@ -62,7 +64,6 @@ const menuItems: MenuItem[] = [
   },
   { title: "Nhân viên", href: "/admin/employees-manager", icon: Users },
   { title: "Kiểm tra tồn kho", href: "/admin/stock-manager", icon: Users },
-  { title: "Cài đặt", href: "/settings", icon: Settings },
 ];
 
 const cn = (...classes: Array<string | false | null | undefined>) =>

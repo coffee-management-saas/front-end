@@ -2,6 +2,12 @@ import envConfig from "@/config";
 import { ApiError } from "@/lib/utils";
 import { Variant, VariantFilter, VariantsResponse } from "@/types/variants";
 
+/** Base URL for backend API (đảm bảo có /api nếu backend dùng context path /api) */
+function getApiBase(): string {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  return base.endsWith("/api") ? base : `${base}/api`;
+}
+
 async function parseJsonSafely<T>(res: Response): Promise<T> {
   const raw = await res.text();
   if (!raw) throw new ApiError("BE tra ve rong", 502);
@@ -36,8 +42,7 @@ export async function getVariants(
   filter: VariantFilter,
   accessToken?: string,
 ): Promise<VariantsResponse> {
-  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-
+  const base = getApiBase();
   const qs = new URLSearchParams({
     page: String(filter.page),
     size: String(filter.size),
@@ -70,7 +75,7 @@ export async function createVariant(
   payload: CreateVariantPayload,
   accessToken?: string,
 ): Promise<Variant> {
-  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const base = getApiBase();
   const beUrl = `${base}/product/variants`;
 
   const res = await fetch(beUrl, {
@@ -105,7 +110,7 @@ export async function updateVariant(
   payload: CreateVariantPayload,
   accessToken?: string,
 ): Promise<Variant> {
-  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const base = getApiBase();
   const beUrl = `${base}/product/variants/${id}`;
 
   const res = await fetch(beUrl, {
@@ -129,7 +134,13 @@ export async function updateVariant(
   const raw = await res.text();
   if (!raw) {
     if (!res.ok) {
-      throw new ApiError("BE tra ve rong", res.status);
+      const msg =
+        res.status === 403
+          ? "Không có quyền cập nhật biến thể (403)"
+          : res.status === 401
+            ? "Phiên đăng nhập hết hạn (401)"
+            : `Backend trả về rỗng (status: ${res.status})`;
+      throw new ApiError(msg, res.status);
     }
     return {
       id: Number(id),
@@ -151,7 +162,8 @@ export async function updateVariant(
     throw new ApiError("BE tra ve khong phai JSON", 502, raw);
   }
 
-  if (!res.ok || data?.code !== 200) {
+  const ok = res.ok && data && (data.code === 200 || data.code === 201);
+  if (!ok) {
     throw new ApiError(data?.message || "BE error", res.status, data);
   }
 
@@ -162,7 +174,7 @@ export async function getVariantById(
   id: number | string,
   accessToken?: string,
 ): Promise<Variant> {
-  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const base = getApiBase();
   const beUrl = `${base}/product/variants/${id}`;
 
   const res = await fetch(beUrl, {

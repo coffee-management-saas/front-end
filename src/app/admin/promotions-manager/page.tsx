@@ -55,6 +55,8 @@ type PromotionFormState = {
   shopId: string;
 };
 
+type PromotionFormErrors = Partial<Record<keyof PromotionFormState, string>>;
+
 const mapStatus = (status?: string): PromotionStatus => {
   switch (status?.toUpperCase()) {
     case "ACTIVE":
@@ -104,7 +106,10 @@ const parseJsonSafely = async <T,>(res: Response): Promise<T | null> => {
 };
 
 const fetchPromotions = async (): Promise<Promotion[]> => {
-  const res = await fetch("/api/promotion", { cache: "no-store" });
+  const res = await fetch("/api/promotion", {
+    cache: "no-store",
+    credentials: "include",
+  });
   const data = await parseJsonSafely<Promotion[]>(res);
   if (!res.ok || !data) {
     throw new Error("Load promotions failed");
@@ -113,8 +118,19 @@ const fetchPromotions = async (): Promise<Promotion[]> => {
 };
 
 const fetchPromotionById = async (id: string): Promise<Promotion> => {
-  const res = await fetch(`/api/promotion/${id}`, { cache: "no-store" });
+  console.log("[fetchPromotionById] Fetching promotion id:", id);
+  const res = await fetch(`/api/promotion/${id}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  console.log(
+    "[fetchPromotionById] Response status:",
+    res.status,
+    "ok:",
+    res.ok,
+  );
   const data = await parseJsonSafely<Promotion>(res);
+  console.log("[fetchPromotionById] Response data:", data);
   if (!res.ok || !data) {
     throw new Error("Load promotion failed");
   }
@@ -128,6 +144,7 @@ const updatePromotion = async (
   const res = await fetch(`/api/promotion/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(payload),
   });
   const data = await parseJsonSafely<Promotion>(res);
@@ -138,7 +155,10 @@ const updatePromotion = async (
 };
 
 const deletePromotion = async (id: string): Promise<void> => {
-  const res = await fetch(`/api/promotion/${id}`, { method: "DELETE" });
+  const res = await fetch(`/api/promotion/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
   if (!res.ok) {
     const data = await parseJsonSafely<{ message?: string }>(res);
     throw new Error(data?.message || "Delete promotion failed");
@@ -161,7 +181,7 @@ const toLocalDateTimeInput = (input?: string) => {
 const toIsoOrUndefined = (input: string) => {
   if (!input) return undefined;
   const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return input;
+  if (Number.isNaN(d.getTime())) return undefined;
   return d.toISOString();
 };
 
@@ -241,6 +261,101 @@ const createFormState = (promotion: Promotion): PromotionFormState => ({
   shopId: String(promotion.shopId ?? 1),
 });
 
+const validatePromotionForm = (form: PromotionFormState): PromotionFormErrors => {
+  const errors: PromotionFormErrors = {};
+
+  const name = form.promotionName.trim();
+  if (!name) errors.promotionName = "Vui lòng nhập tên khuyến mãi";
+
+  const code = form.promotionCode.trim();
+  if (!code) {
+    errors.promotionCode = "Vui lòng nhập mã khuyến mãi";
+  } else if (/\s/.test(code)) {
+    errors.promotionCode = "Mã khuyến mãi không được chứa khoảng trắng";
+  } else if (!/^[A-Za-z0-9_-]+$/.test(code)) {
+    errors.promotionCode = "Mã chỉ gồm chữ/số, '-' hoặc '_'";
+  }
+
+  const shopId = Number(form.shopId);
+  if (!Number.isFinite(shopId) || shopId <= 0 || !Number.isInteger(shopId)) {
+    errors.shopId = "ShopId không hợp lệ";
+  }
+
+  if (form.promotionType !== "ORDER" && form.promotionType !== "PRODUCT") {
+    errors.promotionType = "Loại áp dụng không hợp lệ";
+  }
+
+  if (
+    form.promotionStatus !== "ACTIVE" &&
+    form.promotionStatus !== "INACTIVE" &&
+    form.promotionStatus !== "DELETED"
+  ) {
+    errors.promotionStatus = "Trạng thái không hợp lệ";
+  }
+
+  const minimumSpent = Number(form.minimumSpent);
+  if (!Number.isFinite(minimumSpent) || minimumSpent < 0) {
+    errors.minimumSpent = "Giá trị đơn tối thiểu phải >= 0";
+  }
+
+  const quantity = Number(form.quantity);
+  if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
+    errors.quantity = "Số lượng phải là số nguyên > 0";
+  }
+
+  const usageLimitPerUser = Number(form.usageLimitPerUser);
+  if (
+    !Number.isFinite(usageLimitPerUser) ||
+    usageLimitPerUser < 0 ||
+    !Number.isInteger(usageLimitPerUser)
+  ) {
+    errors.usageLimitPerUser = "Giới hạn / khách phải là số nguyên >= 0";
+  }
+
+  if (
+    form.discountType !== "PERCENTAGE" &&
+    form.discountType !== "FIXED_AMOUNT"
+  ) {
+    errors.discountType = "Kiểu giảm giá không hợp lệ";
+  }
+
+  const discountValue = Number(form.discountValue);
+  if (!Number.isFinite(discountValue) || discountValue <= 0) {
+    errors.discountValue = "Giá trị giảm phải > 0";
+  } else if (form.discountType === "PERCENTAGE" && discountValue > 100) {
+    errors.discountValue = "Phần trăm giảm tối đa là 100%";
+  }
+
+  const maxDiscountAmount = Number(form.maxDiscountAmount);
+  if (!Number.isFinite(maxDiscountAmount) || maxDiscountAmount < 0) {
+    errors.maxDiscountAmount = "Giảm tối đa phải >= 0";
+  }
+
+  if (!form.startDate) {
+    errors.startDate = "Vui lòng chọn ngày bắt đầu";
+  } else if (!toIsoOrUndefined(form.startDate)) {
+    errors.startDate = "Ngày bắt đầu không hợp lệ";
+  }
+
+  if (!form.endDate) {
+    errors.endDate = "Vui lòng chọn ngày kết thúc";
+  } else if (!toIsoOrUndefined(form.endDate)) {
+    errors.endDate = "Ngày kết thúc không hợp lệ";
+  }
+
+  const startIso = toIsoOrUndefined(form.startDate);
+  const endIso = toIsoOrUndefined(form.endDate);
+  if (startIso && endIso) {
+    const start = new Date(startIso).getTime();
+    const end = new Date(endIso).getTime();
+    if (Number.isFinite(start) && Number.isFinite(end) && end <= start) {
+      errors.endDate = "Ngày kết thúc phải sau ngày bắt đầu";
+    }
+  }
+
+  return errors;
+};
+
 export default function PromotionsManagerPage() {
   const [promotions, setPromotions] = useState<PromotionRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -256,6 +371,7 @@ export default function PromotionsManagerPage() {
   const [createSaving, setCreateSaving] = useState(false);
   const [createImageFile, setCreateImageFile] = useState<File | null>(null);
   const [createImageUploading, setCreateImageUploading] = useState(false);
+  const [createTouched, setCreateTouched] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState<PromotionFormState | null>(null);
@@ -263,6 +379,11 @@ export default function PromotionsManagerPage() {
   const [editImageUploading, setEditImageUploading] = useState(false);
   const [selectedPromotion, setSelectedPromotion] =
     useState<PromotionRow | null>(null);
+
+  const createErrors = useMemo(() => {
+    if (!createForm || !createTouched) return {} as PromotionFormErrors;
+    return validatePromotionForm(createForm);
+  }, [createForm, createTouched]);
 
   useEffect(() => {
     const run = async () => {
@@ -361,6 +482,7 @@ export default function PromotionsManagerPage() {
     }
   };
   const handleCreate = () => {
+    setCreateTouched(false);
     setCreateForm(
       createFormState({
         promotionId: 0,
@@ -392,6 +514,7 @@ export default function PromotionsManagerPage() {
     const res = await fetch("/api/promotion", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(payload),
     });
     const data = await parseJsonSafely<Promotion>(res);
@@ -403,22 +526,40 @@ export default function PromotionsManagerPage() {
 
   const handleCreateSubmit = async () => {
     if (!createForm) return;
+    setCreateTouched(true);
+    const errors = validatePromotionForm(createForm);
+    if (Object.keys(errors).length) {
+      const first = Object.values(errors).find(Boolean);
+      toast.error(first || "Vui lòng kiểm tra lại dữ liệu");
+      return;
+    }
     setCreateSaving(true);
     try {
+      const startDateIso = toIsoOrUndefined(createForm.startDate);
+      const endDateIso = toIsoOrUndefined(createForm.endDate);
+      if (!startDateIso || !endDateIso) {
+        toast.error("Ngày bắt đầu/kết thúc không hợp lệ");
+        return;
+      }
+
       const discountValue = Number(createForm.discountValue) || 0;
+      const discountType = createForm.discountType;
       const payload = {
         promotionName: createForm.promotionName.trim(),
-        promotionCode: createForm.promotionCode.trim(),
+        promotionCode: createForm.promotionCode.trim().toUpperCase(),
         promotionType: createForm.promotionType,
         shopId: Number(createForm.shopId) || 1,
         minimumSpent: Number(createForm.minimumSpent) || 0,
         quantity: Number(createForm.quantity) || 0,
-        discountType: createForm.discountType,
+        discountType,
         discountValue,
-        maxDiscountAmount: Number(createForm.maxDiscountAmount) || 0,
+        maxDiscountAmount:
+          discountType === "FIXED_AMOUNT"
+            ? 0
+            : Number(createForm.maxDiscountAmount) || 0,
         usageLimitPerUser: Number(createForm.usageLimitPerUser) || 0,
-        startDate: toIsoOrUndefined(createForm.startDate),
-        endDate: toIsoOrUndefined(createForm.endDate),
+        startDate: startDateIso,
+        endDate: endDateIso,
         promotionStatus: createForm.promotionStatus,
         imageUrl: createForm.imageUrl.trim() || undefined,
       };
@@ -453,6 +594,7 @@ export default function PromotionsManagerPage() {
       setCreateDialogOpen(false);
       setCreateForm(null);
       setCreateImageFile(null);
+      setCreateTouched(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Create promotion failed";
       toast.error(msg);
@@ -1118,7 +1260,15 @@ export default function PromotionsManagerPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+      <Dialog
+        open={createDialogOpen}
+        onOpenChange={(open) => {
+          setCreateDialogOpen(open);
+          if (!open) {
+            setCreateTouched(false);
+          }
+        }}
+      >
         <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Thêm khuyến mãi</DialogTitle>
@@ -1139,7 +1289,13 @@ export default function PromotionsManagerPage() {
                       prev ? { ...prev, promotionName: e.target.value } : prev,
                     )
                   }
+                  aria-invalid={Boolean(createErrors.promotionName)}
                 />
+                {createTouched && createErrors.promotionName ? (
+                  <p className="text-xs text-destructive">
+                    {createErrors.promotionName}
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid gap-2">
@@ -1151,14 +1307,24 @@ export default function PromotionsManagerPage() {
                       prev ? { ...prev, promotionCode: e.target.value } : prev,
                     )
                   }
+                  aria-invalid={Boolean(createErrors.promotionCode)}
                 />
+                {createTouched && createErrors.promotionCode ? (
+                  <p className="text-xs text-destructive">
+                    {createErrors.promotionCode}
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">Loại áp dụng</label>
                   <select
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    className={`h-10 rounded-md border bg-background px-3 text-sm ${
+                      createTouched && createErrors.promotionType
+                        ? "border-destructive"
+                        : "border-input"
+                    }`}
                     value={createForm.promotionType}
                     onChange={(e) =>
                       setCreateForm((prev) =>
@@ -1175,12 +1341,21 @@ export default function PromotionsManagerPage() {
                     <option value="ORDER">Đơn hàng</option>
                     <option value="PRODUCT">Sản phẩm</option>
                   </select>
+                  {createTouched && createErrors.promotionType ? (
+                    <p className="text-xs text-destructive">
+                      {createErrors.promotionType}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">Trạng thái</label>
                   <select
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    className={`h-10 rounded-md border bg-background px-3 text-sm ${
+                      createTouched && createErrors.promotionStatus
+                        ? "border-destructive"
+                        : "border-input"
+                    }`}
                     value={createForm.promotionStatus}
                     onChange={(e) =>
                       setCreateForm((prev) =>
@@ -1197,6 +1372,11 @@ export default function PromotionsManagerPage() {
                     <option value="ACTIVE">Đang áp dụng</option>
                     <option value="INACTIVE">Tạm ngưng</option>
                   </select>
+                  {createTouched && createErrors.promotionStatus ? (
+                    <p className="text-xs text-destructive">
+                      {createErrors.promotionStatus}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -1213,7 +1393,13 @@ export default function PromotionsManagerPage() {
                         prev ? { ...prev, minimumSpent: e.target.value } : prev,
                       )
                     }
+                    aria-invalid={Boolean(createErrors.minimumSpent)}
                   />
+                  {createTouched && createErrors.minimumSpent ? (
+                    <p className="text-xs text-destructive">
+                      {createErrors.minimumSpent}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">Số lượng</label>
@@ -1225,7 +1411,13 @@ export default function PromotionsManagerPage() {
                         prev ? { ...prev, quantity: e.target.value } : prev,
                       )
                     }
+                    aria-invalid={Boolean(createErrors.quantity)}
                   />
+                  {createTouched && createErrors.quantity ? (
+                    <p className="text-xs text-destructive">
+                      {createErrors.quantity}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -1233,7 +1425,11 @@ export default function PromotionsManagerPage() {
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">Kiểu giảm giá</label>
                   <select
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    className={`h-10 rounded-md border bg-background px-3 text-sm ${
+                      createTouched && createErrors.discountType
+                        ? "border-destructive"
+                        : "border-input"
+                    }`}
                     value={createForm.discountType}
                     onChange={(e) =>
                       setCreateForm((prev) =>
@@ -1250,6 +1446,11 @@ export default function PromotionsManagerPage() {
                     <option value="PERCENTAGE">Phần trăm</option>
                     <option value="FIXED_AMOUNT">Giá trị cố định</option>
                   </select>
+                  {createTouched && createErrors.discountType ? (
+                    <p className="text-xs text-destructive">
+                      {createErrors.discountType}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">Giá trị giảm</label>
@@ -1263,7 +1464,13 @@ export default function PromotionsManagerPage() {
                           : prev,
                       )
                     }
+                    aria-invalid={Boolean(createErrors.discountValue)}
                   />
+                  {createTouched && createErrors.discountValue ? (
+                    <p className="text-xs text-destructive">
+                      {createErrors.discountValue}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -1280,7 +1487,13 @@ export default function PromotionsManagerPage() {
                           : prev,
                       )
                     }
+                    aria-invalid={Boolean(createErrors.maxDiscountAmount)}
                   />
+                  {createTouched && createErrors.maxDiscountAmount ? (
+                    <p className="text-xs text-destructive">
+                      {createErrors.maxDiscountAmount}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">
@@ -1296,7 +1509,13 @@ export default function PromotionsManagerPage() {
                           : prev,
                       )
                     }
+                    aria-invalid={Boolean(createErrors.usageLimitPerUser)}
                   />
+                  {createTouched && createErrors.usageLimitPerUser ? (
+                    <p className="text-xs text-destructive">
+                      {createErrors.usageLimitPerUser}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -1311,7 +1530,13 @@ export default function PromotionsManagerPage() {
                         prev ? { ...prev, startDate: e.target.value } : prev,
                       )
                     }
+                    aria-invalid={Boolean(createErrors.startDate)}
                   />
+                  {createTouched && createErrors.startDate ? (
+                    <p className="text-xs text-destructive">
+                      {createErrors.startDate}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">Ngày kết thúc</label>
@@ -1323,7 +1548,13 @@ export default function PromotionsManagerPage() {
                         prev ? { ...prev, endDate: e.target.value } : prev,
                       )
                     }
+                    aria-invalid={Boolean(createErrors.endDate)}
                   />
+                  {createTouched && createErrors.endDate ? (
+                    <p className="text-xs text-destructive">
+                      {createErrors.endDate}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 

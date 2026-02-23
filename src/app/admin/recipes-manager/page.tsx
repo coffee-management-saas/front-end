@@ -154,6 +154,11 @@ const toForm = (): RecipeForm => ({
   ],
 });
 
+const STORAGE = {
+  productId: "recipes.selectedProductId",
+  viewVariantId: "recipes.viewVariantId",
+} as const;
+
 const resolveVariantSize = (variant: ProductVariant): string => {
   if (typeof variant.size === "string") return variant.size;
   if (variant.size && typeof variant.size === "object") {
@@ -190,11 +195,6 @@ const formatUnitLabel = (unit?: IngredientBaseUnit): string => {
 };
 
 export default function RecipesManagerPage() {
-  const STORAGE = {
-    productId: "recipes.selectedProductId",
-    viewVariantId: "recipes.viewVariantId",
-  } as const;
-
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<RecipeForm>(() => toForm());
   const [submitting, setSubmitting] = useState(false);
@@ -303,7 +303,10 @@ export default function RecipesManagerPage() {
         const items = normalizeProducts(data).filter(Boolean);
         setProducts(items);
         if (items.length > 0) {
-          setSelectedProductId((prev) => (prev === "" ? items[0].id : prev));
+          setSelectedProductId((prev) => {
+            if (prev === "") return items[0].id;
+            return items.some((p) => p.id === prev) ? prev : items[0].id;
+          });
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Load products failed";
@@ -366,10 +369,7 @@ export default function RecipesManagerPage() {
     if (!found) return;
     setViewMode(true);
     setSelectedVariant(found);
-    setForm((prev) => ({
-      ...toForm(),
-      variantId: Number(found.id),
-    }));
+    setForm({ ...toForm(), variantId: Number(found.id) });
     setDialogOpen(true);
   }, [pendingViewVariantId, safeVariants]);
 
@@ -415,6 +415,7 @@ export default function RecipesManagerPage() {
       setRecipesLoading(true);
       try {
         const res = await fetch(`/api/recipes/variant/${variantId}`, {
+          credentials: "same-origin",
           cache: "no-store",
         });
         const data = await parseJsonSafely<RecipeResponse>(res);
@@ -514,6 +515,7 @@ export default function RecipesManagerPage() {
       const res = await fetch("/api/recipes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify(payload),
       });
       const data = await parseJsonSafely<RecipeApiResponse>(res);
@@ -656,7 +658,9 @@ export default function RecipesManagerPage() {
                       colSpan={4}
                       className="text-center py-10 text-muted-foreground"
                     >
-                      Vui lòng chọn biến thể phù hợp.
+                      {safeVariants.length === 0
+                        ? "Sản phẩm này chưa có biến thể."
+                        : "Không tìm thấy biến thể phù hợp."}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -687,10 +691,10 @@ export default function RecipesManagerPage() {
                             }
                             setViewMode(true);
                             setSelectedVariant(variant);
-                            setForm((prev) => ({
+                            setForm({
                               ...toForm(),
                               variantId: Number(variant.id),
-                            }));
+                            });
                             setDialogOpen(true);
                             if (typeof window !== "undefined") {
                               window.localStorage.setItem(
@@ -801,6 +805,14 @@ export default function RecipesManagerPage() {
                 {variantsLoading ? (
                   <option value="" disabled>
                     Đang tải danh sách biến thể...
+                  </option>
+                ) : variantsError ? (
+                  <option value="" disabled>
+                    {variantsError}
+                  </option>
+                ) : safeVariants.length === 0 ? (
+                  <option value="" disabled>
+                    Sản phẩm này chưa có biến thể
                   </option>
                 ) : (
                   safeVariants.map((variant) => {

@@ -67,7 +67,10 @@ export default function SizesManagerPage() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const res = await fetch("/api/sizes", { cache: "no-store" });
+        const res = await fetch("/api/sizes", {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
         const data = (await res.json().catch(() => null)) as unknown;
 
         if (!res.ok || !Array.isArray(data)) {

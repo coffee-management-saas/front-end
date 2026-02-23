@@ -1,68 +1,14 @@
-import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { ApiError } from "@/lib/utils";
 import {
   createIngredient,
   getIngredients,
 } from "@/services/ingredient.service";
-import type {
-  IngredientBaseUnit,
-  IngredientInventoryStatus,
-  IngredientStorageType,
-} from "@/types/ingredient";
+import type { IngredientInput } from "@/types/ingredient";
+import { cookies } from "next/headers";
 
-function parseBaseUnit(v: unknown): IngredientBaseUnit | undefined {
-  const allowed: IngredientBaseUnit[] = [
-    "GRAM",
-    "KILOGRAM",
-    "LITER",
-    "MILLILITER",
-    "PIECE",
-    "PAIR",
-  ];
-  if (allowed.includes(v as IngredientBaseUnit)) return v as IngredientBaseUnit;
-  if (typeof v === "string") {
-    const up = v.toUpperCase() as IngredientBaseUnit;
-    return allowed.includes(up) ? up : undefined;
-  }
-  return undefined;
-}
+export const dynamic = "force-dynamic";
 
-function parseStorageType(v: unknown): IngredientStorageType | undefined {
-  const allowed: IngredientStorageType[] = [
-    "NORMAL",
-    "COOL",
-    "FROZEN",
-    "DRY",
-    "REFRIGERATED",
-  ];
-  if (allowed.includes(v as IngredientStorageType))
-    return v as IngredientStorageType;
-  if (typeof v === "string") {
-    const up = v.toUpperCase() as IngredientStorageType;
-    return allowed.includes(up) ? up : undefined;
-  }
-  return undefined;
-}
-
-function parseInventoryStatus(
-  v: unknown,
-): IngredientInventoryStatus | undefined {
-  const allowed: IngredientInventoryStatus[] = [
-    "ACTIVE",
-    "INACTIVE",
-    "DELETED",
-  ];
-  if (allowed.includes(v as IngredientInventoryStatus))
-    return v as IngredientInventoryStatus;
-  if (typeof v === "string") {
-    const up = v.toUpperCase() as IngredientInventoryStatus;
-    return allowed.includes(up) ? up : undefined;
-  }
-  return undefined;
-}
-
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const page = Number(searchParams.get("page") ?? "0");
@@ -70,8 +16,10 @@ export async function GET(req: NextRequest) {
 
     const cookieStore = await cookies();
     const accessToken = cookieStore.get("accessToken")?.value;
-
-    const data = await getIngredients({ page, size }, accessToken);
+    const data = await getIngredients(
+      { page: Number.isFinite(page) ? page : 0, size: Number.isFinite(size) ? size : 10 },
+      accessToken,
+    );
     return Response.json(data, { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {
@@ -84,16 +32,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get("accessToken")?.value;
-
-    if (!accessToken) {
-      return Response.json({ message: "Unauthenticated" }, { status: 401 });
-    }
-
-    const body = await req.json().catch(() => null);
+    const body = (await req.json().catch(() => null)) as IngredientInput | null;
     if (!body || typeof body !== "object") {
       return Response.json(
         { message: "Invalid request body" },
@@ -101,40 +42,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const payload = {
-      name: String((body as { name?: unknown }).name ?? "").trim(),
-      skuCode: String((body as { skuCode?: unknown }).skuCode ?? "").trim(),
-      baseUnit:
-        parseBaseUnit((body as { baseUnit?: unknown }).baseUnit) ?? "GRAM",
-      minStockAlert: Number(
-        (body as { minStockAlert?: unknown }).minStockAlert ?? 0,
-      ),
-      storageType:
-        parseStorageType((body as { storageType?: unknown }).storageType) ??
-        "NORMAL",
-      inventoryStatus:
-        parseInventoryStatus(
-          (body as { inventoryStatus?: unknown }).inventoryStatus,
-        ) ?? "ACTIVE",
-    };
-
-    if (!payload.name) {
-      return Response.json({ message: "Missing name" }, { status: 400 });
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    if (!accessToken) {
+      return Response.json({ message: "Unauthenticated" }, { status: 401 });
     }
 
-    if (!payload.skuCode) {
-      return Response.json({ message: "Missing skuCode" }, { status: 400 });
-    }
-
-    if (!Number.isFinite(payload.minStockAlert) || payload.minStockAlert < 0) {
-      return Response.json(
-        { message: "Invalid minStockAlert" },
-        { status: 400 },
-      );
-    }
-
-    const data = await createIngredient(payload, accessToken);
-    return Response.json(data, { status: 200 });
+    const data = await createIngredient(body, accessToken);
+    return Response.json(
+      { code: 200, status: "OK", message: "OK", data },
+      { status: 200 },
+    );
   } catch (err) {
     if (err instanceof ApiError) {
       return Response.json(

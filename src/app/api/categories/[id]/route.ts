@@ -89,14 +89,32 @@ export async function PUT(req: Request, ctx: Ctx) {
 
     const cookieStore = await cookies();
     const accessToken = cookieStore.get("accessToken")?.value;
+    console.log(
+      "[PUT /api/categories/:id] id:",
+      categoryId,
+      "hasToken:",
+      !!accessToken,
+      "payload:",
+      payload,
+    );
     const data = await updateProductCategoryById(
       categoryId,
       payload,
       accessToken,
     );
+    console.log("[PUT /api/categories/:id] Success response:", data);
     return Response.json(data, { status: 200 });
   } catch (err) {
+    console.error("[PUT /api/categories/:id] Error:", err);
     if (err instanceof ApiError) {
+      console.error(
+        "[PUT /api/categories/:id] ApiError - status:",
+        err.status,
+        "message:",
+        err.message,
+        "payload:",
+        err.payload,
+      );
       return Response.json(
         { message: err.message, payload: err.payload },
         { status: err.status },

@@ -105,23 +105,31 @@ export async function getProductById(
   return payload.data;
 }
 
-export async function createProduct(payload: ProductInput): Promise<Product> {
+export async function createProduct(
+  payload: ProductInput,
+  options?: { accessToken?: string; viaNextApi?: boolean },
+): Promise<Product> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/products`;
+  const useNextApi = shouldUseNextApi(options);
+  const beUrl = useNextApi
+    ? "/api/products"
+    : `${base}/product/products`;
 
   const res = await fetch(beUrl, {
     method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...(useNextApi ? {} : authHeaders(options?.accessToken)),
     },
+    credentials: useNextApi ? "same-origin" : "omit",
     body: JSON.stringify(payload),
     cache: "no-store",
   });
 
   const data = await parseJsonSafely<ApiEnvelope<Product>>(res);
-
-  if (!res.ok || !data || data.code !== 200) {
+  const ok = res.ok && data && (data.code === 200 || data.code === 201);
+  if (!ok) {
     throw new ApiError(data?.message || "BE error", res.status, data);
   }
 
@@ -152,8 +160,8 @@ export async function updateProductById(
   });
 
   const data = await parseJsonSafely<ApiEnvelope<Product>>(res);
-
-  if (!res.ok || !data || data.code !== 200) {
+  const ok = res.ok && data && (data.code === 200 || data.code === 201);
+  if (!ok) {
     throw new ApiError(data?.message || "BE error", res.status, data);
   }
 

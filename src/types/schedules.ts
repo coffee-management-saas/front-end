@@ -25,6 +25,37 @@ export type SchedulesResponse = {
   meta?: ScheduleMeta;
 };
 
+export type SchedulesByEmployeeResponse = {
+  code: number;
+  status?: string;
+  message?: string;
+  data: ScheduleDto[];
+};
+
+export type CreateScheduleInput = {
+  employeeId: number;
+  startTime: string;
+  endTime: string;
+  task: string;
+  isRecurring: boolean;
+};
+
+export type CreateScheduleResponse = {
+  code: number;
+  status?: string;
+  message?: string;
+  data: ScheduleDto;
+};
+
+export type UpdateScheduleInput = CreateScheduleInput;
+
+export type UpdateScheduleResponse = {
+  code: number;
+  status?: string;
+  message?: string;
+  data: ScheduleDto;
+};
+
 export type ScheduleFilter = {
   page: number;
   size: number;

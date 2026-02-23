@@ -10,6 +10,16 @@ export type ShopEmployeeDetail = {
   updatedAt?: string;
 };
 
+export type EmployeeDto = {
+  employeeId: number;
+  shopId: number;
+  userProfileId: number;
+  employeeType: EmployeeType;
+  hourlyWage: number;
+  weeklyHourLimit: number;
+  updatedAt?: string;
+};
+
 export type ShopEmployeeProfile = {
   userProfileId?: number;
   username: string;
@@ -48,3 +58,51 @@ export type CreateShopEmployeeResponse =
     }
   | ShopEmployeeProfile
   | null;
+
+export type CreateEmployeeResponseEnvelope = {
+  code: number;
+  status?: string;
+  message?: string;
+  data?: ShopEmployeeProfile | null;
+};
+
+export type EmployeesMeta = {
+  currentPage: number;
+  size: number;
+  lastPage: number;
+  totalElements: number;
+};
+
+export type EmployeesResponse = {
+  code: number;
+  status?: string;
+  message?: string;
+  data: EmployeeDto[];
+  meta?: EmployeesMeta;
+};
+
+export type EmployeesFilter = {
+  page: number;
+  size: number;
+};
+
+export type EmployeeDetailResponse = {
+  code: number;
+  status?: string;
+  message?: string;
+  data: ShopEmployeeProfile;
+};
+
+export type UpdateEmployeeInput = {
+  userProfileId: number;
+  employeeType: EmployeeType;
+  hourlyWage: number;
+  weeklyHourLimit: number;
+};
+
+export type UpdateEmployeeResponse = {
+  code: number;
+  status?: string;
+  message?: string;
+  data: EmployeeDto;
+};

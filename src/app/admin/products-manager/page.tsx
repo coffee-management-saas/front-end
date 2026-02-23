@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Eye, Pencil, Plus, Search, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -236,35 +236,45 @@ export default function ProductsManagerPage() {
 
     setEditSaving(true);
     try {
+      let data: Product | null = null;
       if (editMode === "create") {
-        const data = await createProduct(payload);
-        const newRow = mapProduct(data);
-        const filterId = categoryFilter ? Number(categoryFilter) : undefined;
-        const matchesFilter =
-          !filterId || Number.isNaN(filterId) || newRow.categoryId === filterId;
-
-        if (matchesFilter) {
-          setProducts((prev) => [newRow, ...prev]);
-        }
-
-        toast.success(`Đã thêm sản phẩm "${data.name}"`);
+        data = await createProduct(payload);
       } else {
-        const data = await updateProductById(
+        data = await updateProductById(
           selectedProduct?.id ?? "",
           payload,
         );
-        const updatedRow = mapProduct(data);
-        setProducts((prev) =>
-          prev.map((p) => (p.id === updatedRow.id ? updatedRow : p)),
-        );
-        toast.success(`Đã cập nhật sản phẩm "${data.name}"`);
       }
 
+      // Đóng modal và reset form ngay khi API thành công
       setEditDialogOpen(false);
       setSelectedProduct(null);
       setEditForm(null);
       setEditMode("edit");
 
+      // Cập nhật danh sách ngay (optimistic)
+      if (data) {
+        const row = mapProduct(data);
+        if (editMode === "create") {
+          const filterId = categoryFilter ? Number(categoryFilter) : undefined;
+          const matchesFilter =
+            !filterId || Number.isNaN(filterId) || row.categoryId === filterId;
+          if (matchesFilter) {
+            setProducts((prev) => [row, ...prev]);
+          }
+        } else {
+          setProducts((prev) =>
+            prev.map((p) => (p.id === row.id ? row : p)),
+          );
+        }
+        toast.success(
+          editMode === "create"
+            ? `Đã thêm sản phẩm "${data.name}"`
+            : `Đã cập nhật sản phẩm "${data.name}"`,
+        );
+      }
+
+      // Refetch để đồng bộ với server (chạy nền, không chặn UI)
       void fetchProducts();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Save product failed";
@@ -374,8 +384,8 @@ export default function ProductsManagerPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="w-full">
+            <Table className="w-full table-fixed">
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="font-semibold">Sản phẩm</TableHead>
@@ -383,7 +393,7 @@ export default function ProductsManagerPage() {
                     Ảnh
                   </TableHead>
                   <TableHead className="font-semibold">Danh mục</TableHead>
-                  <TableHead className="font-semibold">Miêu tả</TableHead>
+                  <TableHead className="font-semibold w-[20%]">Miêu tả</TableHead>
                   <TableHead className="font-semibold text-center">
                     Trạng thái
                   </TableHead>
@@ -442,8 +452,8 @@ export default function ProductsManagerPage() {
                       <TableCell className="text-muted-foreground">
                         {product.categoryName}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {product.description}
+                      <TableCell className="text-muted-foreground max-w-0 truncate" title={product.description ?? undefined}>
+                        {product.description ?? "—"}
                       </TableCell>
                       <TableCell className="text-center">
                         <span className={statusBadgeClass(product.status)}>
@@ -539,85 +549,87 @@ export default function ProductsManagerPage() {
       </Dialog>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto py-4">
+          <DialogHeader className="space-y-1 pb-2">
+            <DialogTitle className="text-lg">
               {editMode === "create" ? "Thêm sản phẩm" : "Chỉnh sửa sản phẩm"}
             </DialogTitle>
           </DialogHeader>
 
           {editLoading || !editForm ? (
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground py-2">
               Đang tải dữ liệu sản phẩm...
             </div>
           ) : (
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Tên sản phẩm</label>
-                <Input
-                  value={editForm.name}
-                  onChange={(e) =>
-                    setEditForm((prev) =>
-                      prev ? { ...prev, name: e.target.value } : prev,
-                    )
-                  }
-                />
+            <div className="grid gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid gap-1">
+                  <label className="text-sm font-medium">Tên sản phẩm</label>
+                  <Input
+                    className="h-9"
+                    value={editForm.name}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, name: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <label className="text-sm font-medium">Danh mục</label>
+                  <select
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={editForm.categoryId}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, categoryId: e.target.value } : prev,
+                      )
+                    }
+                  >
+                    <option value="">Chọn danh mục</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Danh mục</label>
-                <select
-                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                  value={editForm.categoryId}
-                  onChange={(e) =>
-                    setEditForm((prev) =>
-                      prev ? { ...prev, categoryId: e.target.value } : prev,
-                    )
-                  }
-                >
-                  <option value="">Chọn danh mục</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid gap-1">
+                  <label className="text-sm font-medium">Trạng thái</label>
+                  <select
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={editForm.status}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev
+                          ? { ...prev, status: e.target.value as ProductStatus }
+                          : prev,
+                      )
+                    }
+                  >
+                    <option value="ACTIVE">Đang hoạt động</option>
+                    <option value="INACTIVE">Tạm ngưng</option>
+                  </select>
+                </div>
+                <div className="grid gap-1">
+                  <label className="text-sm font-medium">Ảnh (URL)</label>
+                  <Input
+                    className="h-9"
+                    value={editForm.image}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, image: e.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
               </div>
-
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Trạng thái</label>
-                <select
-                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                  value={editForm.status}
-                  onChange={(e) =>
-                    setEditForm((prev) =>
-                      prev
-                        ? { ...prev, status: e.target.value as ProductStatus }
-                        : prev,
-                    )
-                  }
-                >
-                  <option value="ACTIVE">Đang hoạt động</option>
-                  <option value="INACTIVE">Tạm ngưng</option>
-                </select>
-              </div>
-
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Ảnh (URL)</label>
-                <Input
-                  value={editForm.image}
-                  onChange={(e) =>
-                    setEditForm((prev) =>
-                      prev ? { ...prev, image: e.target.value } : prev,
-                    )
-                  }
-                />
-              </div>
-
-              <div className="grid gap-2">
+              <div className="grid gap-1">
                 <label className="text-sm font-medium">Mô tả</label>
                 <textarea
-                  className="min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-y"
                   value={editForm.description}
                   onChange={(e) =>
                     setEditForm((prev) =>
@@ -629,7 +641,7 @@ export default function ProductsManagerPage() {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="pt-2 gap-2">
             <Button
               variant="ghost"
               onClick={() => setEditDialogOpen(false)}

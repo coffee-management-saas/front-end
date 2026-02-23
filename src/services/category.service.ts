@@ -198,8 +198,8 @@ export async function getProductCategories(params: {
   const useNextApi = shouldUseNextApi(params.options);
   const filter = encodeURIComponent(JSON.stringify({ page, size }));
   const beUrl = useNextApi
-    ? `/api/categories?page=${page}&size=${size}`
-    : `${base}/categories?filter=${filter}`;
+    ? `/api/product/categories?page=${page}&size=${size}`
+    : `${base}/product/categories?filter=${filter}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -229,7 +229,16 @@ export async function deleteProductCategoryById(
   accessToken?: string,
 ): Promise<DeleteResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/categories/${id}`;
+  const beUrl = `${base}/product/categories/${id}`;
+
+  console.log(
+    "[deleteProductCategoryById] id:",
+    id,
+    "beUrl:",
+    beUrl,
+    "hasToken:",
+    !!accessToken,
+  );
 
   const res = await fetch(beUrl, {
     method: "DELETE",
@@ -240,9 +249,24 @@ export async function deleteProductCategoryById(
     cache: "no-store",
   });
 
+  console.log(
+    "[deleteProductCategoryById] Response status:",
+    res.status,
+    "ok:",
+    res.ok,
+  );
+
   const payload = await parseJsonSafely(res);
 
+  console.log("[deleteProductCategoryById] Response payload:", payload);
+
   if (!res.ok) {
+    console.error(
+      "[deleteProductCategoryById] Error - status:",
+      res.status,
+      "payload:",
+      payload,
+    );
     throw new ApiError("BE error", res.status, payload);
   }
 
@@ -270,7 +294,7 @@ export async function updateProductCategoryById(
   accessToken?: string,
 ) {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/categories/${id}`;
+  const beUrl = `${base}/product/categories/${id}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
@@ -283,9 +307,24 @@ export async function updateProductCategoryById(
     cache: "no-store",
   });
 
+  console.log(
+    "[updateProductCategoryById] Response status:",
+    res.status,
+    "ok:",
+    res.ok,
+  );
+
   const payload = await parseJsonSafely(res);
 
+  console.log("[updateProductCategoryById] Response payload:", payload);
+
   if (!res.ok) {
+    console.error(
+      "[updateProductCategoryById] Error - status:",
+      res.status,
+      "payload:",
+      payload,
+    );
     throw new ApiError("BE error", res.status, payload);
   }
 
@@ -317,7 +356,7 @@ export async function createProductCategory(body: {
   accessToken?: string;
 }) {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/categories`;
+  const beUrl = `${base}/product/categories`;
 
   const res = await fetch(beUrl, {
     method: "POST",
@@ -336,9 +375,24 @@ export async function createProductCategory(body: {
     cache: "no-store",
   });
 
+  console.log(
+    "[createProductCategory] Response status:",
+    res.status,
+    "ok:",
+    res.ok,
+  );
+
   const payload = await parseJsonSafely(res);
 
+  console.log("[createProductCategory] Response payload:", payload);
+
   if (!res.ok) {
+    console.error(
+      "[createProductCategory] Error - status:",
+      res.status,
+      "payload:",
+      payload,
+    );
     throw new ApiError("BE error", res.status, payload);
   }
 
@@ -361,4 +415,30 @@ export async function createProductCategory(body: {
   }
 
   return normalized;
+}
+
+// GET by ID
+export async function getCategoryById(
+  id: string | number,
+  accessToken?: string,
+): Promise<ProductCategoriesResponse> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/product/categories/${id}`;
+
+  const res = await fetch(beUrl, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonSafely(res);
+
+  if (!res.ok) {
+    throw new ApiError("BE error", res.status, payload);
+  }
+
+  return normalizeCategories(payload);
 }

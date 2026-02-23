@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Eye, FileText, Search, Package2, Plus, Trash2 } from "lucide-react";
@@ -200,6 +200,23 @@ const toUnitOptions = [
   "PAIR",
 ] as const;
 
+// Nhãn tiếng Việt cho đơn vị (hiển thị cho người dùng)
+const fromUnitLabels: Record<(typeof fromUnitOptions)[number], string> = {
+  BOX: "Hộp",
+  PACK: "Gói",
+  DOZEN: "Tá (12 cái)",
+  BOTTLE: "Chai",
+  BAG: "Túi",
+};
+const toUnitLabels: Record<(typeof toUnitOptions)[number], string> = {
+  GRAM: "Gam",
+  KILOGRAM: "Ki-lô-gam",
+  LITER: "Lít",
+  MILLILITER: "Mi-li-lít",
+  PIECE: "Cái",
+  PAIR: "Đôi",
+};
+
 export default function InvoicesManagerPage() {
   const [invoices, setInvoices] = useState<InvoiceDto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -229,6 +246,7 @@ export default function InvoicesManagerPage() {
       try {
         const qs = new URLSearchParams({ page: "0", size: "200" });
         const res = await fetch(`/api/invoices?${qs.toString()}`, {
+          credentials: "same-origin",
           cache: "no-store",
         });
         const data = await parseJsonSafely<InvoiceApiResponse>(res);
@@ -306,6 +324,7 @@ export default function InvoicesManagerPage() {
 
     try {
       const res = await fetch(`/api/invoices/${invoice.id}`, {
+        credentials: "same-origin",
         cache: "no-store",
       });
       const data = await parseJsonSafely<InvoiceApiResponse>(res);
@@ -404,6 +423,7 @@ export default function InvoicesManagerPage() {
       const res = await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify(payload),
       });
       const data = await parseJsonSafely<InvoiceApiResponse>(res);
@@ -453,6 +473,7 @@ export default function InvoicesManagerPage() {
       const res = await fetch("/api/unit-conversions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify(payload),
       });
       const data = await parseJsonSafely<UnitConversionApiResponse>(res);
@@ -869,7 +890,7 @@ export default function InvoicesManagerPage() {
                                     </option>
                                     {fromUnitOptions.map((unit) => (
                                       <option key={unit} value={unit}>
-                                        {unit}
+                                        {fromUnitLabels[unit]}
                                       </option>
                                     ))}
                                   </select>
@@ -1094,7 +1115,7 @@ export default function InvoicesManagerPage() {
           <DialogHeader>
             <DialogTitle>Quy đổi đơn vị</DialogTitle>
             <DialogDescription>
-              Thiết lập quy đổi đơn vị cho nguyên liệu.
+              Thiết lập quy đổi từ đơn vị nhập (hộp, gói, chai…) sang đơn vị chuẩn (gam, lít, cái…).
             </DialogDescription>
           </DialogHeader>
 
@@ -1130,7 +1151,7 @@ export default function InvoicesManagerPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="fromUnit">Từ đơn vị</Label>
+              <Label htmlFor="fromUnit">Đơn vị nguồn (từ)</Label>
               <select
                 id="fromUnit"
                 className="h-9 text-sm w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -1143,18 +1164,18 @@ export default function InvoicesManagerPage() {
                 }
               >
                 <option value="" disabled>
-                  Chọn đơn vị
+                  Chọn đơn vị nguồn
                 </option>
                 {fromUnitOptions.map((unit) => (
                   <option key={unit} value={unit}>
-                    {unit}
+                    {fromUnitLabels[unit]}
                   </option>
                 ))}
               </select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="toUnit">Sang đơn vị</Label>
+              <Label htmlFor="toUnit">Đơn vị đích (sang)</Label>
               <select
                 id="toUnit"
                 className="h-9 text-sm w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -1167,11 +1188,11 @@ export default function InvoicesManagerPage() {
                 }
               >
                 <option value="" disabled>
-                  Chọn đơn vị
+                  Chọn đơn vị đích
                 </option>
                 {toUnitOptions.map((unit) => (
                   <option key={unit} value={unit}>
-                    {unit}
+                    {toUnitLabels[unit]}
                   </option>
                 ))}
               </select>
@@ -1201,7 +1222,7 @@ export default function InvoicesManagerPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="block">Chuẩn</Label>
+              <Label className="block">Đặt làm đơn vị chuẩn mặc định</Label>
               <div className="flex items-center gap-2">
                 <Switch
                   checked={unitForm.isStandard}

@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const page = Number(searchParams.get("page") ?? "0");
-    const size = Number(searchParams.get("size") ?? "10");
+    const size = Number(searchParams.get("size") ?? "100");
 
     const cookieStore = await cookies();
     const accessToken = cookieStore.get("accessToken")?.value;
@@ -30,10 +30,9 @@ export async function GET(req: NextRequest) {
     const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
     const qs = new URLSearchParams({
       page: String(Number.isFinite(page) ? page : 0),
-      size: String(Number.isFinite(size) ? size : 10),
+      size: String(Number.isFinite(size) ? size : 100),
     });
-
-    const beUrl = `${base}/employee/schedules?${qs.toString()}`;
+    const beUrl = `${base}/employee/unavailability?${qs.toString()}`;
 
     const res = await fetch(beUrl, {
       method: "GET",
@@ -47,7 +46,8 @@ export async function GET(req: NextRequest) {
     const data = await parseJsonSafely<unknown>(res);
     if (!res.ok) {
       const msg =
-        (data as { message?: string } | null)?.message || "Get schedules failed";
+        (data as { message?: string } | null)?.message ||
+        "Get unavailability failed";
       throw new ApiError(msg, res.status, data);
     }
 
@@ -73,17 +73,20 @@ export async function POST(req: NextRequest) {
     const obj = body as Record<string, unknown>;
     const payload = {
       employeeId: Number(obj.employeeId),
+      reason: String(obj.reason ?? "").trim(),
       startTime: String(obj.startTime ?? "").trim(),
       endTime: String(obj.endTime ?? "").trim(),
-      task: String(obj.task ?? "").trim(),
+      specificDate: String(obj.specificDate ?? "").trim(),
       isRecurring: Boolean(obj.isRecurring),
+      status: obj.status != null ? String(obj.status).trim() : undefined,
     };
 
     if (
       !Number.isFinite(payload.employeeId) ||
+      !payload.reason ||
       !payload.startTime ||
       !payload.endTime ||
-      !payload.task
+      !payload.specificDate
     ) {
       return Response.json(
         { message: "Missing required fields" },
@@ -98,7 +101,7 @@ export async function POST(req: NextRequest) {
     }
 
     const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-    const beUrl = `${base}/employee/schedules`;
+    const beUrl = `${base}/employee/unavailability`;
 
     const res = await fetch(beUrl, {
       method: "POST",
@@ -108,13 +111,14 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(payload),
+      cache: "no-store",
     });
 
     const data = await parseJsonSafely<unknown>(res);
     if (!res.ok) {
       const msg =
         (data as { message?: string } | null)?.message ||
-        "Create schedule failed";
+        "Create unavailability failed";
       throw new ApiError(msg, res.status, data);
     }
 
@@ -129,3 +133,4 @@ export async function POST(req: NextRequest) {
     return Response.json({ message: "Server error" }, { status: 500 });
   }
 }
+

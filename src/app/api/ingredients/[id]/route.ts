@@ -1,57 +1,26 @@
-import { cookies } from "next/headers";
-import envConfig from "@/config";
 import { ApiError } from "@/lib/utils";
+import {
+  getIngredientById,
+  updateIngredientById,
+} from "@/services/ingredient.service";
+import type { IngredientInput } from "@/types/ingredient";
+import { cookies } from "next/headers";
 
-function parseJsonSafely<T>(raw: string): T | null {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-async function getAccessToken(): Promise<string | null> {
-  const cookieStore = await cookies();
-  return cookieStore.get("accessToken")?.value ?? null;
-}
+export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: Request,
-  context: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      return Response.json(
-        { message: "Missing access token" },
-        { status: 401 },
-      );
-    }
-
-    const { id } = await context.params;
-    const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-    const beUrl = `${base}/inventory/ingredients/${id}`;
-
-    const res = await fetch(beUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      cache: "no-store",
-    });
-
-    const raw = await res.text();
-    const data = parseJsonSafely<unknown>(raw);
-    if (!res.ok) {
-      return Response.json(
-        { message: "BE error", payload: data, raw },
-        { status: res.status },
-      );
-    }
-
-    return Response.json(data ?? raw, { status: 200 });
+    const { id } = await params;
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    const data = await getIngredientById(id, accessToken);
+    return Response.json(
+      { code: 200, status: "OK", message: "OK", data },
+      { status: 200 },
+    );
   } catch (err) {
     if (err instanceof ApiError) {
       return Response.json(
@@ -65,43 +34,29 @@ export async function GET(
 
 export async function PUT(
   req: Request,
-  context: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const accessToken = await getAccessToken();
+    const { id } = await params;
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
     if (!accessToken) {
+      return Response.json({ message: "Unauthenticated" }, { status: 401 });
+    }
+
+    const payload = (await req.json().catch(() => null)) as Partial<IngredientInput> | null;
+    if (!payload || typeof payload !== "object") {
       return Response.json(
-        { message: "Missing access token" },
-        { status: 401 },
+        { message: "Invalid request body" },
+        { status: 400 },
       );
     }
 
-    const body = await req.json().catch(() => null);
-    const { id } = await context.params;
-    const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-    const beUrl = `${base}/inventory/ingredients/${id}`;
-
-    const res = await fetch(beUrl, {
-      method: "PUT",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(body ?? {}),
-      cache: "no-store",
-    });
-
-    const raw = await res.text();
-    const data = parseJsonSafely<unknown>(raw);
-    if (!res.ok) {
-      return Response.json(
-        { message: "BE error", payload: data, raw },
-        { status: res.status },
-      );
-    }
-
-    return Response.json(data ?? raw, { status: 200 });
+    const data = await updateIngredientById(id, payload, accessToken);
+    return Response.json(
+      { code: 200, status: "OK", message: "OK", data },
+      { status: 200 },
+    );
   } catch (err) {
     if (err instanceof ApiError) {
       return Response.json(
