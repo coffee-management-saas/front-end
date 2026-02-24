@@ -25,6 +25,7 @@ import envConfig from "@/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Home } from "lucide-react";
 
 const formSchema = z.object({
   username: z
@@ -131,7 +132,17 @@ export default function RegisterForm() {
 
   return (
     <div className="h-screen w-screen overflow-hidden flex items-center justify-center p-4">
-      <Card className="w-full sm:max-w-sm p-0 max-h-[90vh] overflow-hidden">
+      <Card className="relative w-full sm:max-w-sm p-0 max-h-[90vh] overflow-hidden">
+        <Button
+          asChild
+          variant="ghost"
+          size="icon-sm"
+          className="absolute left-2 top-2 z-10"
+        >
+          <Link href="/" aria-label="Về trang chủ">
+            <Home className="size-4" />
+          </Link>
+        </Button>
         <div className="flex justify-center pt-2 pb-0 -mb-4">
           <Image
             src="https://i.pinimg.com/1200x/fc/da/b7/fcdab7e591105149942a91cea82afbf1.jpg"

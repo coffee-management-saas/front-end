@@ -1,18 +1,7 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  ArrowUpRight,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  PauseCircle,
-  Percent,
-  Plus,
-  Search,
-  Tag,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Copy, Filter, Gift, Percent, Search, Tag } from "lucide-react";
 
 import {
   Card,
@@ -23,287 +12,556 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAppContext } from "@/app/AppProvider";
+import { ApiError } from "@/lib/utils";
+import { getPromotions } from "@/services/promotion.service";
+import type { Promotion as PromotionDto } from "@/types/promotion";
 
- type Status = "active" | "scheduled" | "expired";
+type Status = "active" | "scheduled" | "expired";
 
-type Promotion = {
+type PromotionRow = {
   id: number;
   name: string;
   code: string;
-  type: "percent" | "amount";
-  value: number;
+  valueLabel: string;
   condition: string;
-  channel: "POS" | "App" | "Tất cả";
-  start: string;
-  end: string;
+  minimumSpentLabel: string;
+  startIso: string;
+  endIso: string;
+  startLabel: string;
+  endLabel: string;
   status: Status;
-  usage: number;
-  limit: number;
 };
-
-const PROMOS: Promotion[] = [
-  {
-    id: 1,
-    name: "Combo sáng -10%",
-    code: "MORNING10",
-    type: "percent",
-    value: 10,
-    condition: "Áp dụng 07:00-11:00, đơn từ 80K",
-    channel: "POS",
-    start: "20/01/2026",
-    end: "31/01/2026",
-    status: "active",
-    usage: 124,
-    limit: 500,
-  },
-  {
-    id: 2,
-    name: "Giảm 20K cho đơn 120K",
-    code: "SAVE20",
-    type: "amount",
-    value: 20000,
-    condition: "Đơn từ 120K, áp dụng App",
-    channel: "App",
-    start: "25/01/2026",
-    end: "10/02/2026",
-    status: "scheduled",
-    usage: 0,
-    limit: 800,
-  },
-  {
-    id: 3,
-    name: "Mua 2 latte tặng 1",
-    code: "LATTE3",
-    type: "percent",
-    value: 100,
-    condition: "Tặng ly thứ 3 rẻ nhất",
-    channel: "Tất cả",
-    start: "05/01/2026",
-    end: "18/01/2026",
-    status: "expired",
-    usage: 362,
-    limit: 400,
-  },
-];
 
 const statusLabel: Record<Status, string> = {
   active: "Đang chạy",
-  scheduled: "Lên lịch",
+  scheduled: "Sắp diễn ra",
   expired: "Hết hạn",
 };
 
+function tabLabel(v: Status | "all"): string {
+  if (v === "all") return "Tất cả";
+  return statusLabel[v];
+}
+
+function toDateKeyLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatDateKeyVi(dateKey: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
+  const [y, m, d] = dateKey.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function isPromoActiveOnDate(
+  dateKey: string,
+  startIso?: string | null,
+  endIso?: string | null,
+): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return true;
+  const dayStart = new Date(`${dateKey}T00:00:00`);
+  if (Number.isNaN(dayStart.getTime())) return true;
+  const dayEndMs = dayStart.getTime() + 24 * 60 * 60 * 1000 - 1;
+  const dayStartMs = dayStart.getTime();
+
+  const startMs = Date.parse(String(startIso ?? ""));
+  const endMs = Date.parse(String(endIso ?? ""));
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return true;
+
+  // overlap [startMs, endMs] with [dayStartMs, dayEndMs]
+  return startMs <= dayEndMs && endMs >= dayStartMs;
+}
+
 const statusStyle: Record<Status, string> = {
   active: "bg-green-100 text-green-700 border-green-200",
-  scheduled: "bg-blue-100 text-blue-700 border-blue-200",
-  expired: "bg-gray-100 text-gray-600 border-gray-200",
+  scheduled: "bg-amber-100 text-amber-800 border-amber-200",
+  expired: "bg-transparent text-red-600 border-transparent",
 };
 
-const percent = (usage: number, limit: number) =>
-  limit > 0 ? Math.min(100, Math.round((usage / limit) * 100)) : 0;
+const formatMoney = new Intl.NumberFormat("vi-VN");
+
+function formatDateOnly(input?: string | null): string {
+  if (!input) return "—";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return input;
+  return d.toLocaleDateString("vi-VN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+function computeStatus(dto: PromotionDto, nowMs = Date.now()): Status {
+  const rawStatus = String(
+    dto.status ?? dto.promotionStatus ?? "",
+  ).toUpperCase();
+  if (rawStatus === "DELETED") return "expired";
+  if (rawStatus === "INACTIVE") return "expired";
+
+  const startMs = Date.parse(dto.startDate ?? "");
+  const endMs = Date.parse(dto.endDate ?? "");
+
+  if (Number.isFinite(startMs) && nowMs < startMs) return "scheduled";
+  if (Number.isFinite(endMs) && nowMs > endMs) return "expired";
+  return "active";
+}
+
+function buildCondition(dto: PromotionDto): string {
+  const parts: string[] = [];
+  if (Number(dto.minimumSpent) > 0) {
+    parts.push(
+      `Đơn tối thiểu ${formatMoney.format(Number(dto.minimumSpent))}đ`,
+    );
+  }
+  if (dto.discountType === "PERCENTAGE" && Number(dto.maxDiscountAmount) > 0) {
+    parts.push(`Tối đa ${formatMoney.format(Number(dto.maxDiscountAmount))}đ`);
+  }
+  if (Number(dto.usageLimitPerUser) > 0) {
+    parts.push(
+      `Giới hạn/user ${formatMoney.format(Number(dto.usageLimitPerUser))}`,
+    );
+  }
+  if (dto.promotionType === "ORDER") parts.push("Áp dụng: Đơn hàng");
+  if (dto.promotionType === "PRODUCT") parts.push("Áp dụng: Sản phẩm");
+  return parts.length ? parts.join(" • ") : "—";
+}
+
+function toPromotionRow(dto: PromotionDto): PromotionRow {
+  const status = computeStatus(dto);
+  const value = Number(dto.discountValue) || 0;
+  const name =
+    String(dto.promotionName ?? "").trim() ||
+    String(dto.promotionCode ?? "").trim() ||
+    `#${dto.promotionId}`;
+  const code = String(dto.promotionCode ?? "").trim();
+  const startIso = String(dto.startDate ?? "");
+  const endIso = String(dto.endDate ?? "");
+  const startLabel = formatDateOnly(dto.startDate);
+  const endLabel = formatDateOnly(dto.endDate);
+
+  const minimumSpentLabel =
+    Number(dto.minimumSpent) > 0
+      ? `${formatMoney.format(Number(dto.minimumSpent))}đ`
+      : "—";
+
+  const valueLabel =
+    dto.promotionType === "PRODUCT"
+      ? "Quà tặng"
+      : dto.discountType === "PERCENTAGE"
+        ? `${value}%`
+        : value === 0
+          ? "Free"
+          : `${formatMoney.format(value)}đ`;
+
+  return {
+    id: Number(dto.promotionId),
+    name,
+    code,
+    condition: buildCondition(dto),
+    valueLabel,
+    minimumSpentLabel,
+    startIso,
+    endIso,
+    startLabel,
+    endLabel,
+    status,
+  };
+}
 
 export default function PromotionPage() {
+  const { accessToken } = useAppContext();
   const [keyword, setKeyword] = useState("");
   const [tab, setTab] = useState<Status | "all">("all");
+  const [dateKey, setDateKey] = useState<string>("");
 
-  const stats = useMemo(() => {
-    return {
-      total: PROMOS.length,
-      active: PROMOS.filter((p) => p.status === "active").length,
-      scheduled: PROMOS.filter((p) => p.status === "scheduled").length,
-      expired: PROMOS.filter((p) => p.status === "expired").length,
+  const [promotions, setPromotions] = useState<PromotionRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const list = await getPromotions(undefined);
+        const mapped = Array.isArray(list) ? list.map(toPromotionRow) : [];
+        if (!cancelled) setPromotions(mapped.filter(Boolean));
+      } catch (e) {
+        if (cancelled) return;
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+          setError(
+            "Bạn không có quyền xem khuyến mãi. Vui lòng đăng nhập lại.",
+          );
+        } else {
+          setError(
+            e instanceof Error ? e.message : "Không tải được khuyến mãi",
+          );
+        }
+        setPromotions([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
-  }, []);
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
 
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    return PROMOS.filter((p) => {
+    return promotions.filter((p) => {
       const matchKw =
         !kw ||
         p.name.toLowerCase().includes(kw) ||
         p.code.toLowerCase().includes(kw) ||
         p.condition.toLowerCase().includes(kw);
       const matchTab = tab === "all" || p.status === tab;
-      return matchKw && matchTab;
+      const matchDate = dateKey
+        ? isPromoActiveOnDate(dateKey, p.startIso, p.endIso)
+        : true;
+      return matchKw && matchTab && matchDate;
     });
-  }, [keyword, tab]);
+  }, [keyword, tab, dateKey, promotions]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p className="text-sm text-gray-500">Khuyến mãi</p>
-          <h1 className="text-2xl font-semibold text-stone-900">
+          <p className="text-xl text-[#693916] font-semibold flex items-center gap-2">
+            <Gift className="w-4 h-4" />
             Chương trình ưu đãi
-          </h1>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" size="sm">
-            <Tag className="w-4 h-4" /> Mẫu có sẵn
-          </Button>
-          <Button className="gap-2" size="sm">
-            <Plus className="w-4 h-4" /> Tạo khuyến mãi
-          </Button>
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Quản lý và theo dõi thời gian hiệu lực khuyến mãi
+          </p>
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-amber-200 bg-amber-50/70">
-          <CardHeader className="pb-1 pt-1 px-2">
-            <CardTitle className="text-[10px] text-amber-900 flex items-center gap-1">
-              <Percent className="w-3 h-3" /> Tổng số CTKM
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-2 px-2">
-            <p className="text-lg font-bold text-stone-900 leading-tight">
-              {stats.total}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-green-200 bg-green-50/70">
-          <CardHeader className="pb-1 pt-1 px-2">
-            <CardTitle className="text-[10px] text-green-900 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> Đang chạy
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-2 px-2">
-            <p className="text-lg font-bold text-stone-900 leading-tight">
-              {stats.active}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-blue-200 bg-blue-50/70">
-          <CardHeader className="pb-1 pt-1 px-2">
-            <CardTitle className="text-[10px] text-blue-900 flex items-center gap-1">
-              <Clock className="w-3 h-3" /> Lên lịch
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-2 px-2">
-            <p className="text-lg font-bold text-stone-900 leading-tight">
-              {stats.scheduled}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-gray-200 bg-gray-50">
-          <CardHeader className="pb-1 pt-1 px-2">
-            <CardTitle className="text-[10px] text-gray-800 flex items-center gap-1">
-              <PauseCircle className="w-3 h-3" /> Hết hạn
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-2 px-2">
-            <p className="text-lg font-bold text-stone-900 leading-tight">
-              {stats.expired}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-2 py-1 shadow-sm">
-          {["all", "active", "scheduled", "expired"].map((st) => {
-            const label =
-              st === "all"
-                ? "Tất cả"
-                : st === "active"
-                  ? "Đang chạy"
-                  : st === "scheduled"
-                    ? "Lên lịch"
-                    : "Hết hạn";
-            return (
-              <Button
-                key={st}
-                size="sm"
-                variant={tab === st ? "default" : "ghost"}
-                className={`rounded-full h-8 px-3 text-[11px] ${
-                  tab === st ? "" : "text-gray-600 hover:bg-gray-100"
-                }`}
-                onClick={() => setTab(st as Status | "all")}
-              >
-                {label}
-              </Button>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-2 py-1.5 shadow-sm min-w-[240px]">
+        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-2 py-1.5 shadow-sm flex-1 min-w-[220px] max-w-[420px]">
           <Search className="w-4 h-4 text-gray-400" />
           <Input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="Tìm tên / mã / điều kiện"
+            placeholder="Tìm theo tên hoặc mã khuyến mãi..."
             className="border-0 shadow-none focus-visible:ring-0 text-xs h-8 px-2"
           />
         </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              type="button"
+              className="border border-gray-200 bg-[#cec3bc]/35"
+              aria-label={`Bộ lọc: ${tabLabel(tab)}`}
+            >
+              <Filter className="w-4 h-4 text-gray-600" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>Lọc trạng thái</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup
+              value={tab}
+              onValueChange={(v) => setTab(v as Status | "all")}
+            >
+              <DropdownMenuRadioItem value="all">Tất cả</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="active">
+                Đang chạy
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="scheduled">
+                Sắp diễn ra
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="expired">
+                Hết hạn
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Theo ngày</DropdownMenuLabel>
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                setDateKey(toDateKeyLocal(new Date()));
+              }}
+            >
+              Khuyến mãi hôm nay
+            </DropdownMenuItem>
+            {dateKey ? (
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setDateKey("");
+                }}
+              >
+                Bỏ lọc ngày
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {/* List */}
-      <Card>
-        <CardHeader className="px-3 py-2.5 border-b">
-          <CardTitle className="text-sm">Danh sách chương trình</CardTitle>
-          <CardDescription className="text-xs">
-            Kiểm soát trạng thái, thời gian, giới hạn lượt dùng
-          </CardDescription>
+      <Card className="py-0 gap-0">
+        <CardHeader className="px-3 py-2 border-b !pb-2 gap-1">
+          <CardTitle className="text-sm ">Danh sách khuyến mãi</CardTitle>
         </CardHeader>
+
         <CardContent className="p-0">
-          <div className="divide-y">
+          {error ? (
+            <div className="px-4 py-3 text-sm text-red-700 bg-red-50 border-b">
+              {error}
+            </div>
+          ) : null}
+
+          {/* Mobile list (no horizontal scroll) */}
+          <div className="md:hidden divide-y">
+            {loading && promotions.length === 0
+              ? Array.from({ length: 6 }).map((_, idx) => (
+                  <div key={idx} className="px-4 py-4 space-y-3">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-2/3" />
+                      <Skeleton className="h-3 w-1/3" />
+                      <Skeleton className="h-7 w-24 rounded-full" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                      <div className="space-y-2">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              : null}
+
+            {!loading && filtered.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-gray-600">
+                Không tìm thấy khuyến mãi phù hợp.
+              </div>
+            ) : null}
+
             {filtered.map((p) => {
-              const progress = percent(p.usage, p.limit);
               return (
-                <div key={p.id} className="px-3 py-2.5 grid grid-cols-12 gap-2.5 items-start">
-                  <div className="col-span-12 sm:col-span-4 space-y-0.5">
-                    <p className="font-semibold text-stone-900 text-sm">{p.name}</p>
-                    <p className="text-[11px] text-gray-600">Mã: {p.code}</p>
+                <div key={p.id} className="px-4 py-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-stone-900 text-base truncate">
+                        {p.name}
+                      </div>
+                    </div>
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${statusStyle[p.status]}`}
+                      className={`shrink-0 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold border whitespace-nowrap ${statusStyle[p.status]}`}
                     >
                       {statusLabel[p.status]}
                     </span>
                   </div>
 
-                  <div className="col-span-6 sm:col-span-3 text-[13px] text-gray-700 space-y-0.5">
-                    <p className="font-semibold text-stone-900 flex items-center gap-1">
-                      {p.type === "percent" ? `${p.value}%` : `${p.value.toLocaleString("vi-VN")}đ`} <ArrowUpRight className="w-3.5 h-3.5 text-amber-700" />
-                    </p>
-                    <p className="text-[11px] text-gray-600">{p.condition}</p>
-                    <p className="text-[11px] text-gray-600">Kênh: {p.channel}</p>
-                  </div>
-
-                  <div className="col-span-6 sm:col-span-3 text-[11px] text-gray-700 space-y-0.5">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-gray-500" /> {p.start} - {p.end}
+                  <div className="grid grid-cols-2 gap-3 text-sm text-gray-700">
+                    <div>
+                      <div className="text-[11px] text-gray-500">Giá trị</div>
+                      <div className="font-semibold text-stone-900">
+                        {p.valueLabel}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-gray-600">Lượt dùng: {p.usage}/{p.limit}</div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`${
-                          p.status === "expired"
-                            ? "bg-gray-300"
-                            : p.status === "scheduled"
-                              ? "bg-blue-400"
-                              : "bg-green-500"
-                        } h-full transition-all`}
-                        style={{ width: `${progress}%` }}
-                      />
+                    <div>
+                      <div className="text-[11px] text-gray-500">
+                        Đơn tối thiểu
+                      </div>
+                      <div className="font-medium">{p.minimumSpentLabel}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500">Thời gian</div>
+                      <div className="font-medium">
+                        {p.startLabel} – {p.endLabel}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="col-span-12 sm:col-span-2 flex flex-wrap gap-2 justify-end text-xs">
-                    <Button variant="outline" size="sm" className="h-8 px-3">Chỉnh sửa</Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-3 text-red-600 hover:text-red-700">
-                      Ngưng
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 text-gray-600"
+                      aria-label="Copy mã"
+                      onClick={async () => {
+                        const text = p.code || "";
+                        if (!text) return;
+                        try {
+                          await navigator.clipboard.writeText(text);
+                        } catch {
+                          // ignore
+                        }
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
               );
             })}
+          </div>
 
-            {filtered.length === 0 && (
-              <div className="px-4 py-6 text-center text-sm text-gray-600 flex flex-col items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-                Không tìm thấy chương trình phù hợp.
-              </div>
-            )}
+          {/* Desktop table */}
+          <div className="hidden md:block">
+            <table className="w-full text-xs leading-tight table-fixed">
+              <thead className="bg-gray-50 text-gray-600 border-b">
+                <tr>
+                  <th className="text-left px-2.5 py-2 font-semibold w-[14%]">
+                    Mã
+                  </th>
+                  <th className="text-left px-2.5 py-2 font-semibold w-[22%]">
+                    Tên
+                  </th>
+                  <th className="text-left px-2.5 py-2 font-semibold w-[14%]">
+                    Giá trị
+                  </th>
+                  <th className="text-left px-2.5 py-2 font-semibold w-[16%]">
+                    Đơn tối thiểu
+                  </th>
+                  <th className="text-left px-2.5 py-2 font-semibold w-[20%]">
+                    Thời gian
+                  </th>
+                  <th className="text-left px-2.5 py-2 font-semibold w-[10%]">
+                    Trạng thái
+                  </th>
+                  <th className="text-right px-2.5 py-2 font-semibold w-[4%]">
+                    &nbsp;
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y">
+                {loading && promotions.length === 0
+                  ? Array.from({ length: 6 }).map((_, idx) => (
+                      <tr key={idx}>
+                        <td className="px-2.5 py-2">
+                          <Skeleton className="h-3 w-20" />
+                        </td>
+                        <td className="px-2.5 py-2">
+                          <Skeleton className="h-4 w-44" />
+                        </td>
+                        <td className="px-2.5 py-2">
+                          <Skeleton className="h-4 w-20" />
+                        </td>
+                        <td className="px-2.5 py-2">
+                          <Skeleton className="h-4 w-24" />
+                        </td>
+                        <td className="px-2.5 py-2">
+                          <Skeleton className="h-3 w-24" />
+                          <Skeleton className="h-3 w-24 mt-2" />
+                        </td>
+                        <td className="px-2.5 py-2">
+                          <Skeleton className="h-7 w-24 rounded-full" />
+                        </td>
+                        <td className="px-2.5 py-2 text-right">
+                          <Skeleton className="h-8 w-10 ml-auto" />
+                        </td>
+                      </tr>
+                    ))
+                  : null}
+
+                {!loading && filtered.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-4 py-10 text-center text-sm text-gray-600"
+                    >
+                      Không tìm thấy khuyến mãi phù hợp.
+                    </td>
+                  </tr>
+                ) : null}
+
+                {filtered.map((p) => {
+                  return (
+                    <tr key={p.id} className="hover:bg-gray-50/60">
+                      <td className="px-2.5 py-2">
+                        <div className="text-[11px] text-[#683a04] font-mono truncate">
+                          {p.code || `#${p.id}`}
+                        </div>
+                      </td>
+
+                      <td className="px-2.5 py-2">
+                        <div className="font-semibold text-stone-900 text-sm truncate">
+                          {p.name}
+                        </div>
+                      </td>
+
+                      <td className="px-2.5 py-2">
+                        <div className="font-semibold text-stone-900">
+                          {p.valueLabel}
+                        </div>
+                      </td>
+
+                      <td className="px-2.5 py-2 text-gray-700">
+                        <span className="truncate block">
+                          {p.minimumSpentLabel}
+                        </span>
+                      </td>
+
+                      <td className="px-2.5 py-2 text-gray-700">
+                        <div className="truncate">{p.startLabel}</div>
+                        <div className="truncate">{p.endLabel}</div>
+                      </td>
+
+                      <td className="px-2.5 py-2">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold border whitespace-nowrap ${statusStyle[p.status]}`}
+                        >
+                          {statusLabel[p.status]}
+                        </span>
+                      </td>
+
+                      <td className="px-2.5 py-2">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-600"
+                            aria-label="Copy mã"
+                            onClick={async () => {
+                              const text = p.code || "";
+                              if (!text) return;
+                              try {
+                                await navigator.clipboard.writeText(text);
+                              } catch {
+                                // ignore
+                              }
+                            }}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>

@@ -23,6 +23,29 @@ function shouldUseNextApi(options?: { viaNextApi?: boolean }) {
   }
   return typeof window !== "undefined";
 }
+
+function readPromotionsFromPayload(payload: unknown): Promotion[] {
+  if (Array.isArray(payload)) return payload as Promotion[];
+  if (!payload || typeof payload !== "object") return [];
+  const obj = payload as Record<string, unknown>;
+  const data = obj.data;
+  return Array.isArray(data) ? (data as Promotion[]) : [];
+}
+
+function readErrorFromPayload(
+  payload: unknown,
+): { code: number; message: string } | null {
+  if (!payload || typeof payload !== "object") return null;
+  const obj = payload as Record<string, unknown>;
+  const rawCode = obj.code;
+  const code = typeof rawCode === "number" ? rawCode : Number(rawCode);
+  if (!Number.isFinite(code) || code < 400) return null;
+  const message =
+    typeof obj.message === "string" && obj.message.trim()
+      ? obj.message
+      : "BE error";
+  return { code, message };
+}
 // Get all promotions
 export async function getPromotions(
   accessToken?: string,
@@ -43,10 +66,18 @@ export async function getPromotions(
     cache: "no-store",
   });
 
-  const data = (await parseJsonSafely<Promotion[]>(res)) ?? [];
+  const payload = await parseJsonSafely<unknown>(res);
+
+  // Some BE responses may return an envelope (code/message/data) even with HTTP 200.
+  const beError = readErrorFromPayload(payload);
+  if (beError) {
+    throw new ApiError(beError.message, beError.code, payload);
+  }
+
+  const data = readPromotionsFromPayload(payload);
 
   if (!res.ok) {
-    throw new ApiError("BE error", res.status, data);
+    throw new ApiError("BE error", res.status, payload);
   }
 
   return data;

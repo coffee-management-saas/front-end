@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   Home,
   Menu,
@@ -10,7 +11,13 @@ import {
   Settings,
   Heart,
   LogOut,
+  BookOpen,
+  Gift,
 } from "lucide-react";
+import { useState } from "react";
+import { logoutFromNextClientToNextServer } from "@/services/auth.service";
+import { useAppContext } from "@/app/AppProvider";
+import { DeleteConfirmDialog } from "@/components/admin/DeleteConfirmDialog";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -18,6 +25,10 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen = true }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { setTokens } = useAppContext();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   const menuItems = [
     { icon: Home, label: "Quản lý", href: "/staff" },
@@ -28,14 +39,30 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
       href: "/staff/order",
       badge: 0,
     },
-    { icon: Clock, label: "Công thức", href: "/staff/recipe" },
+    { icon: BookOpen, label: "Công thức", href: "/staff/recipe" },
   ];
 
   const bottomItems = [
     { icon: Users, label: "Nhân viên", href: "/staff/employees" },
+    { icon: Gift, label: "Khuyến mãi", href: "/staff/promotion" },
     { icon: Settings, label: "Cài đặt", href: "/settings" },
-    { icon: Heart, label: "Khuyến mãi", href: "/staff/promotion" },
   ];
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logoutFromNextClientToNextServer();
+      toast.success("Đăng xuất thành công");
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Đăng xuất thất bại");
+    } finally {
+      setTokens({ accessToken: "", refreshToken: "", expiresAt: "" });
+      router.replace("/login");
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <aside
@@ -46,8 +73,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
       {/* Logo */}
       <div className="p-6">
         <div className="flex items-center gap-2">
-          <span className="text-2xl font-bold text-amber-700">F&B</span>
-          <span className="text-2xl font-bold text-gray-800">Coffee</span>
+          <span className="text-2xl font-bold text-[#693916]">F&B Coffee</span>
         </div>
       </div>
 
@@ -64,14 +90,14 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
-                    ? "text-amber-700 bg-amber-50"
-                    : "text-gray-600 hover:bg-gray-50"
+                    ? "text-[#693916] bg-[#cec3bc]"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-[#876F60]"
                 }`}
               >
                 <Icon size={20} />
                 <span className="text-sm font-medium">{item.label}</span>
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="ml-auto bg-amber-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  <span className="ml-auto bg-[#cec3bc] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                     {item.badge}
                   </span>
                 )}
@@ -93,8 +119,8 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
-                    ? "text-amber-700 bg-amber-50"
-                    : "text-gray-600 hover:bg-gray-50"
+                    ? "text-[#693916] bg-[#cec3bc]"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-[#876F60]"
                 }`}
               >
                 <Icon size={20} />
@@ -103,12 +129,32 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
             );
           })}
 
-          <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors w-full">
+          <button
+            type="button"
+            onClick={() => setLogoutConfirmOpen(true)}
+            disabled={loggingOut}
+            className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-[#876F60] transition-colors w-full disabled:opacity-60 disabled:pointer-events-none"
+          >
             <LogOut size={20} />
             <span className="text-sm font-medium">Đăng xuất</span>
           </button>
         </div>
       </nav>
+
+      <DeleteConfirmDialog
+        open={logoutConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open && loggingOut) return;
+          setLogoutConfirmOpen(open);
+        }}
+        onConfirm={() => {
+          setLogoutConfirmOpen(false);
+          void handleLogout();
+        }}
+        title="Xác nhận đăng xuất"
+        description="Bạn có chắc chắn muốn đăng xuất không?"
+        confirmLabel="Đăng xuất"
+      />
     </aside>
   );
 }

@@ -261,7 +261,9 @@ const createFormState = (promotion: Promotion): PromotionFormState => ({
   shopId: String(promotion.shopId ?? 1),
 });
 
-const validatePromotionForm = (form: PromotionFormState): PromotionFormErrors => {
+const validatePromotionForm = (
+  form: PromotionFormState,
+): PromotionFormErrors => {
   const errors: PromotionFormErrors = {};
 
   const name = form.promotionName.trim();
@@ -299,8 +301,12 @@ const validatePromotionForm = (form: PromotionFormState): PromotionFormErrors =>
   }
 
   const quantity = Number(form.quantity);
-  if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
-    errors.quantity = "Số lượng phải là số nguyên > 0";
+  if (
+    !Number.isFinite(quantity) ||
+    quantity <= 0 ||
+    !Number.isInteger(quantity)
+  ) {
+    errors.quantity = "Số lượng phải là số nguyên lớn hơn 0";
   }
 
   const usageLimitPerUser = Number(form.usageLimitPerUser);
@@ -321,7 +327,7 @@ const validatePromotionForm = (form: PromotionFormState): PromotionFormErrors =>
 
   const discountValue = Number(form.discountValue);
   if (!Number.isFinite(discountValue) || discountValue <= 0) {
-    errors.discountValue = "Giá trị giảm phải > 0";
+    errors.discountValue = "Giá trị giảm phải lớn hơn 0";
   } else if (form.discountType === "PERCENTAGE" && discountValue > 100) {
     errors.discountValue = "Phần trăm giảm tối đa là 100%";
   }

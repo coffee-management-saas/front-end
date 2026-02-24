@@ -162,7 +162,9 @@ export default function ToppingsManager() {
     }
   };
 
-  const handleSave = async (toppingData: Partial<ToppingDialogItem>) => {
+  const handleSave = async (
+    toppingData: Partial<ToppingDialogItem>,
+  ): Promise<boolean> => {
     if (dialogMode === "create") {
       try {
         const status =
@@ -187,9 +189,11 @@ export default function ToppingsManager() {
         const newTopping = mapTopping(data.data);
         setToppings((prev) => [...prev, newTopping]);
         toast.success(`Đã thêm topping "${newTopping.name}"`);
+        return true;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Create topping failed";
         toast.error(msg);
+        return false;
       }
     } else if (dialogMode === "edit" && selectedTopping) {
       try {
@@ -220,11 +224,15 @@ export default function ToppingsManager() {
           prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
         );
         toast.success(`Đã cập nhật topping "${updated.name}"`);
+        return true;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Update topping failed";
         toast.error(msg);
+        return false;
       }
     }
+
+    return false;
   };
 
   return (

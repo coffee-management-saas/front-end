@@ -1,313 +1,688 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Users,
-  UserPlus,
-  Clock,
-  ShieldCheck,
-  Phone,
-  Mail,
   Briefcase,
+  Calendar as CalendarIcon,
   Filter,
-  ArrowDownRight,
+  Users,
 } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { ScheduleDto, SchedulesResponse } from "@/types/schedules";
+import { useAppContext } from "@/app/AppProvider";
+import { getEmployeeById, getEmployees } from "@/services/employee.service";
+import type {
+  EmployeeDto,
+  EmployeeType,
+  ShopEmployeeProfile,
+} from "@/types/employee";
 
-type Status = "active" | "off" | "probation";
+function employeeTypeLabel(t?: EmployeeType | string | null): string {
+  switch (String(t ?? "").toUpperCase()) {
+    case "FULL_TIME":
+      return "Full-time";
+    case "PART_TIME":
+      return "Part-time";
+    case "TEMPORARY":
+      return "Thời vụ";
+    default:
+      return String(t ?? "").trim() || "—";
+  }
+}
 
-type Employee = {
-  id: number;
-  name: string;
-  role: string;
-  shift: string;
-  phone: string;
-  email: string;
-  status: Status;
-  startDate: string;
-};
+function parseJsonSafely<T>(raw: string): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
 
-const EMPLOYEES: Employee[] = [
-  {
-    id: 1,
-    name: "Nguyễn An",
-    role: "Barista",
-    shift: "Sáng (08:00 - 14:00)",
-    phone: "0901 223 345",
-    email: "an@coffee.vn",
-    status: "active",
-    startDate: "12/2024",
-  },
-  {
-    id: 2,
-    name: "Trần Nhung",
-    role: "Thu ngân",
-    shift: "Sáng (08:00 - 14:00)",
-    phone: "0933 445 667",
-    email: "nhung@coffee.vn",
-    status: "active",
-    startDate: "05/2024",
-  },
-  {
-    id: 3,
-    name: "Lê Minh",
-    role: "Ca trưởng",
-    shift: "Chiều (14:00 - 22:00)",
-    phone: "0977 889 001",
-    email: "minh@coffee.vn",
-    status: "probation",
-    startDate: "01/2026",
-  },
-  {
-    id: 4,
-    name: "Phạm Hậu",
-    role: "Barista",
-    shift: "Chiều (14:00 - 22:00)",
-    phone: "0909 222 111",
-    email: "hau@coffee.vn",
-    status: "off",
-    startDate: "08/2023",
-  },
-  {
-    id: 5,
-    name: "Đỗ Vy",
-    role: "Phụ bếp",
-    shift: "Part-time (18:00 - 22:00)",
-    phone: "0912 345 888",
-    email: "vy@coffee.vn",
-    status: "active",
-    startDate: "11/2025",
-  },
-];
+function decodeJwtPayload(token?: string): Record<string, unknown> | null {
+  try {
+    if (!token) return null;
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(
+      base64.length + ((4 - (base64.length % 4)) % 4),
+      "=",
+    );
+    return JSON.parse(atob(padded)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
 
-const statusLabel: Record<Status, string> = {
-  active: "Đang làm",
-  off: "Nghỉ / Off",
-  probation: "Thử việc",
-};
+function readEmployeeIdFromToken(accessToken?: string): number | null {
+  const payload = decodeJwtPayload(accessToken);
+  const raw =
+    (payload?.employeeId as unknown) ??
+    (payload?.userId as unknown) ??
+    (payload?.id as unknown);
+  const id = Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
 
-const statusStyle: Record<Status, string> = {
-  active: "bg-green-100 text-green-700 border-green-200",
-  off: "bg-gray-100 text-gray-700 border-gray-200",
-  probation: "bg-amber-100 text-amber-800 border-amber-200",
-};
+function readMessage(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const code = (data as Record<string, unknown>).code;
+  if (typeof code === "number" && code >= 400) {
+    const msg = (data as Record<string, unknown>).message;
+    return typeof msg === "string" && msg.trim() ? msg : "BE error";
+  }
+  const msg = (data as Record<string, unknown>).message;
+  return typeof msg === "string" && msg.trim() ? msg : null;
+}
 
-const formatNumber = new Intl.NumberFormat("vi-VN");
+function readSchedules(data: unknown): ScheduleDto[] {
+  if (!data || typeof data !== "object") return [];
+  const obj = data as Record<string, unknown>;
+  const arr = obj.data;
+  return Array.isArray(arr) ? (arr as ScheduleDto[]) : [];
+}
+
+function formatTimeHHmm(value?: string | null): string {
+  if (!value) return "-";
+  const timeOnly = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value.trim());
+  if (timeOnly) {
+    const hh = String(Number(timeOnly[1])).padStart(2, "0");
+    const mm = timeOnly[2];
+    return `${hh}:${mm}`;
+  }
+  const d = new Date(value);
+  if (!Number.isNaN(d.getTime())) {
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+  return value;
+}
+
+function formatTimeRangeLabel(
+  startTime?: string | null,
+  endTime?: string | null,
+): string {
+  const st = formatTimeHHmm(startTime);
+  const en = formatTimeHHmm(endTime);
+  if (st !== "-" && en !== "-") return `${st} - ${en}`;
+  if (startTime && endTime) return `${startTime} - ${endTime}`;
+  return "-";
+}
+
+function formatDateOnlyVi(value?: string | null): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("vi-VN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+function toDateKeyLocal(date: Date): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseDateKeyLocal(dateKey?: string | null): Date | null {
+  if (!dateKey) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey.trim());
+  if (!m) return null;
+  const yyyy = Number(m[1]);
+  const mm = Number(m[2]);
+  const dd = Number(m[3]);
+  if (!Number.isFinite(yyyy) || !Number.isFinite(mm) || !Number.isFinite(dd)) {
+    return null;
+  }
+  const d = new Date(yyyy, mm - 1, dd);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+function formatDateKeyVi(dateKey?: string | null): string {
+  const d = parseDateKeyLocal(dateKey);
+  if (!d) return "—";
+  return d.toLocaleDateString("vi-VN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+function formatScheduleDateRangeLabel(
+  startTime?: string | null,
+  endTime?: string | null,
+): string | null {
+  const startDate = formatDateOnlyVi(startTime);
+  const endDate = formatDateOnlyVi(endTime);
+  if (startDate && endDate) {
+    return startDate === endDate ? startDate : `${startDate} - ${endDate}`;
+  }
+  return startDate || endDate;
+}
+
+function scheduleIntersectsDateKey(s: ScheduleDto, dateKey: string): boolean {
+  const selected = parseDateKeyLocal(dateKey);
+  if (!selected) return true;
+
+  const selectedStart = new Date(
+    selected.getFullYear(),
+    selected.getMonth(),
+    selected.getDate(),
+    0,
+    0,
+    0,
+    0,
+  );
+  const selectedEnd = new Date(
+    selected.getFullYear(),
+    selected.getMonth(),
+    selected.getDate(),
+    23,
+    59,
+    59,
+    999,
+  );
+
+  const start = s.startTime ? new Date(s.startTime) : null;
+  const end = s.endTime ? new Date(s.endTime) : null;
+  const startOk = !!start && !Number.isNaN(start.getTime());
+  const endOk = !!end && !Number.isNaN(end.getTime());
+
+  if (startOk && endOk) {
+    return start <= selectedEnd && end >= selectedStart;
+  }
+  if (startOk) return toDateKeyLocal(start!) === dateKey;
+  if (endOk) return toDateKeyLocal(end!) === dateKey;
+  return false;
+}
+
+function dayOfWeekLabel(v?: string | null): string {
+  switch (String(v ?? "").toUpperCase()) {
+    case "MONDAY":
+      return "Thứ Hai";
+    case "TUESDAY":
+      return "Thứ Ba";
+    case "WEDNESDAY":
+      return "Thứ Tư";
+    case "THURSDAY":
+      return "Thứ Năm";
+    case "FRIDAY":
+      return "Thứ Sáu";
+    case "SATURDAY":
+      return "Thứ Bảy";
+    case "SUNDAY":
+      return "Chủ nhật";
+    default:
+      return String(v ?? "").trim() || "—";
+  }
+}
+
+function dayOfWeekLabelFromDateLike(value?: string | null): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const labels = [
+    "Chủ nhật",
+    "Thứ Hai",
+    "Thứ Ba",
+    "Thứ Tư",
+    "Thứ Năm",
+    "Thứ Sáu",
+    "Thứ Bảy",
+  ] as const;
+  return labels[d.getDay()] ?? null;
+}
+
+function readStringField(
+  obj: Record<string, unknown>,
+  keys: readonly string[],
+): string {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  }
+  return "";
+}
+
+function scheduleDayLabel(s: ScheduleDto): string {
+  const obj = s as unknown as Record<string, unknown>;
+  const start = readStringField(obj, ["startDay", "start_day", "startday"]);
+  const end = readStringField(obj, ["endDay", "end_day", "endday"]);
+  const dow = readStringField(obj, ["dayOfWeek", "day_of_week", "dow"]);
+  if (start) {
+    if (end && end.toUpperCase() !== start.toUpperCase()) {
+      return `${dayOfWeekLabel(start)} - ${dayOfWeekLabel(end)}`;
+    }
+    return dayOfWeekLabel(start);
+  }
+  if (end) return dayOfWeekLabel(end);
+  if (dow) return dayOfWeekLabel(dow);
+  return (
+    dayOfWeekLabelFromDateLike(s.startTime) ??
+    dayOfWeekLabelFromDateLike(s.endTime) ??
+    "—"
+  );
+}
 
 export default function EmployeesPage() {
-  const [keyword, setKeyword] = useState("");
-  const [filterStatus, setFilterStatus] = useState<Status | "all">("all");
+  const { tokens } = useAppContext();
+  const accessToken = tokens.accessToken;
+  const [scheduleType, setScheduleType] = useState<EmployeeType | "all">("all");
+  const [scheduleDateKey, setScheduleDateKey] = useState("");
 
-  const stats = useMemo(() => {
-    const total = EMPLOYEES.length;
-    const active = EMPLOYEES.filter((e) => e.status === "active").length;
-    const probation = EMPLOYEES.filter((e) => e.status === "probation").length;
-    const off = EMPLOYEES.filter((e) => e.status === "off").length;
-    return { total, active, probation, off };
+  const [employees, setEmployees] = useState<EmployeeDto[]>([]);
+  const [profileByEmployeeId, setProfileByEmployeeId] = useState<
+    Record<number, ShopEmployeeProfile>
+  >({});
+
+  const [scheduleKeyword, setScheduleKeyword] = useState("");
+  const [schedules, setSchedules] = useState<ScheduleDto[]>([]);
+  const [schedulesLoading, setSchedulesLoading] = useState(false);
+  const [schedulesError, setSchedulesError] = useState<string | null>(null);
+  const [scheduleScope, setScheduleScope] = useState<"ALL" | "SELF">("ALL");
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const resp = await getEmployees({ page: 0, size: 200 });
+        const list = Array.isArray(resp?.data) ? resp.data : [];
+        if (!cancelled) setEmployees(list.filter(Boolean));
+      } catch {
+        if (!cancelled) setEmployees([]);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const filtered = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    return EMPLOYEES.filter((e) => {
+  useEffect(() => {
+    let cancelled = false;
+    const employeeIds = employees
+      .map((e) => Number(e.employeeId))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const scheduleEmployeeIds = schedules
+      .map((s) => Number(s.employeeId))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const uniqueIds = Array.from(
+      new Set<number>([...employeeIds, ...scheduleEmployeeIds]),
+    );
+    const missing = uniqueIds.filter((id) => !(id in profileByEmployeeId));
+    if (missing.length === 0) return;
+
+    const run = async () => {
+      await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const profile = await getEmployeeById(id);
+            if (cancelled) return;
+            setProfileByEmployeeId((prev) => ({ ...prev, [id]: profile }));
+          } catch {
+            // ignore
+          }
+        }),
+      );
+    };
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [employees, schedules, profileByEmployeeId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      setSchedulesLoading(true);
+      setSchedulesError(null);
+      setScheduleScope("ALL");
+      try {
+        const qs = new URLSearchParams({ page: "0", size: "200" });
+        let res = await fetch(`/api/schedules?${qs.toString()}`, {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        let raw = await res.text();
+        let data = parseJsonSafely<unknown>(raw);
+        if (!res.ok && res.status === 403) {
+          const selfId = readEmployeeIdFromToken(accessToken);
+          if (selfId) {
+            setScheduleScope("SELF");
+            res = await fetch(`/api/schedules/${selfId}`, {
+              credentials: "same-origin",
+              cache: "no-store",
+            });
+            raw = await res.text();
+            data = parseJsonSafely<unknown>(raw);
+          }
+        }
+
+        if (!res.ok) {
+          throw new Error(readMessage(data) || "Không tải được lịch làm");
+        }
+
+        const envelope = data as SchedulesResponse | null;
+        const list = readSchedules(envelope);
+        if (!cancelled) setSchedules(list.filter(Boolean));
+      } catch (e) {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : "Không tải được lịch làm";
+        setSchedulesError(msg);
+        setSchedules([]);
+      } finally {
+        if (!cancelled) setSchedulesLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
+  const filteredSchedules = useMemo(() => {
+    const kw = scheduleKeyword.trim().toLowerCase();
+    return schedules.filter((s) => {
+      const name = String(s.employeeName ?? "").toLowerCase();
+      const task = String(s.task ?? "").toLowerCase();
+      const obj = s as unknown as Record<string, unknown>;
+      const day = readStringField(obj, [
+        "dayOfWeek",
+        "day_of_week",
+        "dow",
+      ]).toLowerCase();
+      const startDay = readStringField(obj, [
+        "startDay",
+        "start_day",
+        "startday",
+      ]).toLowerCase();
+      const endDay = readStringField(obj, [
+        "endDay",
+        "end_day",
+        "endday",
+      ]).toLowerCase();
+
+      const normalizedType = String(s.employeeType ?? "")
+        .trim()
+        .toUpperCase();
+      const matchType =
+        scheduleType === "all" || normalizedType === scheduleType;
+
+      const matchDate =
+        !scheduleDateKey || scheduleIntersectsDateKey(s, scheduleDateKey);
+
       const matchKw =
         !kw ||
-        e.name.toLowerCase().includes(kw) ||
-        e.role.toLowerCase().includes(kw) ||
-        e.phone.replace(/\s+/g, "").includes(kw);
-      const matchStatus = filterStatus === "all" || e.status === filterStatus;
-      return matchKw && matchStatus;
+        name.includes(kw) ||
+        task.includes(kw) ||
+        day.includes(kw) ||
+        startDay.includes(kw) ||
+        endDay.includes(kw) ||
+        String(s.employeeId ?? "").includes(kw);
+
+      return matchKw && matchType && matchDate;
     });
-  }, [keyword, filterStatus]);
+  }, [scheduleKeyword, schedules, scheduleType, scheduleDateKey]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p className="text-sm text-gray-500">Nhân sự</p>
-          <h1 className="text-2xl font-semibold text-stone-900">
-            Quản lý nhân viên
-          </h1>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Filter className="w-4 h-4" />
-            Lọc nâng cao
-          </Button>
-          <Button size="sm" className="gap-2">
-            <UserPlus className="w-4 h-4" />
-            Thêm nhân viên
-          </Button>
+          <p className="text-xl text-[#693916] font-semibold flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Danh sách nhân viên
+          </p>
         </div>
       </div>
 
-      {/* Stats cards */}
-      <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-amber-200 bg-amber-50/70">
-          <CardHeader className="pb-1 pt-1 px-2.5">
-            <CardTitle className="text-[11px] text-amber-900 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5" /> Tổng nhân sự
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-2 px-2.5">
-            <p className="text-xl font-bold text-stone-900 leading-tight">
-              {formatNumber.format(stats.total)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-green-200 bg-green-50/70">
-          <CardHeader className="pb-1 pt-1 px-2.5">
-            <CardTitle className="text-[11px] text-green-900 flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5" /> Đang làm
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-2 px-2.5">
-            <p className="text-xl font-bold text-stone-900 leading-tight">
-              {formatNumber.format(stats.active)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-amber-200 bg-amber-50/70">
-          <CardHeader className="pb-1 pt-1 px-2.5">
-            <CardTitle className="text-[11px] text-amber-900 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" /> Thử việc
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-2 px-2.5">
-            <p className="text-xl font-bold text-stone-900 leading-tight">
-              {formatNumber.format(stats.probation)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gray-200 bg-gray-50">
-          <CardHeader className="pb-1 pt-1 px-2.5">
-            <CardTitle className="text-[11px] text-gray-800 flex items-center gap-1.5">
-              <ArrowDownRight className="w-3.5 h-3.5" /> Off / Nghỉ
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-2 px-2.5">
-            <p className="text-xl font-bold text-stone-900 leading-tight">
-              {formatNumber.format(stats.off)}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-2 py-1 shadow-sm">
-          {["all", "active", "probation", "off"].map((st) => {
-            const label =
-              st === "all"
-                ? "Tất cả"
-                : st === "active"
-                  ? "Đang làm"
-                  : st === "probation"
-                    ? "Thử việc"
-                    : "Off";
-            return (
-              <Button
-                key={st}
-                size="sm"
-                variant={filterStatus === st ? "default" : "ghost"}
-                className={`rounded-full h-8 px-3 text-[11px] ${
-                  filterStatus === st ? "" : "text-gray-600 hover:bg-gray-100"
-                }`}
-                onClick={() => setFilterStatus(st as Status | "all")}
-              >
-                {label}
-              </Button>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-2 py-1.5 shadow-sm min-w-[220px]">
-          <Mail className="w-4 h-4 text-gray-400" />
+      {/* Schedule */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-2 py-1.5 shadow-sm min-w-[240px]">
+          <Briefcase className="w-4 h-4 text-gray-400" />
           <Input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="Tìm tên / vai trò / SĐT"
+            value={scheduleKeyword}
+            onChange={(e) => setScheduleKeyword(e.target.value)}
+            placeholder="Tìm theo tên nhân viên / công việc / thứ"
             className="border-0 shadow-none focus-visible:ring-0 text-xs h-8 px-2"
           />
         </div>
-      </div>
 
-      {/* Table */}
-      <Card>
-        <CardHeader className="px-4 py-3 border-b">
-          <CardTitle className="text-sm">Danh sách nhân viên</CardTitle>
-          <CardDescription className="text-xs">
-            Thông tin ca, liên hệ, trạng thái
-          </CardDescription>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2 bg-[#cec3bc]/35"
+              aria-label={
+                scheduleDateKey
+                  ? `Đang lọc theo ngày ${formatDateKeyVi(scheduleDateKey)}`
+                  : "Chọn ngày để lọc"
+              }
+            >
+              <CalendarIcon className="w-4 h-4" />
+              {scheduleDateKey ? formatDateKeyVi(scheduleDateKey) : "Chọn ngày"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-auto p-0">
+            <div className="p-3 pb-0">
+              <div className="text-xs text-gray-600">Lọc theo ngày</div>
+            </div>
+            <Calendar
+              mode="single"
+              selected={parseDateKeyLocal(scheduleDateKey) ?? undefined}
+              onSelect={(d) => {
+                if (!d) return;
+                setScheduleDateKey(toDateKeyLocal(d));
+              }}
+              initialFocus
+            />
+            {scheduleDateKey ? (
+              <div className="p-3 pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setScheduleDateKey("")}
+                >
+                  Bỏ lọc ngày
+                </Button>
+              </div>
+            ) : null}
+          </PopoverContent>
+        </Popover>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              type="button"
+              className="border border-gray-200 bg-[#cec3bc]/35"
+              aria-label={`Bộ lọc: ${scheduleType === "all" ? "Tất cả" : employeeTypeLabel(scheduleType)}`}
+            >
+              <Filter className="w-4 h-4 text-gray-600" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuLabel>Loại nhân viên</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup
+              value={scheduleType}
+              onValueChange={(v) => setScheduleType(v as EmployeeType | "all")}
+            >
+              <DropdownMenuRadioItem value="all">Tất cả</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="FULL_TIME">
+                Full-time
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="PART_TIME">
+                Part-time
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="TEMPORARY">
+                Thời vụ
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Theo ngày</DropdownMenuLabel>
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                setScheduleDateKey(toDateKeyLocal(new Date()));
+              }}
+            >
+              Lịch hôm nay
+            </DropdownMenuItem>
+            {scheduleDateKey ? (
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setScheduleDateKey("");
+                }}
+              >
+                Bỏ lọc ngày
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <Card className="py-0 gap-0">
+        <CardHeader className="px-3 py-2 border-b !pb-2 gap-1">
+          <CardTitle className="text-sm ">Danh sách nhân viên</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          {scheduleScope === "SELF" && !schedulesError ? (
+            <div className="px-4 py-2 text-xs text-amber-900 bg-amber-50 border-t">
+              Tài khoản hiện tại không có quyền xem tất cả lịch làm. Đang hiển
+              thị lịch của bạn.
+            </div>
+          ) : null}
+          {schedulesError ? (
+            <div className="px-4 py-3 text-sm text-red-700 bg-red-50 border-t">
+              {schedulesError}
+            </div>
+          ) : null}
+
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm leading-tight">
+            <table className="min-w-full text-sm leading-tight table-fixed">
               <thead className="bg-gray-50 text-gray-600 border-b">
                 <tr>
-                  <th className="text-left px-3 py-2 font-semibold w-[28%]">
-                    Tên
+                  <th className="text-left px-3 py-2 font-semibold w-1/5">
+                    Nhân viên
                   </th>
-                  <th className="text-left px-3 py-2 font-semibold w-[18%]">
-                    Vai trò
+                  <th className="text-left px-3 py-2 font-semibold w-1/5">
+                    <span className="inline-flex items-center gap-1">
+                      Số điện thoại
+                    </span>
                   </th>
-                  <th className="text-left px-3 py-2 font-semibold w-[22%]">
-                    Ca làm
+                  <th className="text-left px-3 py-2 font-semibold w-1/5">
+                    Thứ trong tuần
                   </th>
-                  <th className="text-left px-3 py-2 font-semibold w-[18%]">
-                    Liên hệ
+                  <th className="text-left px-3 py-2 font-semibold w-1/5">
+                    Giờ
                   </th>
-                  <th className="text-left px-3 py-2 font-semibold w-[14%]">
-                    Trạng thái
+
+                  <th className="text-left px-3 py-2 font-semibold w-1/5">
+                    Công việc
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((e) => (
-                  <tr key={e.id} className="border-b last:border-0">
-                    <td className="px-3 py-3">
-                      <div className="font-semibold text-stone-900">
-                        {e.name}
-                      </div>
-                      <div className="text-[11px] text-gray-500">
-                        Bắt đầu: {e.startDate}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-gray-700 text-sm">
-                      {e.role}
-                    </td>
-                    <td className="px-3 py-3 text-gray-700 text-sm">
-                      {e.shift}
-                    </td>
-                    <td className="px-3 py-3 text-gray-700 text-sm space-y-1">
-                      <div className="flex items-center gap-1 text-xs">
-                        <Phone className="w-3.5 h-3.5 text-gray-500" />{" "}
-                        {e.phone}
-                      </div>
-                      <div className="flex items-center gap-1 text-xs">
-                        <Mail className="w-3.5 h-3.5 text-gray-500" /> {e.email}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${statusStyle[e.status]}`}
-                      >
-                        {statusLabel[e.status]}
-                      </span>
+                {schedulesLoading ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-3 py-6 text-center text-sm text-gray-600"
+                    >
+                      Đang tải lịch làm...
                     </td>
                   </tr>
-                ))}
+                ) : filteredSchedules.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-3 py-6 text-center text-sm text-gray-600"
+                    >
+                      Không có lịch làm.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSchedules.map((s) => (
+                    <tr
+                      key={String(
+                        s.scheduleId ?? `${s.employeeId}-${s.startTime}`,
+                      )}
+                      className="border-b last:border-0"
+                    >
+                      <td className="px-3 py-3">
+                        <div className="font-semibold text-stone-900">
+                          {String(s.employeeName ?? "").trim() ||
+                            `ID: ${s.employeeId}`}
+                        </div>
+                        <div className="text-[11px] text-gray-500">
+                          {employeeTypeLabel(s.employeeType)}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-gray-700">
+                        {String(
+                          profileByEmployeeId[Number(s.employeeId)]?.phone ??
+                            "",
+                        ).trim() || "-"}
+                      </td>
+                      <td className="px-3 py-3 text-gray-700">
+                        {scheduleDayLabel(s)}
+                      </td>
+                      <td className="px-3 py-3 text-gray-700">
+                        <div className="space-y-0.5">
+                          <div className="text-[11px] text-gray-500">
+                            {formatScheduleDateRangeLabel(
+                              s.startTime,
+                              s.endTime,
+                            ) || "—"}
+                          </div>
+                          <div>
+                            {formatTimeRangeLabel(s.startTime, s.endTime)}
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3 text-gray-700">
+                        {String(s.task ?? "").trim() || "-"}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -4,7 +4,9 @@ export type ScheduleDto = {
   employeeName: string;
   employeeType: string;
   task: string;
-  dayOfWeek: string;
+  dayOfWeek?: string;
+  startDay?: string;
+  endDay?: string;
   startTime: string;
   endTime: string;
   isRecurring: boolean;

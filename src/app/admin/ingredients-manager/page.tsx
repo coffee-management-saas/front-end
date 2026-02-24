@@ -1,5 +1,5 @@
-"use client";
-import { useEffect, useMemo, useState } from "react";
+﻿"use client";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -46,6 +46,8 @@ type IngredientForm = {
   storageType: IngredientStorageType;
   inventoryStatus: IngredientInventoryStatus;
 };
+
+type IngredientFormErrors = Partial<Record<keyof IngredientForm, string>>;
 
 const parseJsonSafely = async <T,>(res: Response): Promise<T | null> => {
   const raw = await res.text();
@@ -134,6 +136,7 @@ export default function IngredientsManagerPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | "view">(
     "create",
@@ -141,6 +144,20 @@ export default function IngredientsManagerPage() {
   const [selectedIngredient, setSelectedIngredient] =
     useState<IngredientDto | null>(null);
   const [form, setForm] = useState<IngredientForm>(() => toForm());
+  const [formErrors, setFormErrors] = useState<IngredientFormErrors>({});
+
+  const setFormField = useCallback(
+    <K extends keyof IngredientForm>(key: K, value: IngredientForm[K]) => {
+      setForm((prev) => ({ ...prev, [key]: value }));
+      setFormErrors((prev) => {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
+    [],
+  );
 
   const getIngredientsClient = async (params: {
     page: number;
@@ -338,16 +355,20 @@ export default function IngredientsManagerPage() {
   }, [safeIngredients]);
 
   const openCreate = () => {
+    setSaving(false);
     setDialogMode("create");
     setSelectedIngredient(null);
     setForm(toForm());
+    setFormErrors({});
     setDialogOpen(true);
   };
 
   const openEdit = async (item: IngredientDto) => {
+    setSaving(false);
     setDialogMode("edit");
     setSelectedIngredient(item);
     setForm(toForm(item));
+    setFormErrors({});
     setDialogOpen(true);
 
     try {
@@ -361,9 +382,11 @@ export default function IngredientsManagerPage() {
   };
 
   const openView = async (item: IngredientDto) => {
+    setSaving(false);
     setDialogMode("view");
     setSelectedIngredient(item);
     setForm(toForm(item));
+    setFormErrors({});
     setDialogOpen(true);
 
     try {
@@ -377,24 +400,25 @@ export default function IngredientsManagerPage() {
   };
 
   const handleSave = async () => {
-    const payload: IngredientInput = {
-      name: form.name.trim(),
-      skuCode: form.skuCode.trim(),
-      baseUnit: form.baseUnit,
-      minStockAlert: Number(form.minStockAlert) || 0,
-      storageType: form.storageType,
-      inventoryStatus:
-        dialogMode === "create" ? "ACTIVE" : form.inventoryStatus,
-    };
+    if (saving) return;
 
-    if (!payload.name) {
-      toast.error("Vui lòng nhập tên nguyên liệu");
-      return;
+    const errors: IngredientFormErrors = {};
+    const name = form.name.trim();
+    const skuCode = form.skuCode.trim();
+    const minStockAlert = Number(form.minStockAlert) || 0;
+
+    if (!name) {
+      errors.name = "Vui lòng nhập tên nguyên liệu";
     }
 
-    if (!payload.skuCode) {
-      toast.error("Vui lòng nhập mã SKU");
-      return;
+    if (!skuCode) {
+      errors.skuCode = "Vui lòng nhập mã SKU";
+    } else if (/\s/.test(skuCode)) {
+      errors.skuCode = "Mã SKU không được chứa khoảng trắng";
+    }
+
+    if (!Number.isFinite(minStockAlert) || minStockAlert < 0) {
+      errors.minStockAlert = "Ngưỡng cảnh báo phải là số >= 0";
     }
 
     const currentStock =
@@ -402,11 +426,28 @@ export default function IngredientsManagerPage() {
         ? null
         : Number(selectedIngredient?.totalStockQuantity ?? 0);
 
-    if (currentStock !== null && payload.minStockAlert > currentStock) {
-      toast.error("Ngưỡng cảnh báo phải nhỏ hơn hoặc bằng tồn kho hiện tại");
+    if (currentStock !== null && minStockAlert > currentStock) {
+      errors.minStockAlert =
+        "Ngưỡng cảnh báo phải nhỏ hơn hoặc bằng tồn kho hiện tại";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      toast.error("Vui lòng kiểm tra lại thông tin");
       return;
     }
 
+    const payload: IngredientInput = {
+      name,
+      skuCode,
+      baseUnit: form.baseUnit,
+      minStockAlert,
+      storageType: form.storageType,
+      inventoryStatus:
+        dialogMode === "create" ? "ACTIVE" : form.inventoryStatus,
+    };
+
+    setSaving(true);
     try {
       if (dialogMode === "create") {
         const created = await createIngredientClient(payload);
@@ -424,6 +465,7 @@ export default function IngredientsManagerPage() {
       }
 
       setDialogOpen(false);
+      setFormErrors({});
     } catch (e) {
       const msg =
         e instanceof Error
@@ -432,6 +474,8 @@ export default function IngredientsManagerPage() {
             ? "Create ingredient failed"
             : "Update ingredient failed";
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -615,10 +659,21 @@ export default function IngredientsManagerPage() {
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open);
-          if (!open) setForm(toForm(selectedIngredient));
+          if (!open) {
+            setForm(toForm(selectedIngredient));
+            setFormErrors({});
+          }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent
+          className="max-w-2xl"
+          onEscapeKeyDown={(e) => {
+            if (saving) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (saving) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {dialogMode === "create"
@@ -640,13 +695,15 @@ export default function IngredientsManagerPage() {
               <Input
                 id="name"
                 value={form.name}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, name: e.target.value }))
-                }
+                onChange={(e) => setFormField("name", e.target.value)}
                 placeholder="Ví dụ: Đường trắng"
                 readOnly={dialogMode === "view"}
-                className={dialogMode === "view" ? "w-full bg-muted" : "w-full"}
+                disabled={saving}
+                className={`${dialogMode === "view" ? "bg-muted" : ""} w-full ${formErrors.name ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
               />
+              {formErrors.name ? (
+                <p className="text-xs text-destructive">{formErrors.name}</p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -654,13 +711,15 @@ export default function IngredientsManagerPage() {
               <Input
                 id="sku"
                 value={form.skuCode}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, skuCode: e.target.value }))
-                }
+                onChange={(e) => setFormField("skuCode", e.target.value)}
                 placeholder="ING-SUGAR-001"
                 readOnly={dialogMode === "view"}
-                className={dialogMode === "view" ? "w-full bg-muted" : "w-full"}
+                disabled={saving}
+                className={`${dialogMode === "view" ? "bg-muted" : ""} w-full ${formErrors.skuCode ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
               />
+              {formErrors.skuCode ? (
+                <p className="text-xs text-destructive">{formErrors.skuCode}</p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -672,12 +731,9 @@ export default function IngredientsManagerPage() {
                 }`}
                 value={form.baseUnit}
                 onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    baseUnit: e.target.value as IngredientBaseUnit,
-                  }))
+                  setFormField("baseUnit", e.target.value as IngredientBaseUnit)
                 }
-                disabled={dialogMode === "view"}
+                disabled={dialogMode === "view" || saving}
               >
                 {baseUnitOptions.map((unit) => (
                   <option key={unit} value={unit}>
@@ -696,12 +752,12 @@ export default function IngredientsManagerPage() {
                 }`}
                 value={form.storageType}
                 onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    storageType: e.target.value as IngredientStorageType,
-                  }))
+                  setFormField(
+                    "storageType",
+                    e.target.value as IngredientStorageType,
+                  )
                 }
-                disabled={dialogMode === "view"}
+                disabled={dialogMode === "view" || saving}
               >
                 {storageTypeOptions.map((type) => (
                   <option key={type} value={type}>
@@ -721,13 +777,12 @@ export default function IngredientsManagerPage() {
                   }`}
                   value={form.inventoryStatus}
                   onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      inventoryStatus: e.target
-                        .value as IngredientInventoryStatus,
-                    }))
+                    setFormField(
+                      "inventoryStatus",
+                      e.target.value as IngredientInventoryStatus,
+                    )
                   }
-                  disabled={dialogMode === "view"}
+                  disabled={dialogMode === "view" || saving}
                 >
                   {statusOptions.map((status) => (
                     <option key={status} value={status}>
@@ -747,19 +802,24 @@ export default function IngredientsManagerPage() {
                 className={
                   dialogMode === "view"
                     ? "w-full bg-muted [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    : "w-full"
+                    : `w-full ${formErrors.minStockAlert ? "border-destructive focus-visible:ring-destructive/30" : ""}`
                 }
                 value={form.minStockAlert}
                 onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    minStockAlert:
-                      e.target.value === "" ? 0 : Number(e.target.value),
-                  }))
+                  setFormField(
+                    "minStockAlert",
+                    e.target.value === "" ? 0 : Number(e.target.value),
+                  )
                 }
                 placeholder="2000"
                 readOnly={dialogMode === "view"}
+                disabled={saving}
               />
+              {formErrors.minStockAlert ? (
+                <p className="text-xs text-destructive">
+                  {formErrors.minStockAlert}
+                </p>
+              ) : null}
             </div>
 
             {dialogMode !== "create" && (
@@ -779,15 +839,27 @@ export default function IngredientsManagerPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (saving) return;
+                setDialogOpen(false);
+              }}
+              disabled={saving}
+            >
               Đóng
             </Button>
             {dialogMode !== "view" && (
               <Button
                 className="bg-primary hover:bg-primary/90"
                 onClick={handleSave}
+                disabled={saving}
               >
-                {dialogMode === "create" ? "Lưu nguyên liệu" : "Cập nhật"}
+                {saving
+                  ? "Đang lưu..."
+                  : dialogMode === "create"
+                    ? "Lưu nguyên liệu"
+                    : "Cập nhật"}
               </Button>
             )}
           </DialogFooter>
