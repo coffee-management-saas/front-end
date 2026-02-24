@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { canUseImage, FALLBACK_IMG } from "@/lib/utils";
 
 interface FlyingItemProps {
     imageSrc: string;
@@ -74,7 +75,7 @@ export function FlyingCartItem({ imageSrc, startX, startY, onComplete }: FlyingI
         >
             <div className="relative w-20 h-20 rounded-xl overflow-hidden shadow-2xl ring-4 ring-amber-400 animate-pulse">
                 <Image
-                    src={imageSrc}
+                    src={canUseImage(imageSrc) ? imageSrc : FALLBACK_IMG}
                     alt="Flying item"
                     fill
                     className="object-cover"

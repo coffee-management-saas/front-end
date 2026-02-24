@@ -43,3 +43,11 @@ export const formatCurrency = (value: number) =>
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value);
+
+export const FALLBACK_IMG =
+  "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=1200&q=80";
+
+export const canUseImage = (url: string | undefined | null) => {
+  if (!url) return false;
+  return /^https?:\/\//.test(url) || url.startsWith("/");
+};

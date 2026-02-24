@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { cn, formatCurrency, canUseImage, FALLBACK_IMG } from "@/lib/utils";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Minus,
@@ -58,8 +59,6 @@ interface ProductListResponse {
   meta: ProductListMeta;
 }
 
-const FALLBACK_IMG =
-  "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=1200&q=80";
 
 const getVariantName = (v: ProductVariant) => {
   if (typeof v.size === "string") return v.size;
@@ -171,7 +170,7 @@ const DetailProduct: React.FC = () => {
         ) {
           throw new Error(
             ("message" in productPayload && productPayload.message) ||
-              "Load product failed",
+            "Load product failed",
           );
         }
         if ("data" in productPayload) {
@@ -242,24 +241,24 @@ const DetailProduct: React.FC = () => {
         if (!res.ok) {
           throw new Error(
             ("message" in payload && payload.message) ||
-              "Load suggestions failed",
+            "Load suggestions failed",
           );
         }
 
         if (!("code" in payload) || payload.code !== 200) {
           throw new Error(
             ("message" in payload && payload.message) ||
-              "Load suggestions failed",
+            "Load suggestions failed",
           );
         }
 
         const mapped: SuggestItem[] = payload.data
-          .filter((p) => p.id !== product.id)
-          .map((p) => ({
+          .filter((p: any) => p.id !== product.id)
+          .map((p: any) => ({
             id: p.id,
             name: p.name,
-            price: 59000,
-            image: p.image ?? FALLBACK_IMG,
+            price: p.price ?? 0,
+            image: canUseImage(p.image) ? p.image : FALLBACK_IMG,
           }));
 
         setCoffeeItems(mapped);
@@ -278,19 +277,19 @@ const DetailProduct: React.FC = () => {
     ref.current?.scrollBy({ left: 200, behavior: "smooth" });
   };
 
-  const item = useMemo(() => {
-    return {
-      name: product?.name ?? "Đang tải...",
-      image: product?.image ?? FALLBACK_IMG,
-      sku: product?.id ?? 0,
-      categoryName: product?.categoryName ?? "",
-      description: product?.description ?? "",
-    };
-  }, [product]);
-
   const activeVariant = useMemo(() => {
     return variants.find((v) => v.id === selectedVariantId);
   }, [variants, selectedVariantId]);
+
+  const item = useMemo(() => {
+    return {
+      name: product?.name ?? "Đang tải...",
+      image: canUseImage(product?.image) ? (product?.image as string) : FALLBACK_IMG,
+      sku: activeVariant?.skuCode || product?.id || 0,
+      categoryName: product?.categoryName ?? "",
+      description: product?.description ?? "",
+    };
+  }, [product, activeVariant]);
 
   // Use price from variant; fallback to 0 if not found
   const productPrice = activeVariant ? activeVariant.price : 0;
@@ -311,8 +310,6 @@ const DetailProduct: React.FC = () => {
   );
 
   const totalPrice = (productPrice + toppingTotal) * quantity;
-
-  const formatPrice = (price: number) => price.toLocaleString("vi-VN") + " ₫";
 
   if (loading) return null;
   if (error) return <div className="p-6 pt-24 text-red-600">{error}</div>;
@@ -455,11 +452,10 @@ const DetailProduct: React.FC = () => {
                       <button
                         key={opt}
                         onClick={() => setSelectedIce(opt)}
-                        className={`h-9 rounded-lg font-semibold text-[10px] transition-all duration-300 ${
-                          selectedIce === opt
-                            ? "bg-gradient-to-br from-[#693916] to-[#876F60] text-white shadow-md scale-105"
-                            : "bg-gray-50 border border-gray-200 text-gray-700 hover:border-[#693916]"
-                        }`}
+                        className={`h-9 rounded-lg font-semibold text-[10px] transition-all duration-300 ${selectedIce === opt
+                          ? "bg-gradient-to-br from-[#693916] to-[#876F60] text-white shadow-md scale-105"
+                          : "bg-gray-50 border border-gray-200 text-gray-700 hover:border-[#693916]"
+                          }`}
                       >
                         {opt}
                       </button>
@@ -500,7 +496,7 @@ const DetailProduct: React.FC = () => {
                         {t.name}
                       </p>
                       <p className="text-[10px] text-amber-600 font-medium mt-0">
-                        +{formatPrice(t.price)}
+                        +{formatCurrency(t.price)}
                       </p>
                     </div>
 
@@ -579,7 +575,7 @@ const DetailProduct: React.FC = () => {
               type="button"
             >
               <ShoppingCart className="w-6 h-6" />
-              Thêm vào giỏ hàng - {formatPrice(totalPrice)}
+              Thêm vào giỏ hàng - {formatCurrency(totalPrice)}
             </button>
           </div>
         </div>
@@ -631,7 +627,7 @@ const DetailProduct: React.FC = () => {
                       {it.name}
                     </h3>
                     <p className="text-xl font-bold text-[#693916] mb-4">
-                      {it.price.toLocaleString("vi-VN")} ₫
+                      {formatCurrency(it.price)}
                     </p>
                     <button
                       className="w-full bg-gradient-to-r from-[#693916] to-[#876F60] hover:from-[#876F60] hover:to-[#693916] text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"

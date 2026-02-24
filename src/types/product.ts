@@ -8,6 +8,7 @@ export interface Product {
   image: string | null;
   name: string;
   status: ProductStatus;
+  price?: number;
 }
 
 export interface Size {
@@ -20,6 +21,7 @@ export interface ProductVariant {
   id: number;
   productId: number;
   code: string;
+  skuCode?: string;
   price: number;
   size?: string | Size;
   sizeCode?: string;
