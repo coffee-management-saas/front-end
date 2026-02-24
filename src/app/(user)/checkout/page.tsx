@@ -83,6 +83,20 @@ const CheckoutContent = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
   const [successOrder, setSuccessOrder] = useState<OrderResponse | null>(null);
+  const [capturedItems, setCapturedItems] = useState<Record<number, { name: string, size: string }>>({});
+
+  useEffect(() => {
+    // Check session storage for recently placed order items (useful for MoMo redirect)
+    const stored = sessionStorage.getItem("last_placed_items");
+    if (stored) {
+      try {
+        setCapturedItems(JSON.parse(stored));
+      } catch (e) {
+        console.error("Failed to parse stored items", e);
+      }
+    }
+  }, []);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     if (accessToken) {
@@ -129,10 +143,18 @@ const CheckoutContent = () => {
         setPaymentStatus("success");
         setCurrentStep(2);
         if (orderId && accessToken) {
-          getOrderById(accessToken, Number(orderId))
+          // Extra handling for Momo orderId format: ORD_19_timestamp
+          let realOrderId = orderId;
+          if (orderId.includes("_")) {
+            const parts = orderId.split("_");
+            if (parts.length > 1) realOrderId = parts[1];
+          }
+
+          getOrderById(accessToken, Number(realOrderId))
             .then((order) => {
               setSuccessOrder(order);
               setCreatedOrderId(order.orderId);
+              setShowSuccessModal(true);
             })
             .catch((err) =>
               console.error("Failed to fetch momo order details", err),
@@ -214,6 +236,22 @@ const CheckoutContent = () => {
 
       const res = await createOrder(accessToken, payload);
 
+      // Capture currently ordered items for fallback display
+      const orderedItemsSnapshot = items.map(i => ({
+        name: i.productName,
+        size: i.size,
+        variantId: i.variantId
+      }));
+      sessionStorage.setItem("last_order_items_fallback", JSON.stringify(orderedItemsSnapshot));
+
+      // Capture names from current cart items before clearing (kept for other uses)
+      const namesMap: Record<number, { name: string, size: string }> = {};
+      items.forEach(i => {
+        namesMap[i.variantId] = { name: i.productName, size: i.size };
+      });
+      setCapturedItems(namesMap);
+      sessionStorage.setItem("last_placed_items", JSON.stringify(namesMap));
+
       setCreatedOrderId(res.orderId);
       setSuccessOrder(res); // Save for success step
 
@@ -228,6 +266,7 @@ const CheckoutContent = () => {
       // If just cash or no payUrl, just show success
       setCurrentStep(2);
       window.scrollTo(0, 0);
+      setShowSuccessModal(true);
     } catch (error) {
       console.error("Checkout Error:", error);
       toast.error(error instanceof Error ? error.message : "Đặt hàng thất bại");
@@ -806,20 +845,23 @@ const CheckoutContent = () => {
                       #{createdOrderId}
                     </span>
                   </div>
-                  <div className="p-4 bg-white">
+                  <div className="p-4 bg-white border-t border-gray-100">
                     <div className="flex justify-between items-center mb-3 text-sm">
                       <span className="text-gray-600">
                         Phương thức thanh toán
                       </span>
-                      <span className="font-medium text-gray-900 flex items-center gap-2">
-                        {paymentMethod === "momo" ? (
+                      <span className={cn(
+                        "font-medium flex items-center gap-2",
+                        (paymentMethod === "momo" || successOrder?.paymentGateway?.toLowerCase() === "momo") ? "text-pink-600" : "text-amber-800"
+                      )}>
+                        {(paymentMethod === "momo" || successOrder?.paymentGateway?.toLowerCase() === "momo") ? (
                           <>
                             <Image
                               src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png"
                               alt="MoMo"
                               width={16}
                               height={16}
-                              className="object-contain" // Fixed class
+                              className="object-contain"
                             />
                             Ví MoMo
                           </>
@@ -831,13 +873,62 @@ const CheckoutContent = () => {
                         )}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-sm">
+                    <div className="flex justify-between items-center text-sm mb-4">
                       <span className="text-gray-600">Tổng thanh toán</span>
                       <span className="font-bold text-lg text-amber-700">
                         {successOrder
-                          ? formatCurrency(successOrder.paidPrice)
+                          ? formatCurrency(successOrder.paidPrice || 0)
                           : formatCurrency(totals.total)}
                       </span>
+                    </div>
+
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 pt-4 border-t border-gray-100/50">
+                      Chi tiết món đã đặt
+                    </p>
+                    <div className="space-y-4">
+                      {successOrder?.orderItems?.map((item, idx) => {
+                        // Resilient Fallback Logic
+                        const fallbackList = JSON.parse(sessionStorage.getItem("last_order_items_fallback") || "[]");
+                        const fallback = fallbackList[idx];
+
+                        const displayName = item.productName ||
+                          (item.productVariantId ? capturedItems[item.productVariantId]?.name : null) ||
+                          fallback?.name ||
+                          "Sản phẩm";
+
+                        const displaySize = item.sizeName ||
+                          (item.productVariantId ? capturedItems[item.productVariantId]?.size : null) ||
+                          fallback?.size ||
+                          "-";
+
+                        return (
+                          <div key={idx} className="flex justify-between items-start text-sm bg-gray-50/50 p-3 rounded-lg border border-gray-100/50">
+                            <div className="flex-1">
+                              <p className="font-bold text-gray-900 text-base">
+                                {displayName}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-bold uppercase">
+                                  Size {displaySize}
+                                </span>
+                                <span className="text-gray-500 font-medium">
+                                  x{item.quantity || 1}
+                                </span>
+                              </div>
+                              {item.toppingPerOrderItems && item.toppingPerOrderItems.length > 0 && (
+                                <p className="text-[11px] text-gray-500 mt-1.5 italic">
+                                  + Topping: {item.toppingPerOrderItems.map(t => t.toppingName).join(", ")}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right ml-4">
+                              <span className="font-bold text-gray-900">
+                                {formatCurrency((item.unitPrice || 0) * (item.quantity || 1))}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="bg-green-50 p-3 text-center border-t border-green-100">
@@ -851,16 +942,16 @@ const CheckoutContent = () => {
                 <div className="grid grid-cols-2 gap-3 w-full">
                   <Button
                     onClick={() => router.push("/menu")}
+                    className="h-11 bg-amber-700 hover:bg-amber-800 text-white shadow-md shadow-amber-900/10"
+                  >
+                    Tiếp tục mua hàng
+                  </Button>
+                  <Button
+                    onClick={() => router.push("/")}
                     variant="outline"
                     className="h-11 border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
                   >
-                    Về trang chủ
-                  </Button>
-                  <Button
-                    onClick={() => router.push("/profile?tab=orders")}
-                    className="h-11 bg-amber-700 hover:bg-amber-800 text-white shadow-md shadow-amber-900/10"
-                  >
-                    Xem đơn hàng
+                    Quay về trang chủ
                   </Button>
                 </div>
               </div>
