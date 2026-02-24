@@ -32,6 +32,7 @@ export interface ToppingPerOrderItemResponse {
 
 export interface OrderItemResponse {
     orderItemId?: number;
+    productVariantId?: number;
     productName?: string;
     sizeName?: string;
     unitPrice?: number;
