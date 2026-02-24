@@ -9,10 +9,10 @@ import { cn } from "@/lib/utils";
 
 export function FloatingCartButton() {
   const pathname = usePathname();
-  if (pathname.startsWith("/admin")) return null;
-
   const [modalOpen, setModalOpen] = useState(false);
   const { totalItems } = useCart();
+
+  if (pathname.startsWith("/admin")) return null;
 
   return (
     <>
