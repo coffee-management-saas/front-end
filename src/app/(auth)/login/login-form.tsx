@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAppContext } from "@/app/AppProvider";
 import { getJwtExpiresAt } from "@/lib/utils";
+import { Home } from "lucide-react";
 
 function getRoleFromAccessToken(token: string): string | null {
   try {
@@ -103,7 +104,6 @@ export default function LoginForm() {
       const data = await res.json();
 
       if (!res.ok) {
-
         if (res.status === 401 || res.status === 400) {
           form.setError("password", {
             type: "manual",
@@ -144,14 +144,25 @@ export default function LoginForm() {
       });
 
       const role = getRoleFromAccessToken(data.accessToken);
-      const destination =
-        role === "SHOP" ? "/staff" : role === "SYSTEM" ? "/admin" : "/";
+      const destination = (() => {
+        switch (role) {
+          case "EMPLOYEE":
+            return "/staff";
+          case "SHOP":
+            return "/admin";
+
+          default:
+            return "/";
+        }
+      })();
 
       router.replace(destination);
     } catch (error) {
       console.error("Login error:", error);
       toast.error(
-        error instanceof Error ? error.message : "Đăng nhập thất bại, vui lòng thử lại"
+        error instanceof Error
+          ? error.message
+          : "Đăng nhập thất bại, vui lòng thử lại",
       );
     } finally {
       setLoading(false);
@@ -161,7 +172,17 @@ export default function LoginForm() {
   const isSubmitDisabled = loading || !form.formState.isValid;
 
   return (
-    <Card className="w-full sm:max-w-sm p-0 max-h-[90vh] overflow-hidden">
+    <Card className="relative w-full sm:max-w-sm p-0 max-h-[90vh] overflow-hidden">
+      <Button
+        asChild
+        variant="ghost"
+        size="icon-sm"
+        className="absolute left-2 top-2 z-10"
+      >
+        <Link href="/" aria-label="Về trang chủ">
+          <Home className="size-4" />
+        </Link>
+      </Button>
       {/* Logo */}
       <div className="flex justify-center pt-2 pb-0 -mb-4">
         <Image
@@ -248,7 +269,7 @@ export default function LoginForm() {
           <Button
             type="submit"
             form="form-rhf-demo"
-            className="h-8 px-10 text-sm bg-amber-700 hover:bg-amber-800 text-white"
+            className="h-8 px-10 text-sm bg-[#7a4a2a] hover:bg-[#8b5e44] text-white"
             disabled={isSubmitDisabled}
             aria-disabled={isSubmitDisabled}
             aria-busy={loading}
@@ -261,7 +282,7 @@ export default function LoginForm() {
           Chưa có tài khoản?{" "}
           <Link
             href="/register"
-            className="font-semibold text-amber-700 hover:text-amber-800 hover:underline"
+            className="font-semibold text-[#7a4a2a] hover:text-[#8b5e44] hover:underline"
           >
             Đăng ký ngay
           </Link>

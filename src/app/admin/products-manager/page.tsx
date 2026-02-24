@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Eye, Pencil, Plus, Search, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,10 +44,13 @@ type ProductRow = {
 type ProductFormState = {
   name: string;
   categoryId: string;
+  price: string;
   description: string;
   image: string;
   status: ProductStatus;
 };
+
+type ProductFormErrors = Partial<Record<keyof ProductFormState, string>>;
 
 const mapProduct = (p: Product): ProductRow => ({
   id: String(p.id),
@@ -62,6 +65,10 @@ const mapProduct = (p: Product): ProductRow => ({
 const createFormState = (product: Product): ProductFormState => ({
   name: product.name ?? "",
   categoryId: String(product.categoryId ?? ""),
+  price:
+    product.price === null || product.price === undefined
+      ? ""
+      : String(product.price),
   description: product.description ?? "",
   image: product.image ?? "",
   status: product.status ?? "INACTIVE",
@@ -93,6 +100,7 @@ export default function ProductsManagerPage() {
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState<ProductFormState | null>(null);
+  const [editErrors, setEditErrors] = useState<ProductFormErrors>({});
   const [editMode, setEditMode] = useState<"create" | "edit">("edit");
 
   useEffect(() => {
@@ -191,6 +199,7 @@ export default function ProductsManagerPage() {
     setEditDialogOpen(true);
     setEditLoading(true);
     setEditForm(null);
+    setEditErrors({});
     setEditMode("edit");
     try {
       const data = await getProductById(product.id);
@@ -210,27 +219,72 @@ export default function ProductsManagerPage() {
     setEditForm({
       name: "",
       categoryId: "",
+      price: "",
       description: "",
       image: "",
       status: "ACTIVE",
     });
+    setEditErrors({});
     setEditDialogOpen(true);
   };
+
+  const setEditField = useCallback(
+    <K extends keyof ProductFormState>(key: K, value: ProductFormState[K]) => {
+      setEditForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+      setEditErrors((prev) => {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
+    [],
+  );
 
   const handleSave = async () => {
     if (!editForm) return;
 
+    const errors: ProductFormErrors = {};
+
+    const name = editForm.name.trim();
+    if (!name) {
+      errors.name = "Vui lòng nhập tên sản phẩm";
+    }
+
     const categoryId = Number(editForm.categoryId);
     if (!Number.isFinite(categoryId)) {
-      toast.error("Vui lòng chọn danh mục");
+      errors.categoryId = "Vui lòng chọn danh mục";
+    }
+
+    const price = Number(editForm.price);
+    if (!Number.isFinite(price) || price <= 0) {
+      errors.price = "Vui lòng nhập giá hợp lệ";
+    }
+
+    const image = editForm.image.trim();
+    if (image) {
+      try {
+        const u = new URL(image);
+        if (u.protocol !== "http:" && u.protocol !== "https:") {
+          errors.image = "Ảnh phải là URL http/https";
+        }
+      } catch {
+        errors.image = "Ảnh không đúng định dạng URL";
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setEditErrors(errors);
+      toast.error("Vui lòng kiểm tra lại thông tin");
       return;
     }
 
     const payload = {
-      name: editForm.name.trim(),
+      name,
       categoryId,
-      description: editForm.description.trim() || null,
-      image: editForm.image.trim() || null,
+      price,
+      description: editForm.description.trim(),
+      image,
       status: editForm.status,
     };
 
@@ -240,16 +294,14 @@ export default function ProductsManagerPage() {
       if (editMode === "create") {
         data = await createProduct(payload);
       } else {
-        data = await updateProductById(
-          selectedProduct?.id ?? "",
-          payload,
-        );
+        data = await updateProductById(selectedProduct?.id ?? "", payload);
       }
 
       // Đóng modal và reset form ngay khi API thành công
       setEditDialogOpen(false);
       setSelectedProduct(null);
       setEditForm(null);
+      setEditErrors({});
       setEditMode("edit");
 
       // Cập nhật danh sách ngay (optimistic)
@@ -263,9 +315,7 @@ export default function ProductsManagerPage() {
             setProducts((prev) => [row, ...prev]);
           }
         } else {
-          setProducts((prev) =>
-            prev.map((p) => (p.id === row.id ? row : p)),
-          );
+          setProducts((prev) => prev.map((p) => (p.id === row.id ? row : p)));
         }
         toast.success(
           editMode === "create"
@@ -393,7 +443,9 @@ export default function ProductsManagerPage() {
                     Ảnh
                   </TableHead>
                   <TableHead className="font-semibold">Danh mục</TableHead>
-                  <TableHead className="font-semibold w-[20%]">Miêu tả</TableHead>
+                  <TableHead className="font-semibold w-[20%]">
+                    Miêu tả
+                  </TableHead>
                   <TableHead className="font-semibold text-center">
                     Trạng thái
                   </TableHead>
@@ -439,6 +491,7 @@ export default function ProductsManagerPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         {product.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={product.image}
                             alt={product.name}
@@ -452,7 +505,10 @@ export default function ProductsManagerPage() {
                       <TableCell className="text-muted-foreground">
                         {product.categoryName}
                       </TableCell>
-                      <TableCell className="text-muted-foreground max-w-0 truncate" title={product.description ?? undefined}>
+                      <TableCell
+                        className="text-muted-foreground max-w-0 truncate"
+                        title={product.description ?? undefined}
+                      >
                         {product.description ?? "—"}
                       </TableCell>
                       <TableCell className="text-center">
@@ -504,6 +560,7 @@ export default function ProductsManagerPage() {
             <div className="grid gap-4">
               <div className="flex items-start gap-4">
                 {viewProduct.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={viewProduct.image}
                     alt={viewProduct.name}
@@ -531,6 +588,14 @@ export default function ProductsManagerPage() {
                   </p>
                 </div>
                 <div>
+                  <p className="text-sm text-muted-foreground">Giá</p>
+                  <p className="font-medium">
+                    {typeof viewProduct.price === "number"
+                      ? viewProduct.price.toLocaleString("vi-VN")
+                      : "—"}
+                  </p>
+                </div>
+                <div>
                   <p className="text-sm text-muted-foreground">Mô tả</p>
                   <p className="font-medium">
                     {viewProduct.description || "—"}
@@ -548,7 +613,14 @@ export default function ProductsManagerPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      <Dialog
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && editSaving) return;
+          setEditDialogOpen(open);
+          if (!open) setEditErrors({});
+        }}
+      >
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto py-4">
           <DialogHeader className="space-y-1 pb-2">
             <DialogTitle className="text-lg">
@@ -566,25 +638,22 @@ export default function ProductsManagerPage() {
                 <div className="grid gap-1">
                   <label className="text-sm font-medium">Tên sản phẩm</label>
                   <Input
-                    className="h-9"
+                    className={`h-9 ${editErrors.name ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
                     value={editForm.name}
-                    onChange={(e) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, name: e.target.value } : prev,
-                      )
-                    }
+                    onChange={(e) => setEditField("name", e.target.value)}
                   />
+                  {editErrors.name ? (
+                    <p className="text-xs text-destructive">
+                      {editErrors.name}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="grid gap-1">
                   <label className="text-sm font-medium">Danh mục</label>
                   <select
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    className={`h-9 rounded-md border bg-background px-3 text-sm ${editErrors.categoryId ? "border-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30" : "border-input"}`}
                     value={editForm.categoryId}
-                    onChange={(e) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, categoryId: e.target.value } : prev,
-                      )
-                    }
+                    onChange={(e) => setEditField("categoryId", e.target.value)}
                   >
                     <option value="">Chọn danh mục</option>
                     {categories.map((c) => (
@@ -593,37 +662,58 @@ export default function ProductsManagerPage() {
                       </option>
                     ))}
                   </select>
+                  {editErrors.categoryId ? (
+                    <p className="text-xs text-destructive">
+                      {editErrors.categoryId}
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid gap-1">
+                  <label className="text-sm font-medium">Giá</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    className={`h-9 ${editErrors.price ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
+                    value={editForm.price}
+                    onChange={(e) => setEditField("price", e.target.value)}
+                    placeholder="VD: 25000"
+                  />
+                  {editErrors.price ? (
+                    <p className="text-xs text-destructive">
+                      {editErrors.price}
+                    </p>
+                  ) : null}
+                </div>
                 <div className="grid gap-1">
                   <label className="text-sm font-medium">Trạng thái</label>
                   <select
                     className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                     value={editForm.status}
                     onChange={(e) =>
-                      setEditForm((prev) =>
-                        prev
-                          ? { ...prev, status: e.target.value as ProductStatus }
-                          : prev,
-                      )
+                      setEditField("status", e.target.value as ProductStatus)
                     }
                   >
                     <option value="ACTIVE">Đang hoạt động</option>
                     <option value="INACTIVE">Tạm ngưng</option>
                   </select>
                 </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
                 <div className="grid gap-1">
                   <label className="text-sm font-medium">Ảnh (URL)</label>
                   <Input
-                    className="h-9"
+                    className={`h-9 ${editErrors.image ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
                     value={editForm.image}
-                    onChange={(e) =>
-                      setEditForm((prev) =>
-                        prev ? { ...prev, image: e.target.value } : prev,
-                      )
-                    }
+                    onChange={(e) => setEditField("image", e.target.value)}
                   />
+                  {editErrors.image ? (
+                    <p className="text-xs text-destructive">
+                      {editErrors.image}
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className="grid gap-1">
@@ -631,11 +721,7 @@ export default function ProductsManagerPage() {
                 <textarea
                   className="min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-y"
                   value={editForm.description}
-                  onChange={(e) =>
-                    setEditForm((prev) =>
-                      prev ? { ...prev, description: e.target.value } : prev,
-                    )
-                  }
+                  onChange={(e) => setEditField("description", e.target.value)}
                 />
               </div>
             </div>
@@ -644,7 +730,11 @@ export default function ProductsManagerPage() {
           <DialogFooter className="pt-2 gap-2">
             <Button
               variant="ghost"
-              onClick={() => setEditDialogOpen(false)}
+              onClick={() => {
+                if (editSaving) return;
+                setEditDialogOpen(false);
+                setEditErrors({});
+              }}
               disabled={editSaving}
             >
               Hủy

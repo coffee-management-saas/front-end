@@ -39,6 +39,14 @@ import type {
 import type { ToppingDto } from "@/types/topping";
 import type { IngredientBaseUnit } from "@/types/ingredient";
 
+type RecipeFormErrors = Partial<
+  Record<keyof Pick<RecipeForm, "variantId" | "toppingId">, string>
+> & {
+  items?: string;
+};
+
+type RecipeItemErrors = Partial<Record<keyof RecipeItemForm, string>>;
+
 const parseJsonSafely = async <T,>(res: Response): Promise<T | null> => {
   const raw = await res.text();
   if (!raw) return null;
@@ -198,6 +206,8 @@ export default function RecipesManagerPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<RecipeForm>(() => toForm());
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<RecipeFormErrors>({});
+  const [itemErrors, setItemErrors] = useState<RecipeItemErrors[]>([{}]);
   const [searchQuery, setSearchQuery] = useState("");
   const [ingredients, setIngredients] = useState<IngredientDto[]>([]);
   const [ingredientsLoading, setIngredientsLoading] = useState(false);
@@ -370,6 +380,8 @@ export default function RecipesManagerPage() {
     setViewMode(true);
     setSelectedVariant(found);
     setForm({ ...toForm(), variantId: Number(found.id) });
+    setErrors({});
+    setItemErrors([{}]);
     setDialogOpen(true);
   }, [pendingViewVariantId, safeVariants]);
 
@@ -426,27 +438,33 @@ export default function RecipesManagerPage() {
 
         const items = (data.data ?? []) as RecipeItemDto[];
         if (items.length > 0) {
+          const nextItems = items.map((item) => ({
+            ingredientId: Number(item.ingredientId ?? 0),
+            quantityRequired: Number(item.quantityRequired ?? 0),
+            note: item.note ?? "",
+          }));
           setForm((prev) => ({
             ...prev,
             toppingId: Number(items[0].toppingId ?? 0),
-            items: items.map((item) => ({
-              ingredientId: Number(item.ingredientId ?? 0),
-              quantityRequired: Number(item.quantityRequired ?? 0),
-              note: item.note ?? "",
-            })),
+            items: nextItems,
           }));
+          setErrors({});
+          setItemErrors(nextItems.map(() => ({})));
         } else {
+          const nextItems = [
+            {
+              ingredientId: 0,
+              quantityRequired: 0,
+              note: "",
+            },
+          ];
           setForm((prev) => ({
             ...prev,
             toppingId: 0,
-            items: [
-              {
-                ingredientId: 0,
-                quantityRequired: 0,
-                note: "",
-              },
-            ],
+            items: nextItems,
           }));
+          setErrors({});
+          setItemErrors(nextItems.map(() => ({})));
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Load recipes failed";
@@ -466,6 +484,23 @@ export default function RecipesManagerPage() {
         i === index ? { ...item, ...patch } : item,
       ),
     }));
+    setItemErrors((prev) => {
+      const next = prev.length ? [...prev] : [];
+      while (next.length <= index) next.push({});
+      const current = next[index] ?? {};
+      const merged: RecipeItemErrors = { ...current };
+      (Object.keys(patch) as Array<keyof RecipeItemForm>).forEach((k) => {
+        delete merged[k];
+      });
+      next[index] = merged;
+      return next;
+    });
+    setErrors((prev) => {
+      if (!prev.items) return prev;
+      const next = { ...prev };
+      delete next.items;
+      return next;
+    });
   };
 
   const addItem = () => {
@@ -477,6 +512,13 @@ export default function RecipesManagerPage() {
         { ingredientId: 0, quantityRequired: 0, note: "" },
       ],
     }));
+    setItemErrors((prev) => [...prev, {}]);
+    setErrors((prev) => {
+      if (!prev.items) return prev;
+      const next = { ...prev };
+      delete next.items;
+      return next;
+    });
   };
 
   const removeItem = (index: number) => {
@@ -485,30 +527,81 @@ export default function RecipesManagerPage() {
       ...prev,
       items: prev.items.filter((_, i) => i !== index),
     }));
+    setItemErrors((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
+    if (submitting) return;
+
     const payload: RecipeCreateInput = {
       variantId: Number(form.variantId),
       toppingId: Number(form.toppingId),
-      items: form.items
-        .filter((item) => Number(item.ingredientId) > 0)
-        .map((item) => ({
-          ingredientId: Number(item.ingredientId),
-          quantityRequired: Number(item.quantityRequired),
-          note: item.note.trim() || null,
-        })),
+      items: [],
     };
 
-    if (!payload.variantId || !payload.toppingId) {
-      toast.error("Vui lòng nhập variantId và toppingId");
+    const nextErrors: RecipeFormErrors = {};
+    const nextItemErrors: RecipeItemErrors[] = form.items.map(() => ({}));
+
+    if (!payload.variantId || payload.variantId <= 0) {
+      nextErrors.variantId = "Vui lòng chọn biến thể";
+    }
+
+    if (!payload.toppingId || payload.toppingId <= 0) {
+      nextErrors.toppingId = "Vui lòng chọn topping";
+    }
+
+    const isRowEmpty = (row: RecipeItemForm) =>
+      Number(row.ingredientId) <= 0 &&
+      Number(row.quantityRequired) === 0 &&
+      !row.note.trim();
+
+    const firstIndexByIngredient = new Map<number, number>();
+    let hasAtLeastOneItem = false;
+
+    form.items.forEach((row, index) => {
+      if (isRowEmpty(row)) return;
+      hasAtLeastOneItem = true;
+
+      const ingredientId = Number(row.ingredientId);
+      if (!ingredientId || ingredientId <= 0) {
+        nextItemErrors[index].ingredientId = "Vui lòng chọn nguyên liệu";
+      } else {
+        const existedIndex = firstIndexByIngredient.get(ingredientId);
+        if (typeof existedIndex === "number") {
+          nextItemErrors[index].ingredientId = "Nguyên liệu bị trùng";
+          nextItemErrors[existedIndex].ingredientId = "Nguyên liệu bị trùng";
+        } else {
+          firstIndexByIngredient.set(ingredientId, index);
+        }
+      }
+
+      const qty = Number(row.quantityRequired);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        nextItemErrors[index].quantityRequired = "Số lượng phải > 0";
+      }
+
+      payload.items.push({
+        ingredientId,
+        quantityRequired: qty,
+        note: row.note.trim() || null,
+      });
+    });
+
+    if (!hasAtLeastOneItem) {
+      nextErrors.items = "Vui lòng thêm ít nhất 1 nguyên liệu";
+    }
+
+    const hasItemErrors = nextItemErrors.some((e) => Object.keys(e).length > 0);
+
+    if (Object.keys(nextErrors).length > 0 || hasItemErrors) {
+      setErrors(nextErrors);
+      setItemErrors(nextItemErrors);
+      toast.error("Vui lòng kiểm tra lại thông tin");
       return;
     }
 
-    if (payload.items.length === 0) {
-      toast.error("Vui lòng thêm ít nhất 1 nguyên liệu");
-      return;
-    }
+    setErrors({});
+    setItemErrors(form.items.map(() => ({})));
 
     setSubmitting(true);
     try {
@@ -527,6 +620,8 @@ export default function RecipesManagerPage() {
       toast.success("Đã tạo/cập nhật công thức");
       setDialogOpen(false);
       setForm(toForm());
+      setErrors({});
+      setItemErrors([{}]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Create recipe failed";
       toast.error(msg);
@@ -549,6 +644,10 @@ export default function RecipesManagerPage() {
             onClick={() => {
               setViewMode(false);
               setSelectedVariant(null);
+              setSubmitting(false);
+              setErrors({});
+              setItemErrors([{}]);
+              setForm(toForm());
               setDialogOpen(true);
             }}
             className="bg-primary hover:bg-primary/90"
@@ -691,6 +790,9 @@ export default function RecipesManagerPage() {
                             }
                             setViewMode(true);
                             setSelectedVariant(variant);
+                            setSubmitting(false);
+                            setErrors({});
+                            setItemErrors([{}]);
                             setForm({
                               ...toForm(),
                               variantId: Number(variant.id),
@@ -720,11 +822,14 @@ export default function RecipesManagerPage() {
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
+          if (!open && submitting) return;
           setDialogOpen(open);
           if (!open) {
             setViewMode(false);
             setSelectedVariant(null);
             setForm(toForm());
+            setErrors({});
+            setItemErrors([{}]);
             if (typeof window !== "undefined") {
               window.localStorage.removeItem(STORAGE.viewVariantId);
             }
@@ -732,7 +837,15 @@ export default function RecipesManagerPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent
+          className="max-w-2xl max-h-[80vh] overflow-y-auto"
+          onEscapeKeyDown={(e) => {
+            if (submitting) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (submitting) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {viewMode ? "Xem công thức" : "Tạo công thức"}
@@ -789,15 +902,25 @@ export default function RecipesManagerPage() {
               <Label htmlFor="variantId">Tên Biến thể </Label>
               <select
                 id="variantId"
-                className="h-9 text-sm w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:appearance-none"
+                className={`h-9 text-sm w-full rounded-md border bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:appearance-none ${
+                  errors.variantId
+                    ? "border-destructive focus:ring-destructive/30"
+                    : "border-input"
+                }`}
                 value={form.variantId || ""}
-                onChange={(e) =>
+                onChange={(e) => {
                   setForm((prev) => ({
                     ...prev,
                     variantId: Number(e.target.value),
-                  }))
-                }
-                disabled={viewMode}
+                  }));
+                  setErrors((prev) => {
+                    if (!prev.variantId) return prev;
+                    const next = { ...prev };
+                    delete next.variantId;
+                    return next;
+                  });
+                }}
+                disabled={viewMode || submitting}
               >
                 <option value="" disabled>
                   Chọn biến thể
@@ -828,21 +951,34 @@ export default function RecipesManagerPage() {
                   })
                 )}
               </select>
+              {!viewMode && errors.variantId ? (
+                <p className="text-xs text-destructive">{errors.variantId}</p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="toppingId">Topping</Label>
               <select
                 id="toppingId"
-                className="h-9 text-sm w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:appearance-none"
+                className={`h-9 text-sm w-full rounded-md border bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:appearance-none ${
+                  errors.toppingId
+                    ? "border-destructive focus:ring-destructive/30"
+                    : "border-input"
+                }`}
                 value={form.toppingId || ""}
-                onChange={(e) =>
+                onChange={(e) => {
                   setForm((prev) => ({
                     ...prev,
                     toppingId: Number(e.target.value),
-                  }))
-                }
-                disabled={viewMode}
+                  }));
+                  setErrors((prev) => {
+                    if (!prev.toppingId) return prev;
+                    const next = { ...prev };
+                    delete next.toppingId;
+                    return next;
+                  });
+                }}
+                disabled={viewMode || submitting}
               >
                 <option value="" disabled>
                   Chọn topping
@@ -859,10 +995,16 @@ export default function RecipesManagerPage() {
                   ))
                 )}
               </select>
+              {!viewMode && errors.toppingId ? (
+                <p className="text-xs text-destructive">{errors.toppingId}</p>
+              ) : null}
             </div>
 
             <div className="space-y-2 md:col-span-2">
               <Label>Nguyên liệu</Label>
+              {!viewMode && errors.items ? (
+                <p className="text-xs text-destructive">{errors.items}</p>
+              ) : null}
               <div className="space-y-3">
                 {form.items.length === 0 ? (
                   <div className="text-sm text-muted-foreground">
@@ -878,14 +1020,18 @@ export default function RecipesManagerPage() {
                         <div className="space-y-2">
                           <Label>Nguyên liệu</Label>
                           <select
-                            className="h-9 text-sm w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:appearance-none"
+                            className={`h-9 text-sm w-full rounded-md border bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:appearance-none ${
+                              itemErrors[index]?.ingredientId
+                                ? "border-destructive focus:ring-destructive/30"
+                                : "border-input"
+                            }`}
                             value={item.ingredientId || ""}
                             onChange={(e) =>
                               updateItem(index, {
                                 ingredientId: Number(e.target.value),
                               })
                             }
-                            disabled={viewMode}
+                            disabled={viewMode || submitting}
                           >
                             <option value="" disabled>
                               Chọn nguyên liệu
@@ -902,37 +1048,53 @@ export default function RecipesManagerPage() {
                               ))
                             )}
                           </select>
+                          {itemErrors[index]?.ingredientId ? (
+                            <p className="text-xs text-destructive">
+                              {itemErrors[index]?.ingredientId}
+                            </p>
+                          ) : null}
                         </div>
 
                         <div className="space-y-2">
                           <Label>Số lượng</Label>
-                          <div className="relative w-full">
-                            <Input
-                              type="number"
-                              className="pr-10 text-left w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              value={
-                                item.quantityRequired === 0
-                                  ? ""
-                                  : item.quantityRequired
-                              }
-                              onChange={(e) =>
-                                updateItem(index, {
-                                  quantityRequired:
-                                    e.target.value === ""
-                                      ? 0
-                                      : Number(e.target.value),
-                                })
-                              }
-                              placeholder="20"
-                              disabled={viewMode}
-                            />
-                            <span className="pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground tracking-tight">
-                              {formatUnitLabel(
-                                safeIngredients.find(
-                                  (ing) => ing.id === item.ingredientId,
-                                )?.baseUnit,
-                              )}
-                            </span>
+                          <div className="space-y-1">
+                            <div className="relative w-full">
+                              <Input
+                                type="number"
+                                className={`pr-10 text-left w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                  itemErrors[index]?.quantityRequired
+                                    ? "border-destructive focus-visible:ring-destructive/30"
+                                    : ""
+                                }`}
+                                value={
+                                  item.quantityRequired === 0
+                                    ? ""
+                                    : item.quantityRequired
+                                }
+                                onChange={(e) =>
+                                  updateItem(index, {
+                                    quantityRequired:
+                                      e.target.value === ""
+                                        ? 0
+                                        : Number(e.target.value),
+                                  })
+                                }
+                                placeholder="20"
+                                disabled={viewMode || submitting}
+                              />
+                              <span className="pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground tracking-tight">
+                                {formatUnitLabel(
+                                  safeIngredients.find(
+                                    (ing) => ing.id === item.ingredientId,
+                                  )?.baseUnit,
+                                )}
+                              </span>
+                            </div>
+                            {itemErrors[index]?.quantityRequired ? (
+                              <p className="text-xs text-destructive">
+                                {itemErrors[index]?.quantityRequired}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -945,7 +1107,7 @@ export default function RecipesManagerPage() {
                             updateItem(index, { note: e.target.value })
                           }
                           placeholder="Đường"
-                          disabled={viewMode}
+                          disabled={viewMode || submitting}
                         />
                       </div>
 
@@ -957,7 +1119,7 @@ export default function RecipesManagerPage() {
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-destructive"
                             onClick={() => removeItem(index)}
-                            disabled={form.items.length === 1}
+                            disabled={submitting || form.items.length === 1}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -967,7 +1129,12 @@ export default function RecipesManagerPage() {
                   ))
                 )}
                 {!viewMode && (
-                  <Button type="button" variant="outline" onClick={addItem}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addItem}
+                    disabled={submitting}
+                  >
                     <Plus className="w-4 h-4 mr-2" />
                     Thêm nguyên liệu
                   </Button>
@@ -977,7 +1144,11 @@ export default function RecipesManagerPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+              disabled={submitting}
+            >
               Đóng
             </Button>
             {!viewMode && (
@@ -986,7 +1157,7 @@ export default function RecipesManagerPage() {
                 onClick={handleSave}
                 disabled={submitting}
               >
-                Lưu công thức
+                {submitting ? "Đang lưu..." : "Lưu công thức"}
               </Button>
             )}
           </DialogFooter>

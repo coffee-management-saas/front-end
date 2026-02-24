@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Eye, FileText, Search, Package2, Plus, Trash2 } from "lucide-react";
@@ -75,6 +75,13 @@ type InvoiceCreateForm = {
   items: InvoiceCreateItem[];
 };
 
+type InvoiceCreateItemErrors = Partial<Record<keyof InvoiceCreateItem, string>>;
+type InvoiceCreateFormErrors = Partial<
+  Record<Exclude<keyof InvoiceCreateForm, "items">, string>
+> & {
+  items?: string;
+};
+
 type InvoiceApiResponse = {
   code?: number;
   message?: string;
@@ -88,6 +95,10 @@ type UnitConversionForm = {
   conversionFactor: number;
   isStandard: boolean;
 };
+
+type UnitConversionFormErrors = Partial<
+  Record<keyof UnitConversionForm, string>
+>;
 
 type UnitConversionApiResponse = {
   code?: number;
@@ -231,11 +242,17 @@ export default function InvoicesManagerPage() {
   const [createForm, setCreateForm] = useState<InvoiceCreateForm>(() =>
     toCreateForm(),
   );
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createErrors, setCreateErrors] = useState<InvoiceCreateFormErrors>({});
+  const [createItemErrors, setCreateItemErrors] = useState<
+    InvoiceCreateItemErrors[]
+  >([{}]);
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [unitForm, setUnitForm] = useState<UnitConversionForm>(() =>
     toUnitConversionForm(),
   );
   const [unitSubmitting, setUnitSubmitting] = useState(false);
+  const [unitErrors, setUnitErrors] = useState<UnitConversionFormErrors>({});
   const [ingredients, setIngredients] = useState<IngredientDto[]>([]);
   const [ingredientsLoading, setIngredientsLoading] = useState(false);
 
@@ -346,7 +363,11 @@ export default function InvoicesManagerPage() {
     setDialogMode("create");
     setSelectedInvoice(null);
     setForm(toForm());
-    setCreateForm(toCreateForm());
+    const next = toCreateForm();
+    setCreateForm(next);
+    setCreateSubmitting(false);
+    setCreateErrors({});
+    setCreateItemErrors(next.items.map(() => ({})));
     setDialogOpen(true);
   };
 
@@ -365,6 +386,23 @@ export default function InvoicesManagerPage() {
         i === index ? { ...item, ...patch } : item,
       ),
     }));
+    setCreateItemErrors((prev) => {
+      const next = prev.length ? [...prev] : [];
+      while (next.length <= index) next.push({});
+      const current = next[index] ?? {};
+      const merged: InvoiceCreateItemErrors = { ...current };
+      (Object.keys(patch) as Array<keyof InvoiceCreateItem>).forEach((k) => {
+        delete merged[k];
+      });
+      next[index] = merged;
+      return next;
+    });
+    setCreateErrors((prev) => {
+      if (!prev.items) return prev;
+      const next = { ...prev };
+      delete next.items;
+      return next;
+    });
   };
 
   const addCreateItem = () => {
@@ -382,6 +420,13 @@ export default function InvoicesManagerPage() {
         },
       ],
     }));
+    setCreateItemErrors((prev) => [...prev, {}]);
+    setCreateErrors((prev) => {
+      if (!prev.items) return prev;
+      const next = { ...prev };
+      delete next.items;
+      return next;
+    });
   };
 
   const removeCreateItem = (index: number) => {
@@ -389,37 +434,127 @@ export default function InvoicesManagerPage() {
       ...prev,
       items: prev.items.filter((_, i) => i !== index),
     }));
+    setCreateItemErrors((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
+    if (createSubmitting) return;
+
     const payload = {
       code: createForm.code.trim(),
       supplierName: createForm.supplierName.trim(),
       invoiceImageUrl: createForm.invoiceImageUrl.trim() || null,
       note: createForm.note.trim() || null,
-      items: createForm.items
-        .filter((item) => Number(item.ingredientId) > 0)
-        .map((item) => ({
-          ingredientId: Number(item.ingredientId),
-          inputUnit: item.inputUnit.trim(),
-          inputQuantity: Number(item.inputQuantity),
-          unitPrice: Number(item.unitPrice),
-          batchCode: item.batchCode.trim(),
-          expiredAt: item.expiredAt,
-        })),
+      items: [] as Array<{
+        ingredientId: number;
+        inputUnit: string;
+        inputQuantity: number;
+        unitPrice: number;
+        batchCode: string;
+        expiredAt: string;
+      }>,
     };
 
+    const errors: InvoiceCreateFormErrors = {};
+    const itemErrors: InvoiceCreateItemErrors[] = createForm.items.map(
+      () => ({}),
+    );
+
     if (!payload.supplierName) {
-      toast.error("Vui lòng nhập tên nhà cung cấp");
-      return;
+      errors.supplierName = "Vui lòng nhập tên nhà cung cấp";
     }
 
-    if (payload.items.length === 0) {
-      toast.error("Vui lòng thêm ít nhất 1 mặt hàng");
+    if (payload.invoiceImageUrl) {
+      try {
+        const u = new URL(payload.invoiceImageUrl);
+        if (u.protocol !== "http:" && u.protocol !== "https:") {
+          errors.invoiceImageUrl = "Ảnh hóa đơn phải là URL http/https";
+        }
+      } catch {
+        errors.invoiceImageUrl = "Ảnh hóa đơn không đúng định dạng URL";
+      }
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const isRowEmpty = (row: InvoiceCreateItem) => {
+      return (
+        Number(row.ingredientId) <= 0 &&
+        !row.inputUnit.trim() &&
+        Number(row.inputQuantity) === 0 &&
+        Number(row.unitPrice) === 0 &&
+        !row.batchCode.trim() &&
+        !row.expiredAt
+      );
+    };
+
+    let hasAtLeastOneItem = false;
+
+    createForm.items.forEach((row, index) => {
+      if (isRowEmpty(row)) return;
+      hasAtLeastOneItem = true;
+
+      if (!Number(row.ingredientId)) {
+        itemErrors[index].ingredientId = "Vui lòng chọn nguyên liệu";
+      }
+
+      const qty = Number(row.inputQuantity);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        itemErrors[index].inputQuantity = "Số lượng phải > 0";
+      }
+
+      const unit = row.inputUnit.trim();
+      if (!unit) {
+        itemErrors[index].inputUnit = "Vui lòng chọn đơn vị";
+      }
+
+      const price = Number(row.unitPrice);
+      if (!Number.isFinite(price) || price <= 0) {
+        itemErrors[index].unitPrice = "Đơn giá phải > 0";
+      }
+
+      const batchCode = row.batchCode.trim();
+      if (!batchCode) {
+        itemErrors[index].batchCode = "Vui lòng nhập mã lô";
+      }
+
+      const expiredAt = row.expiredAt;
+      if (!expiredAt) {
+        itemErrors[index].expiredAt = "Vui lòng chọn HSD";
+      } else {
+        const exp = new Date(`${expiredAt}T00:00:00`);
+        if (Number.isNaN(exp.getTime())) {
+          itemErrors[index].expiredAt = "HSD không hợp lệ";
+        } else if (exp < today) {
+          itemErrors[index].expiredAt = "HSD phải từ hôm nay trở đi";
+        }
+      }
+
+      payload.items.push({
+        ingredientId: Number(row.ingredientId),
+        inputUnit: unit,
+        inputQuantity: qty,
+        unitPrice: price,
+        batchCode,
+        expiredAt,
+      });
+    });
+
+    if (!hasAtLeastOneItem) {
+      errors.items = "Vui lòng thêm ít nhất 1 mặt hàng";
+    }
+
+    const hasItemErrors = itemErrors.some((e) => Object.keys(e).length > 0);
+    if (Object.keys(errors).length > 0 || hasItemErrors) {
+      setCreateErrors(errors);
+      setCreateItemErrors(itemErrors);
+      toast.error("Vui lòng kiểm tra lại thông tin");
       return;
     }
 
     try {
+      setCreateSubmitting(true);
       const res = await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -438,13 +573,18 @@ export default function InvoicesManagerPage() {
       }
       toast.success("Đã tạo hóa đơn");
       setDialogOpen(false);
+      setCreateErrors({});
+      setCreateItemErrors([{}]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Create invoice failed";
       toast.error(msg);
+    } finally {
+      setCreateSubmitting(false);
     }
   };
 
   const handleSaveUnitConversion = async () => {
+    if (unitSubmitting) return;
     const payload = {
       ingredientId: Number(unitForm.ingredientId),
       fromUnit: unitForm.fromUnit.trim(),
@@ -453,18 +593,18 @@ export default function InvoicesManagerPage() {
       isStandard: Boolean(unitForm.isStandard),
     };
 
-    if (!payload.ingredientId) {
-      toast.error("Vui lòng chọn nguyên liệu");
-      return;
-    }
-
-    if (!payload.fromUnit || !payload.toUnit) {
-      toast.error("Vui lòng nhập đơn vị quy đổi");
-      return;
-    }
-
+    const errors: UnitConversionFormErrors = {};
+    if (!payload.ingredientId)
+      errors.ingredientId = "Vui lòng chọn nguyên liệu";
+    if (!payload.fromUnit) errors.fromUnit = "Vui lòng chọn đơn vị nhập";
+    if (!payload.toUnit) errors.toUnit = "Vui lòng chọn đơn vị chuẩn";
     if (!payload.conversionFactor || payload.conversionFactor <= 0) {
-      toast.error("Vui lòng nhập hệ số quy đổi");
+      errors.conversionFactor = "Hệ số quy đổi phải > 0";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setUnitErrors(errors);
+      toast.error("Vui lòng kiểm tra lại thông tin");
       return;
     }
 
@@ -485,6 +625,7 @@ export default function InvoicesManagerPage() {
       toast.success("Đã tạo quy đổi đơn vị");
       setUnitDialogOpen(false);
       setUnitForm(toUnitConversionForm());
+      setUnitErrors({});
     } catch (e) {
       const msg =
         e instanceof Error ? e.message : "Create unit conversion failed";
@@ -669,17 +810,29 @@ export default function InvoicesManagerPage() {
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
+          if (!open && createSubmitting) return;
           setDialogOpen(open);
           if (!open) {
             if (dialogMode === "create") {
               setCreateForm(toCreateForm());
+              setCreateErrors({});
+              setCreateItemErrors([{}]);
+              setCreateSubmitting(false);
             } else {
               setForm(toForm(selectedInvoice));
             }
           }
         }}
       >
-        <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
+        <DialogContent
+          className="max-w-xl max-h-[80vh] overflow-y-auto"
+          onEscapeKeyDown={(e) => {
+            if (createSubmitting) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (createSubmitting) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {dialogMode === "create" ? "Tạo hóa đơn" : "Chi tiết hóa đơn"}
@@ -703,7 +856,7 @@ export default function InvoicesManagerPage() {
                     : setForm((f) => ({ ...f, code: e.target.value }))
                 }
                 placeholder="HD-2026-001"
-                disabled={dialogMode !== "create"}
+                disabled={dialogMode !== "create" || createSubmitting}
               />
             </div>
 
@@ -718,15 +871,33 @@ export default function InvoicesManagerPage() {
                 }
                 onChange={(e) =>
                   dialogMode === "create"
-                    ? setCreateForm((f) => ({
-                        ...f,
-                        supplierName: e.target.value,
-                      }))
+                    ? (() => {
+                        setCreateForm((f) => ({
+                          ...f,
+                          supplierName: e.target.value,
+                        }));
+                        setCreateErrors((prev) => {
+                          if (!prev.supplierName) return prev;
+                          const next = { ...prev };
+                          delete next.supplierName;
+                          return next;
+                        });
+                      })()
                     : setForm((f) => ({ ...f, supplierName: e.target.value }))
                 }
                 placeholder="Tên nhà cung cấp"
-                disabled={dialogMode !== "create"}
+                disabled={dialogMode !== "create" || createSubmitting}
+                className={
+                  dialogMode === "create" && createErrors.supplierName
+                    ? "border-destructive focus-visible:ring-destructive/30"
+                    : undefined
+                }
               />
+              {dialogMode === "create" && createErrors.supplierName ? (
+                <p className="text-xs text-destructive">
+                  {createErrors.supplierName}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -771,13 +942,32 @@ export default function InvoicesManagerPage() {
                   id="invoiceImageUrl"
                   value={createForm.invoiceImageUrl}
                   onChange={(e) =>
-                    setCreateForm((f) => ({
-                      ...f,
-                      invoiceImageUrl: e.target.value,
-                    }))
+                    (() => {
+                      setCreateForm((f) => ({
+                        ...f,
+                        invoiceImageUrl: e.target.value,
+                      }));
+                      setCreateErrors((prev) => {
+                        if (!prev.invoiceImageUrl) return prev;
+                        const next = { ...prev };
+                        delete next.invoiceImageUrl;
+                        return next;
+                      });
+                    })()
                   }
                   placeholder="https://example.com/invoice.jpg"
+                  disabled={createSubmitting}
+                  className={
+                    createErrors.invoiceImageUrl
+                      ? "border-destructive focus-visible:ring-destructive/30"
+                      : undefined
+                  }
                 />
+                {createErrors.invoiceImageUrl ? (
+                  <p className="text-xs text-destructive">
+                    {createErrors.invoiceImageUrl}
+                  </p>
+                ) : null}
               </div>
             ) : form.invoiceImageUrl ? (
               <div className="space-y-2 md:col-span-2">
@@ -795,6 +985,9 @@ export default function InvoicesManagerPage() {
 
             <div className="space-y-2 md:col-span-2">
               <Label>Danh sách mặt hàng</Label>
+              {dialogMode === "create" && createErrors.items ? (
+                <p className="text-xs text-destructive">{createErrors.items}</p>
+              ) : null}
               <div className="rounded-lg border border-border">
                 <Table>
                   <TableHeader>
@@ -826,13 +1019,18 @@ export default function InvoicesManagerPage() {
                                   </div>
                                   <div className="space-y-1">
                                     <select
-                                      className="h-9 text-sm max-w-[220px] w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                      className={`h-9 text-sm max-w-[220px] w-full rounded-md border bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                                        createItemErrors[index]?.ingredientId
+                                          ? "border-destructive focus:ring-destructive/30"
+                                          : "border-input"
+                                      }`}
                                       value={item.ingredientId || ""}
                                       onChange={(e) =>
                                         updateCreateItem(index, {
                                           ingredientId: Number(e.target.value),
                                         })
                                       }
+                                      disabled={createSubmitting}
                                     >
                                       <option value="" disabled>
                                         Chọn nguyên liệu
@@ -849,99 +1047,169 @@ export default function InvoicesManagerPage() {
                                         ))
                                       )}
                                     </select>
+                                    {createItemErrors[index]?.ingredientId ? (
+                                      <p className="text-xs text-destructive">
+                                        {createItemErrors[index]?.ingredientId}
+                                      </p>
+                                    ) : null}
                                   </div>
                                 </div>
                                 <div className="grid grid-cols-[160px_1fr] gap-2">
                                   <div className="text-muted-foreground">
                                     Số lượng
                                   </div>
-                                  <Input
-                                    type="number"
-                                    value={
-                                      item.inputQuantity === 0
-                                        ? ""
-                                        : item.inputQuantity
-                                    }
-                                    onChange={(e) =>
-                                      updateCreateItem(index, {
-                                        inputQuantity:
-                                          e.target.value === ""
-                                            ? 0
-                                            : Number(e.target.value),
-                                      })
-                                    }
-                                  />
+                                  <div className="space-y-1">
+                                    <Input
+                                      type="number"
+                                      value={
+                                        item.inputQuantity === 0
+                                          ? ""
+                                          : item.inputQuantity
+                                      }
+                                      onChange={(e) =>
+                                        updateCreateItem(index, {
+                                          inputQuantity:
+                                            e.target.value === ""
+                                              ? 0
+                                              : Number(e.target.value),
+                                        })
+                                      }
+                                      disabled={createSubmitting}
+                                      className={
+                                        createItemErrors[index]?.inputQuantity
+                                          ? "border-destructive focus-visible:ring-destructive/30"
+                                          : undefined
+                                      }
+                                    />
+                                    {createItemErrors[index]?.inputQuantity ? (
+                                      <p className="text-xs text-destructive">
+                                        {createItemErrors[index]?.inputQuantity}
+                                      </p>
+                                    ) : null}
+                                  </div>
                                 </div>
                                 <div className="grid grid-cols-[160px_1fr] gap-2">
                                   <div className="text-muted-foreground">
                                     Đơn vị
                                   </div>
-                                  <select
-                                    className="h-9 text-sm w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                                    value={item.inputUnit || ""}
-                                    onChange={(e) =>
-                                      updateCreateItem(index, {
-                                        inputUnit: e.target.value,
-                                      })
-                                    }
-                                  >
-                                    <option value="" disabled>
-                                      Chọn đơn vị
-                                    </option>
-                                    {fromUnitOptions.map((unit) => (
-                                      <option key={unit} value={unit}>
-                                        {fromUnitLabels[unit]}
+                                  <div className="space-y-1">
+                                    <select
+                                      className={`h-9 text-sm w-full rounded-md border bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                                        createItemErrors[index]?.inputUnit
+                                          ? "border-destructive focus:ring-destructive/30"
+                                          : "border-input"
+                                      }`}
+                                      value={item.inputUnit || ""}
+                                      onChange={(e) =>
+                                        updateCreateItem(index, {
+                                          inputUnit: e.target.value,
+                                        })
+                                      }
+                                      disabled={createSubmitting}
+                                    >
+                                      <option value="" disabled>
+                                        Chọn đơn vị
                                       </option>
-                                    ))}
-                                  </select>
+                                      {fromUnitOptions.map((unit) => (
+                                        <option key={unit} value={unit}>
+                                          {fromUnitLabels[unit]}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {createItemErrors[index]?.inputUnit ? (
+                                      <p className="text-xs text-destructive">
+                                        {createItemErrors[index]?.inputUnit}
+                                      </p>
+                                    ) : null}
+                                  </div>
                                 </div>
                                 <div className="grid grid-cols-[160px_1fr] gap-2">
                                   <div className="text-muted-foreground">
                                     Đơn giá
                                   </div>
-                                  <Input
-                                    type="number"
-                                    step="any"
-                                    className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    value={
-                                      item.unitPrice === 0 ? "" : item.unitPrice
-                                    }
-                                    onChange={(e) =>
-                                      updateCreateItem(index, {
-                                        unitPrice:
-                                          e.target.value === ""
-                                            ? 0
-                                            : Number(e.target.value),
-                                      })
-                                    }
-                                  />
+                                  <div className="space-y-1">
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                        createItemErrors[index]?.unitPrice
+                                          ? "border-destructive focus-visible:ring-destructive/30"
+                                          : ""
+                                      }`}
+                                      value={
+                                        item.unitPrice === 0
+                                          ? ""
+                                          : item.unitPrice
+                                      }
+                                      onChange={(e) =>
+                                        updateCreateItem(index, {
+                                          unitPrice:
+                                            e.target.value === ""
+                                              ? 0
+                                              : Number(e.target.value),
+                                        })
+                                      }
+                                      disabled={createSubmitting}
+                                    />
+                                    {createItemErrors[index]?.unitPrice ? (
+                                      <p className="text-xs text-destructive">
+                                        {createItemErrors[index]?.unitPrice}
+                                      </p>
+                                    ) : null}
+                                  </div>
                                 </div>
                                 <div className="grid grid-cols-[160px_1fr] gap-2">
                                   <div className="text-muted-foreground">
                                     Lô
                                   </div>
-                                  <Input
-                                    value={item.batchCode}
-                                    onChange={(e) =>
-                                      updateCreateItem(index, {
-                                        batchCode: e.target.value,
-                                      })
-                                    }
-                                  />
+                                  <div className="space-y-1">
+                                    <Input
+                                      value={item.batchCode}
+                                      onChange={(e) =>
+                                        updateCreateItem(index, {
+                                          batchCode: e.target.value,
+                                        })
+                                      }
+                                      disabled={createSubmitting}
+                                      className={
+                                        createItemErrors[index]?.batchCode
+                                          ? "border-destructive focus-visible:ring-destructive/30"
+                                          : undefined
+                                      }
+                                    />
+                                    {createItemErrors[index]?.batchCode ? (
+                                      <p className="text-xs text-destructive">
+                                        {createItemErrors[index]?.batchCode}
+                                      </p>
+                                    ) : null}
+                                  </div>
                                 </div>
                                 <div className="grid grid-cols-[160px_1fr] gap-2">
                                   <div className="text-muted-foreground">
                                     HSD
                                   </div>
-                                  <Input
-                                    type="date"
-                                    value={item.expiredAt}
-                                    onChange={(e) =>
-                                      updateCreateItem(index, {
-                                        expiredAt: e.target.value,
-                                      })
-                                    }
-                                  />
+                                  <div className="space-y-1">
+                                    <Input
+                                      type="date"
+                                      value={item.expiredAt}
+                                      onChange={(e) =>
+                                        updateCreateItem(index, {
+                                          expiredAt: e.target.value,
+                                        })
+                                      }
+                                      disabled={createSubmitting}
+                                      className={
+                                        createItemErrors[index]?.expiredAt
+                                          ? "border-destructive focus-visible:ring-destructive/30"
+                                          : undefined
+                                      }
+                                    />
+                                    {createItemErrors[index]?.expiredAt ? (
+                                      <p className="text-xs text-destructive">
+                                        {createItemErrors[index]?.expiredAt}
+                                      </p>
+                                    ) : null}
+                                  </div>
                                 </div>
                                 <div className="flex justify-end">
                                   <Button
@@ -950,7 +1218,10 @@ export default function InvoicesManagerPage() {
                                     size="icon"
                                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                     onClick={() => removeCreateItem(index)}
-                                    disabled={createForm.items.length === 1}
+                                    disabled={
+                                      createSubmitting ||
+                                      createForm.items.length === 1
+                                    }
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </Button>
@@ -1077,26 +1348,37 @@ export default function InvoicesManagerPage() {
                     setCreateForm((f) => ({ ...f, note: e.target.value }))
                   }
                   placeholder="Nhập hàng định kỳ..."
+                  disabled={createSubmitting}
                 />
               </div>
             ) : null}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+              disabled={createSubmitting}
+            >
               Đóng
             </Button>
             {dialogMode === "create" ? (
               <>
-                <Button type="button" variant="outline" onClick={addCreateItem}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addCreateItem}
+                  disabled={createSubmitting}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Thêm mặt hàng
                 </Button>
                 <Button
                   className="bg-primary hover:bg-primary/90"
                   onClick={handleSave}
+                  disabled={createSubmitting}
                 >
-                  Tạo hóa đơn
+                  {createSubmitting ? "Đang tạo..." : "Tạo hóa đơn"}
                 </Button>
               </>
             ) : null}
@@ -1107,15 +1389,28 @@ export default function InvoicesManagerPage() {
       <Dialog
         open={unitDialogOpen}
         onOpenChange={(open) => {
+          if (!open && unitSubmitting) return;
           setUnitDialogOpen(open);
-          if (!open) setUnitForm(toUnitConversionForm());
+          if (!open) {
+            setUnitForm(toUnitConversionForm());
+            setUnitErrors({});
+          }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent
+          className="max-w-lg"
+          onEscapeKeyDown={(e) => {
+            if (unitSubmitting) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (unitSubmitting) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Quy đổi đơn vị</DialogTitle>
             <DialogDescription>
-              Thiết lập quy đổi từ đơn vị nhập (hộp, gói, chai…) sang đơn vị chuẩn (gam, lít, cái…).
+              Thiết lập quy đổi từ đơn vị nhập (hộp, gói, chai…) sang đơn vị
+              chuẩn (gam, lít, cái…).
             </DialogDescription>
           </DialogHeader>
 
@@ -1124,14 +1419,25 @@ export default function InvoicesManagerPage() {
               <Label htmlFor="unit-ingredient">Nguyên liệu</Label>
               <select
                 id="unit-ingredient"
-                className="h-9 text-sm w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className={`h-9 text-sm w-full rounded-md border bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                  unitErrors.ingredientId
+                    ? "border-destructive focus:ring-destructive/30"
+                    : "border-input"
+                }`}
                 value={unitForm.ingredientId || ""}
-                onChange={(e) =>
+                onChange={(e) => {
                   setUnitForm((prev) => ({
                     ...prev,
                     ingredientId: Number(e.target.value),
-                  }))
-                }
+                  }));
+                  setUnitErrors((prev) => {
+                    if (!prev.ingredientId) return prev;
+                    const next = { ...prev };
+                    delete next.ingredientId;
+                    return next;
+                  });
+                }}
+                disabled={unitSubmitting}
               >
                 <option value="" disabled>
                   Chọn nguyên liệu
@@ -1148,20 +1454,36 @@ export default function InvoicesManagerPage() {
                   ))
                 )}
               </select>
+              {unitErrors.ingredientId ? (
+                <p className="text-xs text-destructive">
+                  {unitErrors.ingredientId}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="fromUnit">Đơn vị nguồn (từ)</Label>
               <select
                 id="fromUnit"
-                className="h-9 text-sm w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className={`h-9 text-sm w-full rounded-md border bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                  unitErrors.fromUnit
+                    ? "border-destructive focus:ring-destructive/30"
+                    : "border-input"
+                }`}
                 value={unitForm.fromUnit}
-                onChange={(e) =>
+                onChange={(e) => {
                   setUnitForm((prev) => ({
                     ...prev,
                     fromUnit: e.target.value,
-                  }))
-                }
+                  }));
+                  setUnitErrors((prev) => {
+                    if (!prev.fromUnit) return prev;
+                    const next = { ...prev };
+                    delete next.fromUnit;
+                    return next;
+                  });
+                }}
+                disabled={unitSubmitting}
               >
                 <option value="" disabled>
                   Chọn đơn vị nguồn
@@ -1172,20 +1494,36 @@ export default function InvoicesManagerPage() {
                   </option>
                 ))}
               </select>
+              {unitErrors.fromUnit ? (
+                <p className="text-xs text-destructive">
+                  {unitErrors.fromUnit}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="toUnit">Đơn vị đích (sang)</Label>
               <select
                 id="toUnit"
-                className="h-9 text-sm w-full rounded-md border border-input bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className={`h-9 text-sm w-full rounded-md border bg-background px-3 shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                  unitErrors.toUnit
+                    ? "border-destructive focus:ring-destructive/30"
+                    : "border-input"
+                }`}
                 value={unitForm.toUnit}
-                onChange={(e) =>
+                onChange={(e) => {
                   setUnitForm((prev) => ({
                     ...prev,
                     toUnit: e.target.value,
-                  }))
-                }
+                  }));
+                  setUnitErrors((prev) => {
+                    if (!prev.toUnit) return prev;
+                    const next = { ...prev };
+                    delete next.toUnit;
+                    return next;
+                  });
+                }}
+                disabled={unitSubmitting}
               >
                 <option value="" disabled>
                   Chọn đơn vị đích
@@ -1196,6 +1534,9 @@ export default function InvoicesManagerPage() {
                   </option>
                 ))}
               </select>
+              {unitErrors.toUnit ? (
+                <p className="text-xs text-destructive">{unitErrors.toUnit}</p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -1204,21 +1545,37 @@ export default function InvoicesManagerPage() {
                 id="conversionFactor"
                 type="number"
                 step="any"
-                className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                  unitErrors.conversionFactor
+                    ? "border-destructive focus-visible:ring-destructive/30"
+                    : ""
+                }`}
                 value={
                   unitForm.conversionFactor === 0
                     ? ""
                     : unitForm.conversionFactor
                 }
-                onChange={(e) =>
+                onChange={(e) => {
                   setUnitForm((prev) => ({
                     ...prev,
                     conversionFactor:
                       e.target.value === "" ? 0 : Number(e.target.value),
-                  }))
-                }
+                  }));
+                  setUnitErrors((prev) => {
+                    if (!prev.conversionFactor) return prev;
+                    const next = { ...prev };
+                    delete next.conversionFactor;
+                    return next;
+                  });
+                }}
                 placeholder="1000"
+                disabled={unitSubmitting}
               />
+              {unitErrors.conversionFactor ? (
+                <p className="text-xs text-destructive">
+                  {unitErrors.conversionFactor}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -1229,6 +1586,7 @@ export default function InvoicesManagerPage() {
                   onCheckedChange={(checked) =>
                     setUnitForm((prev) => ({ ...prev, isStandard: checked }))
                   }
+                  disabled={unitSubmitting}
                 />
                 <span className="text-sm text-muted-foreground">
                   {unitForm.isStandard ? "Đang bật" : "Đang tắt"}
@@ -1238,7 +1596,11 @@ export default function InvoicesManagerPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUnitDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setUnitDialogOpen(false)}
+              disabled={unitSubmitting}
+            >
               Đóng
             </Button>
             <Button
@@ -1246,7 +1608,7 @@ export default function InvoicesManagerPage() {
               onClick={handleSaveUnitConversion}
               disabled={unitSubmitting}
             >
-              Lưu quy đổi
+              {unitSubmitting ? "Đang lưu..." : "Lưu quy đổi"}
             </Button>
           </DialogFooter>
         </DialogContent>

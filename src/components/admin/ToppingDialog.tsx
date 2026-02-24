@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 
 export type ToppingDialogItem = {
   id: string;
@@ -22,7 +23,7 @@ interface ToppingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   topping?: ToppingDialogItem | null;
-  onSave: (topping: Partial<ToppingDialogItem>) => void;
+  onSave: (topping: Partial<ToppingDialogItem>) => Promise<boolean>;
   mode: "view" | "edit" | "create";
 }
 
@@ -40,6 +41,7 @@ export function ToppingDialog({
     price: number;
     status: "active" | "inactive";
   };
+  type FormErrors = Partial<Record<keyof FormData, string>>;
   const [formData, setFormData] = useState<FormData>(() => {
     if (mode === "create" || !topping) {
       return { name: "", price: 0, status: "active" };
@@ -51,12 +53,44 @@ export function ToppingDialog({
     };
   });
 
-  const handleSave = () => {
-    onSave({
-      ...topping,
-      ...formData,
-    });
-    onOpenChange(false);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [saving, setSaving] = useState(false);
+
+  const validate = (): FormErrors => {
+    const next: FormErrors = {};
+
+    const name = formData.name.trim();
+    if (!name) next.name = "Vui lòng nhập tên topping";
+
+    const price = Number(formData.price);
+    if (!Number.isFinite(price)) next.price = "Giá không hợp lệ";
+    else if (price < 0) next.price = "Giá phải >= 0";
+
+    return next;
+  };
+
+  const handleSave = async () => {
+    if (saving) return;
+
+    const nextErrors = validate();
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      toast.error("Vui lòng kiểm tra lại thông tin");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const ok = await onSave({
+        ...topping,
+        ...formData,
+        name: formData.name.trim(),
+        price: Number(formData.price),
+      });
+      if (ok) onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const isViewMode = mode === "view";
@@ -68,8 +102,25 @@ export function ToppingDialog({
         : "Chi tiết topping";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px] bg-card">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          if (saving) return;
+          setErrors({});
+        }
+        onOpenChange(nextOpen);
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-[520px] bg-card"
+        onEscapeKeyDown={(e) => {
+          if (saving) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (saving) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="text-xl">{title}</DialogTitle>
         </DialogHeader>
@@ -80,13 +131,22 @@ export function ToppingDialog({
             <Input
               id="name"
               value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                setErrors((prev) => {
+                  if (!prev.name) return prev;
+                  const next = { ...prev };
+                  delete next.name;
+                  return next;
+                });
+              }}
               placeholder="Nhập tên topping..."
-              disabled={isViewMode}
-              className="bg-background"
+              disabled={isViewMode || saving}
+              className={`bg-background ${errors.name ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
             />
+            {errors.name ? (
+              <p className="text-xs text-destructive">{errors.name}</p>
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -97,16 +157,25 @@ export function ToppingDialog({
               min="0"
               step="1000"
               value={Number.isFinite(formData.price) ? formData.price : 0}
-              onChange={(e) =>
+              onChange={(e) => {
                 setFormData({
                   ...formData,
-                  price: Number(e.target.value) || 0,
-                })
-              }
+                  price: e.target.value === "" ? 0 : Number(e.target.value),
+                });
+                setErrors((prev) => {
+                  if (!prev.price) return prev;
+                  const next = { ...prev };
+                  delete next.price;
+                  return next;
+                });
+              }}
               placeholder="Nhập giá topping..."
-              disabled={isViewMode}
-              className="bg-background"
+              disabled={isViewMode || saving}
+              className={`bg-background ${errors.price ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
             />
+            {errors.price ? (
+              <p className="text-xs text-destructive">{errors.price}</p>
+            ) : null}
           </div>
 
           <div className="flex items-center justify-between">
@@ -124,7 +193,7 @@ export function ToppingDialog({
                   status: checked ? "active" : "inactive",
                 })
               }
-              disabled={isViewMode}
+              disabled={isViewMode || saving}
             />
           </div>
 
@@ -147,14 +216,23 @@ export function ToppingDialog({
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={saving}
+              >
                 Hủy
               </Button>
               <Button
                 onClick={handleSave}
                 className="bg-primary hover:bg-primary/90"
+                disabled={saving}
               >
-                {mode === "create" ? "Thêm topping" : "Lưu thay đổi"}
+                {saving
+                  ? "Đang lưu..."
+                  : mode === "create"
+                    ? "Thêm topping"
+                    : "Lưu thay đổi"}
               </Button>
             </>
           )}

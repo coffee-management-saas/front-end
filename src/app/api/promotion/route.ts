@@ -28,6 +28,21 @@ function decodeJwtPayload(accessToken?: string) {
   }
 }
 
+function isAccessDeniedLike(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return false;
+  const msg = String(err.message ?? "").toLowerCase();
+  const payloadMsg =
+    err.payload && typeof err.payload === "object"
+      ? String((err.payload as { message?: unknown }).message ?? "").toLowerCase()
+      : "";
+  const combined = `${msg} ${payloadMsg}`;
+  return (
+    combined.includes("access denied") ||
+    combined.includes("forbidden") ||
+    combined.includes("unauthorized")
+  );
+}
+
 async function refreshAccessToken(
   cookieStore: Awaited<ReturnType<typeof cookies>>,
 ) {
@@ -103,7 +118,10 @@ export async function GET(req: Request) {
       // Nếu public bị chặn, thử gọi có token
       if (
         publicErr instanceof ApiError &&
-        (publicErr.status === 401 || publicErr.status === 403) &&
+        (publicErr.status === 401 ||
+          publicErr.status === 403 ||
+          (publicErr.status === 400 && isAccessDeniedLike(publicErr)) ||
+          isAccessDeniedLike(publicErr)) &&
         accessToken
       ) {
         try {

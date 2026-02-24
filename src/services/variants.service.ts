@@ -8,6 +8,14 @@ function getApiBase(): string {
   return base.endsWith("/api") ? base : `${base}/api`;
 }
 
+function getApiBaseCandidates(): string[] {
+  const raw = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const candidates = [raw];
+  if (raw.endsWith("/api")) candidates.push(raw.slice(0, -4));
+  else candidates.push(`${raw}/api`);
+  return Array.from(new Set(candidates)).filter(Boolean);
+}
+
 async function parseJsonSafely<T>(res: Response): Promise<T> {
   const raw = await res.text();
   if (!raw) throw new ApiError("BE tra ve rong", 502);
@@ -75,34 +83,63 @@ export async function createVariant(
   payload: CreateVariantPayload,
   accessToken?: string,
 ): Promise<Variant> {
-  const base = getApiBase();
-  const beUrl = `${base}/product/variants`;
+  const bases = getApiBaseCandidates();
+  let lastError: ApiError | null = null;
 
-  const res = await fetch(beUrl, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify({
-      productId: payload.productId,
-      sizeId: payload.sizeId,
-      price: payload.price,
-      costPrice: payload.costPrice,
-      skuCode: payload.skuCode,
-      status: payload.status,
-    }),
-    cache: "no-store",
-  });
+  for (const base of bases) {
+    const beUrl = `${base}/product/variants`;
+    const res = await fetch(beUrl, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({
+        productId: payload.productId,
+        sizeId: payload.sizeId,
+        price: payload.price,
+        costPrice: payload.costPrice,
+        skuCode: payload.skuCode,
+        status: payload.status,
+      }),
+      cache: "no-store",
+    });
 
-  const data = await parseJsonSafely<CreateVariantResponse>(res);
+    const raw = await res.text();
+    if (!raw) {
+      lastError = new ApiError(
+        `Backend trả về rỗng (status: ${res.status})`,
+        res.status || 502,
+      );
+      // If it succeeded but didn't return a body, try the next base (in case this is a proxy/mismatch).
+      if (!res.ok) {
+        if (res.status >= 400 && res.status < 500) throw lastError;
+      }
+      continue;
+    }
 
-  if (!res.ok || data?.code !== 201) {
-    throw new ApiError(data?.message || "BE error", res.status, data);
+    let data: CreateVariantResponse | null = null;
+    try {
+      data = JSON.parse(raw) as CreateVariantResponse;
+    } catch {
+      lastError = new ApiError("BE tra ve khong phai JSON", 502, raw);
+      // Non-JSON (often HTML 404) -> try other base
+      continue;
+    }
+
+    const ok =
+      res.ok &&
+      data &&
+      typeof data.code === "number" &&
+      (data.code === 201 || data.code === 200);
+    if (ok) return data.data;
+
+    lastError = new ApiError(data?.message || "BE error", res.status, data);
+    if (res.status >= 400 && res.status < 500) throw lastError;
   }
 
-  return data.data;
+  throw lastError ?? new ApiError("BE error", 502);
 }
 
 export async function updateVariant(

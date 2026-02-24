@@ -89,7 +89,7 @@ export default function PhucLongHeader() {
       toast.success("Đăng xuất thành công");
     } catch (e) {
       console.error(e);
-      toast.error("Đăng xuất thất bại");
+      toast.error(e instanceof Error ? e.message : "Đăng xuất thất bại");
     } finally {
       setTokens({ accessToken: "", refreshToken: "", expiresAt: "" });
       router.replace("/login");

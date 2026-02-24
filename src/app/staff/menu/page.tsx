@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import {
   BadgeDollarSign,
   CreditCard,
@@ -34,8 +35,12 @@ import {
   getProductVariants,
   getProducts,
 } from "@/services/product.service";
+import { createOrder } from "@/services/order.service";
+import { useAppContext } from "@/app/AppProvider";
 import type { Product, ProductVariant, Size } from "@/types/product";
-import type { ToppingItem, ToppingsResponse } from "@/types/topping";
+import type { ToppingsResponse } from "@/types/topping";
+import type { CreateOrderRequest } from "@/types/order";
+import type { ScheduleDto, SchedulesResponse } from "@/types/schedules";
 
 type MenuItem = {
   id: number;
@@ -49,6 +54,7 @@ type MenuItem = {
 };
 
 type LevelOption = "Ít" | "Bình thường" | "Nhiều";
+type PaymentMethod = "cash" | "card" | "qr";
 
 type SelectedTopping = {
   id: string;
@@ -71,9 +77,172 @@ const MENU: MenuItem[] = [];
 const formatVnd = (val: number) =>
   val.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
 
+function formatNowHHmm(date = new Date()): string {
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function decodeJwtPayload(token?: string): Record<string, unknown> | null {
+  try {
+    if (!token) return null;
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(
+      base64.length + ((4 - (base64.length % 4)) % 4),
+      "=",
+    );
+    return JSON.parse(atob(padded)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function parseTimeToMinutes(value?: string | null): number | null {
+  if (!value) return null;
+  if (/\d{4}-\d{2}-\d{2}/.test(value)) {
+    const d = new Date(value);
+    if (!Number.isNaN(d.getTime())) {
+      return d.getHours() * 60 + d.getMinutes();
+    }
+  }
+  const parts = value.split(":").map((p) => Number(p));
+  if (parts.length < 2) return null;
+  const [hh, mm] = parts;
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+  return hh * 60 + mm;
+}
+
+function formatTimeHHmm(value?: string | null): string | null {
+  if (!value) return null;
+  const timeOnly = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value.trim());
+  if (timeOnly) {
+    const hh = String(Number(timeOnly[1])).padStart(2, "0");
+    const mm = timeOnly[2];
+    return `${hh}:${mm}`;
+  }
+  const d = new Date(value);
+  if (!Number.isNaN(d.getTime())) return formatNowHHmm(d);
+  return null;
+}
+
+function formatTimeRangeLabel(
+  startTime?: string | null,
+  endTime?: string | null,
+): string {
+  const st = formatTimeHHmm(startTime);
+  const en = formatTimeHHmm(endTime);
+  if (st && en) return `${st} - ${en}`;
+  if (startTime && endTime) return `${startTime} - ${endTime}`;
+  return "-";
+}
+
+function normalizeDayOfWeekKey(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // 0..6 (Sun..Sat) or 1..7 (Mon..Sun)
+    const keys = [
+      "SUNDAY",
+      "MONDAY",
+      "TUESDAY",
+      "WEDNESDAY",
+      "THURSDAY",
+      "FRIDAY",
+      "SATURDAY",
+    ];
+    if (value >= 0 && value <= 6) return keys[value] ?? null;
+    if (value >= 1 && value <= 7) return keys[value % 7] ?? null;
+    return null;
+  }
+
+  const raw = String(value).trim().toUpperCase();
+  if (!raw) return null;
+  if (/^\d+$/.test(raw)) return normalizeDayOfWeekKey(Number(raw));
+
+  const map: Record<string, string> = {
+    SUN: "SUNDAY",
+    MON: "MONDAY",
+    TUE: "TUESDAY",
+    WED: "WEDNESDAY",
+    THU: "THURSDAY",
+    FRI: "FRIDAY",
+    SAT: "SATURDAY",
+    CHU_NHAT: "SUNDAY",
+    CN: "SUNDAY",
+    T2: "MONDAY",
+    THU_2: "MONDAY",
+    THU_HAI: "MONDAY",
+    T3: "TUESDAY",
+    THU_3: "TUESDAY",
+    THU_BA: "TUESDAY",
+    T4: "WEDNESDAY",
+    THU_4: "WEDNESDAY",
+    THU_TU: "WEDNESDAY",
+    T5: "THURSDAY",
+    THU_5: "THURSDAY",
+    THU_NAM: "THURSDAY",
+    T6: "FRIDAY",
+    THU_6: "FRIDAY",
+    THU_SAU: "FRIDAY",
+    T7: "SATURDAY",
+    THU_7: "SATURDAY",
+    THU_BAY: "SATURDAY",
+  };
+
+  if (raw in map) return map[raw] ?? null;
+  if (
+    raw === "SUNDAY" ||
+    raw === "MONDAY" ||
+    raw === "TUESDAY" ||
+    raw === "WEDNESDAY" ||
+    raw === "THURSDAY" ||
+    raw === "FRIDAY" ||
+    raw === "SATURDAY"
+  ) {
+    return raw;
+  }
+
+  return null;
+}
+
+function isMinutesInRange(
+  nowMinutes: number,
+  startMinutes: number,
+  endMinutes: number,
+) {
+  if (endMinutes === startMinutes) return true;
+  if (endMinutes > startMinutes) {
+    return nowMinutes >= startMinutes && nowMinutes < endMinutes;
+  }
+  return nowMinutes >= startMinutes || nowMinutes < endMinutes;
+}
+
+function getTodayDayOfWeekKey(date = new Date()): string {
+  const keys = [
+    "SUNDAY",
+    "MONDAY",
+    "TUESDAY",
+    "WEDNESDAY",
+    "THURSDAY",
+    "FRIDAY",
+    "SATURDAY",
+  ] as const;
+  return keys[date.getDay()] ?? "";
+}
+
+function getYesterdayDayOfWeekKey(date = new Date()): string {
+  const d = new Date(date);
+  d.setDate(d.getDate() - 1);
+  return getTodayDayOfWeekKey(d);
+}
+
 const StaffPosPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { tokens } = useAppContext();
 
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
@@ -94,6 +263,8 @@ const StaffPosPage = () => {
   const [orderType, setOrderType] = useState<
     "dine-in" | "take-away" | "delivery"
   >("dine-in");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [placingOrder, setPlacingOrder] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [note, setNote] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -101,7 +272,7 @@ const StaffPosPage = () => {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [customIce, setCustomIce] = useState<LevelOption>("Bình thường");
   const [customQty, setCustomQty] = useState(1);
-  const [toppings, setToppings] = useState<ToppingItem[]>([]);
+  const [toppings, setToppings] = useState<SelectedTopping[]>([]);
   const [topLoading, setTopLoading] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
@@ -110,10 +281,163 @@ const StaffPosPage = () => {
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(
     null,
   );
+  const [schedules, setSchedules] = useState<ScheduleDto[]>([]);
+  const [nowLabel, setNowLabel] = useState<string>(() => formatNowHHmm());
+  const [shiftLabel, setShiftLabel] = useState<string>("-");
+  const [employeeLabel, setEmployeeLabel] = useState<string>("-");
 
   useEffect(() => {
     setActiveCategoryId(categoryIdFromUrl);
   }, [categoryIdFromUrl]);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const qs = new URLSearchParams({ page: "0", size: "200" });
+        const res = await fetch(`/api/schedules?${qs.toString()}`, {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+        const data = (await res.json().catch(() => null)) as
+          | SchedulesResponse
+          | { message?: string }
+          | null;
+
+        if (!res.ok) return;
+        if (!data || typeof data !== "object") return;
+        if (
+          "code" in data &&
+          Number(data.code) === 200 &&
+          Array.isArray(data.data)
+        ) {
+          setSchedules(data.data.filter(Boolean));
+        }
+      } catch {
+        // ignore schedule load errors; fall back to token name + default shift label
+      }
+    };
+
+    run();
+  }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setNowLabel(formatNowHHmm(now));
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      const todayKey = getTodayDayOfWeekKey(now);
+      const yesterdayKey = getYesterdayDayOfWeekKey(now);
+
+      const tokenPayload = decodeJwtPayload(tokens.accessToken);
+      const tokenEmployeeIdRaw =
+        (tokenPayload?.employeeId as unknown) ??
+        (tokenPayload?.userId as unknown) ??
+        (tokenPayload?.id as unknown);
+      const tokenEmployeeId = Number(tokenEmployeeIdRaw);
+      const hasEmployeeId =
+        Number.isFinite(tokenEmployeeId) && tokenEmployeeId > 0;
+
+      const nowMs = now.getTime();
+      const activeSchedules: Array<{
+        schedule: ScheduleDto;
+        startMs: number;
+        endMs: number;
+      }> = [];
+
+      for (const s of schedules) {
+        const hasDatePart =
+          typeof s.startTime === "string" &&
+          /\d{4}-\d{2}-\d{2}/.test(s.startTime) &&
+          typeof s.endTime === "string" &&
+          /\d{4}-\d{2}-\d{2}/.test(s.endTime);
+
+        if (hasDatePart) {
+          const startDate = new Date(String(s.startTime));
+          const endDate = new Date(String(s.endTime));
+          if (
+            Number.isNaN(startDate.getTime()) ||
+            Number.isNaN(endDate.getTime())
+          ) {
+            continue;
+          }
+          const endMs =
+            endDate.getTime() <= startDate.getTime()
+              ? endDate.getTime() + 24 * 60 * 60 * 1000
+              : endDate.getTime();
+          const startMs = startDate.getTime();
+          if (nowMs >= startMs && nowMs < endMs) {
+            activeSchedules.push({ schedule: s, startMs, endMs });
+          }
+          continue;
+        }
+
+        const start = parseTimeToMinutes(s.startTime);
+        const end = parseTimeToMinutes(s.endTime);
+        if (start === null || end === null) continue;
+
+        const dayKey = normalizeDayOfWeekKey(s.dayOfWeek);
+        if (!dayKey) continue; // must be based on today's day-of-week
+
+        const crossesMidnight = end < start;
+        const dayMatches = !crossesMidnight
+          ? dayKey === todayKey
+          : (nowMinutes >= start && dayKey === todayKey) ||
+            (nowMinutes < end && dayKey === yesterdayKey);
+        if (!dayMatches) continue;
+
+        if (!isMinutesInRange(nowMinutes, start, end)) continue;
+
+        const base = new Date(now);
+        base.setHours(0, 0, 0, 0);
+        if (crossesMidnight && nowMinutes < end)
+          base.setDate(base.getDate() - 1);
+        const startMs = base.getTime() + start * 60 * 1000;
+        let endMs = base.getTime() + end * 60 * 1000;
+        if (crossesMidnight && endMs <= startMs) endMs += 24 * 60 * 60 * 1000;
+
+        if (nowMs >= startMs && nowMs < endMs) {
+          activeSchedules.push({ schedule: s, startMs, endMs });
+        }
+      }
+
+      if (activeSchedules.length > 0) {
+        const myActive = hasEmployeeId
+          ? (activeSchedules.find(
+              (x) => Number(x.schedule.employeeId) === tokenEmployeeId,
+            ) ?? null)
+          : null;
+
+        const selected =
+          myActive ??
+          activeSchedules.sort((a, b) => {
+            if (b.startMs !== a.startMs) return b.startMs - a.startMs; // closest started to now
+            return a.endMs - b.endMs;
+          })[0]!;
+
+        const s = selected.schedule;
+        setShiftLabel(formatTimeRangeLabel(s.startTime, s.endTime));
+        const name =
+          (s.employeeName ? String(s.employeeName) : "") ||
+          `NV#${Number(s.employeeId) || ""}`;
+        setEmployeeLabel(name || "-");
+        return;
+      }
+
+      // Fallback: common 2 shifts
+      const fallback =
+        nowMinutes >= 8 * 60 && nowMinutes < 14 * 60
+          ? "08:00 - 14:00"
+          : nowMinutes >= 14 * 60 && nowMinutes < 22 * 60
+            ? "14:00 - 22:00"
+            : "-";
+      setShiftLabel(fallback);
+      setEmployeeLabel("-");
+    };
+
+    tick();
+    const id = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(id);
+  }, [schedules, tokens.accessToken]);
 
   useEffect(() => {
     const run = async () => {
@@ -223,12 +547,12 @@ const StaffPosPage = () => {
           );
         }
 
-        const items: ToppingItem[] = payload.data
+        const items: SelectedTopping[] = payload.data
           .filter((t) => t.status === "ACTIVE")
           .map((t) => ({
             id: String(t.id),
             name: t.name,
-            price: t.price,
+            price: Number(t.price ?? 0),
             quantity: 0,
           }));
 
@@ -252,15 +576,17 @@ const StaffPosPage = () => {
       setVariantLoading(true);
       setVariantError(null);
       try {
-        const [variantsRes, sizesRes] = await Promise.all([
-          getProductVariants(selectedItem.id).catch(() => ({ data: [] })),
-          getProductSizes().catch(() => ({ data: [] })),
-        ]);
+        const variantsRes = await getProductVariants(selectedItem.id);
 
-        const variantsData =
-          (variantsRes as { data?: ProductVariant[] }).data || [];
-        const sizesData = (sizesRes as { data?: Size[] }).data || [];
-        setSizes(sizesData);
+        let sizesRes: { data?: Size[] } | null = null;
+        try {
+          sizesRes = await getProductSizes();
+        } catch {
+          sizesRes = null;
+        }
+
+        const variantsData = variantsRes?.data ?? [];
+        const sizesData = sizesRes?.data ?? [];
 
         const sizeOrder: Record<string, number> = {};
         sizesData.forEach((s, idx) => {
@@ -282,6 +608,9 @@ const StaffPosPage = () => {
 
         setVariants(variantsData);
         setSelectedVariantId(variantsData[0]?.id ?? null);
+        if (variantsData.length === 0) {
+          setVariantError("Sản phẩm này chưa có size/biến thể");
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Load variants failed";
         setVariantError(msg);
@@ -431,23 +760,73 @@ const StaffPosPage = () => {
   const discount = subTotal >= 200_000 ? 15_000 : 0;
   const total = Math.max(subTotal + vat - discount, 0);
 
+  const handlePlaceOrder = async () => {
+    if (placingOrder) return;
+    if (cart.length === 0) {
+      toast.error("Chưa có món trong đơn");
+      return;
+    }
+    if (!tokens.accessToken) {
+      toast.error("Vui lòng đăng nhập để tạo đơn");
+      return;
+    }
+
+    setPlacingOrder(true);
+    try {
+      const payload: CreateOrderRequest = {
+        orderType: "OFFLINE",
+        orderItems: cart.map((item) => ({
+          productVariantId: item.variantId,
+          quantity: item.quantity,
+          toppingItems: item.toppings
+            .filter((t) => t.quantity > 0)
+            .map((t) => ({
+              toppingId: Number(t.id),
+              quantity: t.quantity,
+            }))
+            .filter((t) => Number.isFinite(t.toppingId) && t.toppingId > 0),
+        })),
+        paymentGateway: paymentMethod.toUpperCase(),
+      };
+
+      const res = await createOrder(tokens.accessToken, payload);
+      toast.success(`Tạo đơn #${res.orderId} thành công`);
+      setCart([]);
+      setNote("");
+      setCustomerName("");
+      setCustomerPhone("");
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Tạo đơn thất bại");
+    } finally {
+      setPlacingOrder(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-12 gap-4">
       {/* Left: menu */}
       <div className="col-span-12 lg:col-span-8 space-y-5 p-4 md:p-6">
         <header className="flex flex-wrap items-center gap-3 justify-between">
           <div>
-            <p className="text-xl text-amber-700 font-semibold flex items-center gap-2">
+            <p className="text-xl text-[#693916] font-semibold flex items-center gap-2">
               <Coffee className="w-4 h-4" />
               POS - Order tại quầy
             </p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
             <Timer className="w-4 h-4" />
-            Ca hiện tại: 08:00 - 14:00
+            Giờ: {nowLabel}
+            <span className="h-4 w-px bg-gray-200" />
+            Ca: {shiftLabel}
             <span className="h-4 w-px bg-gray-200" />
             <Users className="w-4 h-4" />
-            NV: Nguyen An
+            <span
+              className="max-w-[520px] whitespace-normal break-words"
+              title={employeeLabel}
+            >
+              NV: {employeeLabel}
+            </span>
           </div>
         </header>
 
@@ -486,7 +865,11 @@ const StaffPosPage = () => {
                   key={cat.id}
                   size="sm"
                   variant={activeCategoryId === idStr ? "default" : "outline"}
-                  className="rounded-full h-8 px-3"
+                  className={`rounded-full h-8 px-3 ${
+                    activeCategoryId === idStr
+                      ? "bg-[#cec3bc] text-[#693916] hover:bg-[#cec3bc] hover:text-[#693916]"
+                      : "hover:bg-gray-50 hover:text-[#876F60]"
+                  }`}
                   onClick={() => onChangeCategory(idStr)}
                 >
                   {cat.name}
@@ -508,10 +891,10 @@ const StaffPosPage = () => {
           {filteredMenu.map((item) => (
             <Card
               key={item.id}
-              className="h-full flex flex-col overflow-hidden border-amber-100 shadow-sm hover:shadow-md transition gap-1.5 py-1.5"
+              className="h-full flex flex-col overflow-hidden border border-[#cec3bc]/60 shadow-sm hover:shadow-md transition gap-1.5 py-1.5"
             >
               <div
-                className="relative w-full aspect-square cursor-pointer"
+                className="relative w-full aspect-[4/3] cursor-pointer"
                 onClick={() => {
                   setSelectedItem(item);
                 }}
@@ -527,14 +910,14 @@ const StaffPosPage = () => {
                 />
                 <div className="absolute left-2 top-2 flex flex-col gap-1 items-start">
                   {item.isNew && (
-                    <span className="rounded-full bg-amber-700 px-3 py-1 text-[10px] font-semibold text-white shadow-sm">
+                    <span className="rounded-full bg-[#693916] px-3 py-1 text-[10px] font-semibold text-white shadow-sm">
                       New
                     </span>
                   )}
                   {item.tags?.map((t) => (
                     <span
                       key={t}
-                      className="rounded-full bg-white/85 px-2.5 py-[5px] text-[10px] font-semibold text-amber-800 shadow"
+                      className="rounded-full bg-white/85 px-2.5 py-[5px] text-[10px] font-semibold text-[#693916] shadow"
                     >
                       {t}
                     </span>
@@ -552,13 +935,13 @@ const StaffPosPage = () => {
               </CardHeader>
 
               <CardContent className="mt-auto space-y-1 px-2 pb-1.5">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-end gap-2">
                   <Button
                     onClick={() => {
                       setSelectedItem(item);
                     }}
                     size="sm"
-                    className="rounded-full h-7 px-2 text-[10px]"
+                    className="rounded-full h-7 px-2 text-[10px] bg-[#693916] hover:bg-[#876F60] text-white"
                   >
                     Thêm
                   </Button>
@@ -570,19 +953,19 @@ const StaffPosPage = () => {
       </div>
 
       {/* Right: cart & payment */}
-      <div className="col-span-12 lg:col-span-4 bg-white border border-amber-100 rounded-2xl shadow-sm px-4 lg:px-5 py-6 sticky top-4 max-h-[calc(100vh-48px)] overflow-y-auto">
+      <div className="col-span-12 lg:col-span-4 bg-white border border-[#cec3bc]/60 rounded-2xl shadow-sm px-4 lg:px-5 py-6 sticky top-4 max-h-[calc(100vh-48px)] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-stone-900 flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-amber-700" />
+            <ShoppingCart className="w-5 h-5 text-[#693916]" />
             Đơn hiện tại
           </h2>
-          <span className="text-xs text-gray-500 bg-amber-50 px-2 py-1 rounded-full border border-amber-100">
+          <span className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-full border border-[#cec3bc]/60">
             POS-#A123
           </span>
         </div>
 
         {cart.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/40 p-6 text-center">
+          <div className="rounded-2xl border border-dashed border-[#cec3bc]/70 bg-gray-50 p-6 text-center">
             <p className="font-semibold text-stone-900">Chưa có món</p>
             <p className="text-sm text-gray-600">
               Chọn món bên trái để bắt đầu.
@@ -599,7 +982,7 @@ const StaffPosPage = () => {
                 className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm"
               >
                 <div className="flex items-center gap-3">
-                  <div className="relative h-14 w-14 overflow-hidden rounded-lg bg-amber-50">
+                  <div className="relative h-14 w-14 overflow-hidden rounded-lg bg-gray-50">
                     <Image
                       src={item.image}
                       alt={item.name}
@@ -615,7 +998,7 @@ const StaffPosPage = () => {
                     <p className="text-[11px] text-gray-600 line-clamp-1">
                       Size {item.size} • Đá {item.ice}
                     </p>
-                    <p className="text-sm font-semibold text-amber-800">
+                    <p className="text-sm font-semibold text-[#693916]">
                       {formatVnd(item.price)}
                     </p>
                     {item.toppings.length > 0 && (
@@ -657,7 +1040,7 @@ const StaffPosPage = () => {
                           1,
                         )
                       }
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-700 text-white hover:bg-amber-800"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[#693916] text-white hover:bg-[#876F60]"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
@@ -669,9 +1052,9 @@ const StaffPosPage = () => {
         )}
 
         <div className="mt-4 space-y-3">
-          <Card className="border-amber-100 bg-amber-50/60">
+          <Card className="border border-[#cec3bc]/60 bg-gray-50">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+              <CardTitle className="text-sm font-semibold text-[#693916] flex items-center gap-2">
                 <TicketPercent className="w-4 h-4" />
                 Ghi chú & thông tin khách
               </CardTitle>
@@ -705,8 +1088,8 @@ const StaffPosPage = () => {
                       onClick={() => setOrderType(type)}
                       className={`px-4 py-2 text-xs font-semibold rounded-full transition-all ${
                         active
-                          ? "bg-amber-700 text-white shadow-sm"
-                          : "text-gray-600 hover:bg-gray-100"
+                          ? "bg-[#cec3bc] text-[#693916] shadow-sm"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-[#876F60]"
                       }`}
                     >
                       {type === "dine-in" && "Tại chỗ"}
@@ -734,37 +1117,72 @@ const StaffPosPage = () => {
             </div>
             <div className="flex justify-between text-sm text-gray-700">
               <span>Giảm</span>
-              <span className="font-semibold text-amber-700">
+              <span className="font-semibold text-[#693916]">
                 -{formatVnd(discount)}
               </span>
             </div>
             <div className="h-px bg-gray-100 my-1" />
-            <div className="flex justify-between text-base font-bold text-amber-800">
+            <div className="flex justify-between text-base font-bold text-[#693916]">
               <span>Tổng thanh toán</span>
               <span>{formatVnd(total)}</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <Button className="h-10 text-xs gap-1.5" variant="outline">
+           <div className="grid grid-cols-3 gap-2">
+            <Button
+              className={`h-10 text-xs gap-1.5 ${
+                paymentMethod === "cash"
+                  ? "bg-[#cec3bc] text-[#693916] border-[#cec3bc] hover:bg-[#cec3bc] hover:text-[#693916]"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+              variant="outline"
+              type="button"
+              onClick={() => setPaymentMethod("cash")}
+            >
               <BadgeDollarSign className="w-3.5 h-3.5" />
               Tiền mặt
             </Button>
-            <Button className="h-10 text-xs gap-1.5" variant="outline">
+            <Button
+              className={`h-10 text-xs gap-1.5 ${
+                paymentMethod === "card"
+                  ? "bg-[#cec3bc] text-[#693916] border-[#cec3bc] hover:bg-[#cec3bc] hover:text-[#693916]"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+              variant="outline"
+              type="button"
+              onClick={() => setPaymentMethod("card")}
+            >
               <CreditCard className="w-3.5 h-3.5" />
               Thẻ
             </Button>
-            <Button className="h-10 text-xs gap-1.5" variant="outline">
+            <Button
+              className={`h-10 text-xs gap-1.5 ${
+                paymentMethod === "qr"
+                  ? "bg-[#cec3bc] text-[#693916] border-[#cec3bc] hover:bg-[#cec3bc] hover:text-[#693916]"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+              variant="outline"
+              type="button"
+              onClick={() => setPaymentMethod("qr")}
+            >
               <QrCode className="w-3.5 h-3.5" />
               QR
             </Button>
           </div>
 
-          <Button className="w-full h-12 text-base">
-            In hóa đơn & Thanh toán
+          <Button
+            className="w-full h-12 text-base bg-[#693916] hover:bg-[#876F60] text-white disabled:opacity-60 disabled:pointer-events-none"
+            type="button"
+            onClick={handlePlaceOrder}
+            disabled={placingOrder || cart.length === 0}
+          >
+            {placingOrder ? "Đang tạo đơn..." : "In hóa đơn & Thanh toán"}
           </Button>
 
-          <Button variant="outline" className="w-full h-11 text-sm">
+          <Button
+            variant="outline"
+            className="w-full h-11 text-sm hover:bg-gray-50 hover:text-[#876F60]"
+          >
             Lưu nháp / gửi bếp
           </Button>
         </div>
@@ -799,7 +1217,7 @@ const StaffPosPage = () => {
                   <p className="text-sm text-gray-600 line-clamp-2">
                     {selectedItem.description}
                   </p>
-                  <p className="text-base font-semibold text-amber-800 mt-1">
+                  <p className="text-base font-semibold text-[#693916] mt-1">
                     {formatVnd(perItemPrice)}
                   </p>
                 </div>
@@ -825,11 +1243,13 @@ const StaffPosPage = () => {
                     variants.map((v) => (
                       <Button
                         key={v.id}
-                        variant={
-                          selectedVariantId === v.id ? "default" : "outline"
-                        }
+                        variant="outline"
                         onClick={() => setSelectedVariantId(v.id)}
-                        className="h-8 text-xs"
+                        className={`h-8 text-xs ${
+                          selectedVariantId === v.id
+                            ? "bg-[#cec3bc] text-[#693916] border-[#cec3bc] hover:bg-[#cec3bc] hover:text-[#693916]"
+                            : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                        }`}
                       >
                         {getVariantName(v)}
                       </Button>
@@ -843,9 +1263,13 @@ const StaffPosPage = () => {
                   {(["Ít", "Bình thường", "Nhiều"] as const).map((opt) => (
                     <Button
                       key={opt}
-                      variant={customIce === opt ? "default" : "outline"}
+                      variant="outline"
                       size="sm"
-                      className="h-8"
+                      className={`h-8 ${
+                        customIce === opt
+                          ? "bg-[#cec3bc] text-[#693916] border-[#cec3bc] hover:bg-[#cec3bc] hover:text-[#693916]"
+                          : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                      }`}
                       onClick={() => setCustomIce(opt)}
                     >
                       {opt}
@@ -868,7 +1292,7 @@ const StaffPosPage = () => {
                   </span>
                   <button
                     onClick={() => setCustomQty((q) => Math.min(20, q + 1))}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-700 text-white hover:bg-amber-800"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-[#693916] text-white hover:bg-[#876F60]"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -908,7 +1332,7 @@ const StaffPosPage = () => {
                           </span>
                           <button
                             onClick={() => updateToppingQuantity(tp.id, 1)}
-                            className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-700 text-white"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-[#693916] text-white hover:bg-[#876F60]"
                             type="button"
                           >
                             <Plus className="w-3 h-3" />
@@ -935,7 +1359,7 @@ const StaffPosPage = () => {
                 addToCart(selectedItem);
                 setSelectedItem(null);
               }}
-              className="h-10"
+              className="h-10 bg-[#693916] hover:bg-[#876F60] text-white"
               disabled={!activeVariant}
             >
               Thêm vào giỏ
