@@ -546,7 +546,7 @@ const DetailProduct: React.FC = () => {
                 addItem({
                   productId: product.id,
                   productName: product.name,
-                  productImage: product.image ?? FALLBACK_IMG,
+                  productImage: canUseImage(product.image) ? (product.image as string) : FALLBACK_IMG,
                   variantId: activeVariant.id,
                   size: getVariantName(activeVariant),
                   basePrice: productPrice,
@@ -564,7 +564,7 @@ const DetailProduct: React.FC = () => {
 
                 // Trigger flying animation
                 triggerFlyToCart(
-                  product.image ?? FALLBACK_IMG,
+                  canUseImage(product.image) ? (product.image as string) : FALLBACK_IMG,
                   e.currentTarget,
                 );
 

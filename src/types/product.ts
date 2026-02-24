@@ -55,6 +55,7 @@ export interface ProductFilter {
 export type ProductInput = {
   name: string;
   categoryId: number;
+  price: number;
   description?: string | null;
   image?: string | null;
   status?: Product["status"];

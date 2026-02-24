@@ -44,6 +44,7 @@ type ProductRow = {
 type ProductFormState = {
   name: string;
   categoryId: string;
+  price: string;
   description: string;
   image: string;
   status: ProductStatus;
@@ -64,6 +65,10 @@ const mapProduct = (p: Product): ProductRow => ({
 const createFormState = (product: Product): ProductFormState => ({
   name: product.name ?? "",
   categoryId: String(product.categoryId ?? ""),
+  price:
+    product.price === null || product.price === undefined
+      ? ""
+      : String(product.price),
   description: product.description ?? "",
   image: product.image ?? "",
   status: product.status ?? "INACTIVE",
@@ -214,6 +219,7 @@ export default function ProductsManagerPage() {
     setEditForm({
       name: "",
       categoryId: "",
+      price: "",
       description: "",
       image: "",
       status: "ACTIVE",
@@ -250,6 +256,11 @@ export default function ProductsManagerPage() {
       errors.categoryId = "Vui lòng chọn danh mục";
     }
 
+    const price = Number(editForm.price);
+    if (!Number.isFinite(price) || price <= 0) {
+      errors.price = "Vui lòng nhập giá hợp lệ";
+    }
+
     const image = editForm.image.trim();
     if (image) {
       try {
@@ -271,8 +282,9 @@ export default function ProductsManagerPage() {
     const payload = {
       name,
       categoryId,
-      description: editForm.description.trim() || null,
-      image: image || null,
+      price,
+      description: editForm.description.trim(),
+      image,
       status: editForm.status,
     };
 
@@ -576,6 +588,14 @@ export default function ProductsManagerPage() {
                   </p>
                 </div>
                 <div>
+                  <p className="text-sm text-muted-foreground">Giá</p>
+                  <p className="font-medium">
+                    {typeof viewProduct.price === "number"
+                      ? viewProduct.price.toLocaleString("vi-VN")
+                      : "—"}
+                  </p>
+                </div>
+                <div>
                   <p className="text-sm text-muted-foreground">Mô tả</p>
                   <p className="font-medium">
                     {viewProduct.description || "—"}
@@ -651,6 +671,23 @@ export default function ProductsManagerPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="grid gap-1">
+                  <label className="text-sm font-medium">Giá</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    className={`h-9 ${editErrors.price ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
+                    value={editForm.price}
+                    onChange={(e) => setEditField("price", e.target.value)}
+                    placeholder="VD: 25000"
+                  />
+                  {editErrors.price ? (
+                    <p className="text-xs text-destructive">
+                      {editErrors.price}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="grid gap-1">
                   <label className="text-sm font-medium">Trạng thái</label>
                   <select
                     className="h-9 rounded-md border border-input bg-background px-3 text-sm"
@@ -663,6 +700,8 @@ export default function ProductsManagerPage() {
                     <option value="INACTIVE">Tạm ngưng</option>
                   </select>
                 </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
                 <div className="grid gap-1">
                   <label className="text-sm font-medium">Ảnh (URL)</label>
                   <Input

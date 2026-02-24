@@ -9,7 +9,7 @@ export interface CartItem {
     id: string; // unique cart item ID (productId-size-timestamp)
     productId: number;
     productName: string;
-    productImage: string;
+    productImage: string | null | undefined;
     variantId: number;
     size: string;
     basePrice: number;

@@ -61,6 +61,7 @@ export async function POST(req: Request) {
     const payload = {
       name: String(body.name ?? "").trim(),
       categoryId: Number(body.categoryId),
+      price: Number(body.price),
       description:
         body.description === null || body.description === undefined
           ? null
@@ -72,9 +73,13 @@ export async function POST(req: Request) {
       status: parseStatus(body.status) ?? "ACTIVE",
     };
 
-    if (!payload.name || !Number.isFinite(payload.categoryId)) {
+    if (
+      !payload.name ||
+      !Number.isFinite(payload.categoryId) ||
+      !Number.isFinite(payload.price)
+    ) {
       return Response.json(
-        { message: "Missing name or categoryId" },
+        { message: "Missing name, categoryId, or price" },
         { status: 400 },
       );
     }
