@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency, canUseImage, FALLBACK_IMG } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -14,6 +14,7 @@ export interface Beverage {
   description: string;
   image: string;
   category: string;
+  price: number;
   isPopular?: boolean;
 }
 
@@ -71,6 +72,11 @@ function BeverageCard({ beverage, index = 0 }: BeverageCardProps) {
         <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
           {beverage.description}
         </p>
+        <div className="flex items-center justify-between mt-auto">
+          <span className="font-bold text-[#693916]">
+            {formatCurrency(beverage.price)}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -110,10 +116,9 @@ export default function MenuPage() {
           name: p.name,
           description: p.description ?? "",
 
-          image:
-            p.image ??
-            "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=1200&q=80",
+          image: canUseImage(p.image) ? p.image! : FALLBACK_IMG,
           category: p.categoryName ?? "",
+          price: p.price ?? 0,
           isPopular: false,
         }));
 

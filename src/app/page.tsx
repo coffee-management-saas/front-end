@@ -7,14 +7,8 @@ import { Promotion } from "@/types/promotion";
 import { useRouter } from "next/navigation";
 import { getProducts } from "@/services/product.service";
 import type { Product } from "@/types/product";
+import { formatCurrency, canUseImage, FALLBACK_IMG } from "@/lib/utils";
 
-const canUseImage = (url: string | undefined | null) => {
-  if (!url) return false;
-  return /^https?:\/\//.test(url) || url.startsWith("/");
-};
-
-const FALLBACK_IMG =
-  "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=1200&q=80";
 
 const Homepage: React.FC = () => {
   const bestSellerRef = useRef<HTMLDivElement>(null);
@@ -85,8 +79,8 @@ const Homepage: React.FC = () => {
         if (!res.ok) {
           const msg =
             typeof payload === "object" &&
-            payload !== null &&
-            "message" in payload
+              payload !== null &&
+              "message" in payload
               ? String((payload as { message: unknown }).message)
               : `Fetch promotions failed (status ${res.status})`;
           throw new Error(msg);
@@ -195,9 +189,8 @@ const Homepage: React.FC = () => {
               <button
                 key={i}
                 onClick={() => setActive(i)}
-                className={`h-2.5 w-2.5 rounded-full transition ${
-                  i === active ? "bg-gray-800" : "bg-white/80"
-                }`}
+                className={`h-2.5 w-2.5 rounded-full transition ${i === active ? "bg-gray-800" : "bg-white/80"
+                  }`}
                 aria-label={`Go to ${i + 1}`}
                 type="button"
               />
@@ -248,7 +241,7 @@ const Homepage: React.FC = () => {
                   <Link href={`/products/${slug}`} className="block">
                     <div className="relative bg-gray-100 h-60 flex items-center justify-center">
                       <Image
-                        src={product.image || FALLBACK_IMG}
+                        src={canUseImage(product.image) ? product.image! : FALLBACK_IMG}
                         alt={product.name}
                         fill
                         className="object-cover"
@@ -261,7 +254,7 @@ const Homepage: React.FC = () => {
                       {product.name}
                     </h3>
                     <p className="text-sm text-orange-600 font-semibold mb-4">
-                      Gia cap nhat
+                      {product.price ? formatCurrency(product.price) : "Giá cập nhật"}
                     </p>
 
                     <Link

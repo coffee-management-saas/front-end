@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { canUseImage, FALLBACK_IMG } from "@/lib/utils";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Clock, Calendar, Tag, CheckCircle2 } from "lucide-react";
@@ -79,11 +80,6 @@ const formatDate = (value?: string) => {
   return date.toLocaleDateString("vi-VN");
 };
 
-const canUseImage = (url: string | undefined | null) => {
-  if (!url) return false;
-
-  return /^https?:\/\//.test(url) || url.startsWith("/");
-};
 
 export default function PromotionDetailPage() {
   const params = useParams();
@@ -127,8 +123,8 @@ export default function PromotionDetailPage() {
         if (!res.ok) {
           const msg =
             typeof payload === "object" &&
-            payload !== null &&
-            "message" in payload
+              payload !== null &&
+              "message" in payload
               ? String((payload as { message: unknown }).message)
               : `Fetch promotion failed (status ${res.status})`;
           throw new Error(msg);
@@ -198,7 +194,7 @@ export default function PromotionDetailPage() {
                   src={
                     canUseImage(promotion.imageUrl)
                       ? (promotion.imageUrl as string)
-                      : "/images/banner1.png"
+                      : FALLBACK_IMG
                   }
                   alt={promotion.promotionName ?? "Promotion"}
                   fill

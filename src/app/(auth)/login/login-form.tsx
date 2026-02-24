@@ -57,13 +57,13 @@ function getRoleFromAccessToken(token: string): string | null {
 const formSchema = z.object({
   username: z
     .string()
-    .min(3, "Username must be at least 3 characters.")
-    .max(32, "Username must be at most 32 characters.")
+    .min(5, "Tên đăng nhập phải có ít nhất 5 ký tự.")
+    .max(32, "Tên đăng nhập tối đa 32 ký tự.")
     .regex(
       /^[a-zA-Z0-9_]+$/,
-      "Username can only contain letters, numbers, and underscore.",
+      "Tên đăng nhập chỉ chứa chữ cái, số và dấu gạch dưới.",
     ),
-  password: z.string(),
+  password: z.string().min(1, "Vui lòng nhập mật khẩu."),
 });
 
 export default function LoginForm() {
@@ -101,12 +101,26 @@ export default function LoginForm() {
       );
 
       const data = await res.json();
-      const expiresAt = getJwtExpiresAt(data.accessToken);
+
       if (!res.ok) {
-        throw new Error(data?.message || `Login failed (${res.status})`);
+
+        if (res.status === 401 || res.status === 400) {
+          form.setError("password", {
+            type: "manual",
+            message: "Tên đăng nhập hoặc mật khẩu không chính xác",
+          });
+          // Also mark username as invalid visually if desired, but msg is under password
+          form.setError("username", {
+            type: "manual",
+            message: " ",
+          });
+          return;
+        }
+
+        throw new Error(data?.message || `Lỗi đăng nhập (${res.status})`);
       }
 
-      // toast.success("�ang nh?p th�nh c�ng!");
+      const expiresAt = getJwtExpiresAt(data.accessToken);
 
       await fetch("/api/auth", {
         method: "POST",
@@ -122,7 +136,7 @@ export default function LoginForm() {
         return resultFromNextServer;
       });
 
-      // setTokens ph?i l?y t? data (login backend), kh�ng ph?i t? /api/auth
+      // setTokens phải lấy từ data (login backend), không phải từ /api/auth
       setTokens({
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
@@ -131,12 +145,14 @@ export default function LoginForm() {
 
       const role = getRoleFromAccessToken(data.accessToken);
       const destination =
-        role === "SHOP" ? "/admin" : role === "SYSTEM" ? "/staff" : "/";
+        role === "SHOP" ? "/staff" : role === "SYSTEM" ? "/admin" : "/";
 
       router.replace(destination);
     } catch (error) {
       console.error("Login error:", error);
-      toast.error("Đăng nhập thất bại, vui lòng thử lại");
+      toast.error(
+        error instanceof Error ? error.message : "Đăng nhập thất bại, vui lòng thử lại"
+      );
     } finally {
       setLoading(false);
     }
@@ -210,7 +226,7 @@ export default function LoginForm() {
                     {...field}
                     id="password"
                     type="password"
-                    placeholder="��������"
+                    placeholder="••••••••"
                     autoComplete="current-password"
                     aria-invalid={fieldState.invalid}
                     className="h-10 text-base placeholder:text-sm"
@@ -232,7 +248,7 @@ export default function LoginForm() {
           <Button
             type="submit"
             form="form-rhf-demo"
-            className="h-8 px-10 text-sm bg-[#7a4a2a] hover:bg-[#8b5e44] text-white"
+            className="h-8 px-10 text-sm bg-amber-700 hover:bg-amber-800 text-white"
             disabled={isSubmitDisabled}
             aria-disabled={isSubmitDisabled}
             aria-busy={loading}
@@ -245,7 +261,7 @@ export default function LoginForm() {
           Chưa có tài khoản?{" "}
           <Link
             href="/register"
-            className="font-semibold text-[#7a4a2a] hover:text-[#8b5e44] hover:underline"
+            className="font-semibold text-amber-700 hover:text-amber-800 hover:underline"
           >
             Đăng ký ngay
           </Link>
