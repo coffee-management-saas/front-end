@@ -41,7 +41,7 @@ import {
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { cn, canUseImage, FALLBACK_IMG } from "@/lib/utils";
 import { useCart } from "@/contexts/CartContext";
 import type { Promotion } from "@/types/promotion";
 import { useAppContext } from "@/app/AppProvider";
@@ -580,11 +580,14 @@ const CheckoutContent = () => {
                             <div className="flex gap-4">
                               <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-amber-50">
                                 <Image
-                                  src={item.productImage}
+                                  src={canUseImage(item.productImage) ? (item.productImage as string) : FALLBACK_IMG}
                                   alt={item.productName}
                                   fill
                                   sizes="80px"
                                   className="object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = FALLBACK_IMG;
+                                  }}
                                 />
                               </div>
 
@@ -983,10 +986,10 @@ const CheckoutContent = () => {
                                 </div>
                                 {tempSelectedVoucher?.promotionId ===
                                   promo.promotionId && (
-                                  <div className="self-center">
-                                    <CheckCircle2 className="w-5 h-5 text-amber-600" />
-                                  </div>
-                                )}
+                                    <div className="self-center">
+                                      <CheckCircle2 className="w-5 h-5 text-amber-600" />
+                                    </div>
+                                  )}
                               </div>
                             ))
                         )}

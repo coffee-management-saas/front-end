@@ -4,6 +4,7 @@ import { Minus, Plus, X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/contexts/CartContext";
+import { canUseImage, FALLBACK_IMG } from "@/lib/utils";
 import {
     Dialog,
     DialogContent,
@@ -74,12 +75,25 @@ export function CartModal({ open, onOpenChange }: CartModalProps) {
                                             className="flex gap-4 p-4 bg-card rounded-lg border border-border/50 hover:border-border transition-colors"
                                         >
                                             <div className="relative w-24 h-24 rounded-md overflow-hidden flex-shrink-0 bg-secondary/30">
-                                                <Image
-                                                    src={item.productImage}
-                                                    alt={item.productName}
-                                                    fill
-                                                    className="object-cover"
-                                                />
+                                                {canUseImage(item.productImage) ? (
+                                                    <Image
+                                                        src={item.productImage!}
+                                                        alt={item.productName}
+                                                        fill
+                                                        className="object-cover"
+                                                        onError={(e) => {
+                                                            const img = e.target as HTMLImageElement;
+                                                            img.src = FALLBACK_IMG;
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <Image
+                                                        src={FALLBACK_IMG}
+                                                        alt={item.productName}
+                                                        fill
+                                                        className="object-cover"
+                                                    />
+                                                )}
                                             </div>
 
                                             <div className="flex-1 min-w-0">
