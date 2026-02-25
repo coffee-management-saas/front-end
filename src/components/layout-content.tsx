@@ -4,9 +4,9 @@ import PhucLongHeader from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
 import Footer from "@/components/footer";
 import ChatbotWidget from "@/components/ChatbotWidget";
-
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { FloatingCartButton } from "@/components/floating-cart-button";
 
 export default function LayoutContent({
   children,
@@ -18,8 +18,11 @@ export default function LayoutContent({
   // ẩn header/footer với các route
   const hideShell =
     pathname.startsWith("/admin") ||
+    pathname.startsWith("/system") ||
     pathname.startsWith("/staff") ||
     pathname === "/login" ||
+    pathname === "/system/login" ||
+    pathname === "/system/register" ||
     pathname === "/register" ||
     pathname === "/verification";
 
@@ -29,7 +32,9 @@ export default function LayoutContent({
         {!hideShell && <PhucLongHeader />}
         {children}
         {!hideShell && <Footer />}
+
         {!hideShell && <ChatbotWidget />}
+        {!hideShell && <FloatingCartButton />}
       </div>
     );
   }
@@ -48,4 +53,3 @@ export default function LayoutContent({
     </ThemeProvider>
   );
 }
-

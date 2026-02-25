@@ -67,8 +67,6 @@ export default async function RootLayout({
               <SlideSession />
               {children}
             </LayoutContent>
-
-            <FloatingCartButton />
             <Toaster />
           </FlyingCartManager>
         </AppProvider>

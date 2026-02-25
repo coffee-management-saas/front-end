@@ -282,7 +282,7 @@ export default function Categories() {
           </div>
           <Button
             onClick={handleCreate}
-            className="bg-primary hover:bg-primary/90"
+            className="bg-[#cec3bc] text-[#693916] hover:bg-[#b8aba3]"
           >
             <Plus className="w-4 h-4 mr-2" />
             Thêm danh mục
@@ -442,7 +442,7 @@ export default function Categories() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleView(category)}
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            className="h-8 w-8 text-gray-600 hover:bg-gray-50 hover:text-[#876F60]"
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
@@ -451,7 +451,7 @@ export default function Categories() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEdit(category)}
-                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            className="h-8 w-8 text-gray-600 hover:bg-gray-50 hover:text-[#876F60]"
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
@@ -460,7 +460,7 @@ export default function Categories() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleDelete(category)}
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 text-gray-600 hover:bg-gray-50 hover:text-[#876F60]"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

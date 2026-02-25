@@ -6,19 +6,8 @@ import {
   Coffee,
   LayoutDashboard,
   FolderTree,
-  Package,
-  Users,
   LogOut,
-  Ruler,
-  Layers,
   Tag,
-  ShoppingBag,
-  Leaf,
-  ReceiptText,
-  NotebookPen,
-  Calendar,
-  ClipboardList,
-  Award,
 } from "lucide-react";
 
 import {
@@ -44,60 +33,15 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { title: "Dashboard", href: "/admin", icon: LayoutDashboard },
-
-  // Danh mục
-  { title: "Danh mục", href: "/admin/categories-manager", icon: FolderTree },
-
-  // Hạng thành viên (nên dùng Award)
-  { title: "Hạng thành viên", href: "/admin/rank-manager", icon: Award },
-
-  // Khuyến mãi
-  { title: "Khuyến mãi", href: "/admin/promotions-manager", icon: Tag },
-
-  // Sản phẩm
-  { title: "Sản phẩm", href: "/admin/products-manager", icon: ShoppingBag },
-
-  // Nguyên liệu
-  { title: "Nguyên liệu", href: "/admin/ingredients-manager", icon: Leaf },
-
-  // Hóa đơn nhập kho
-  {
-    title: "Hóa đơn nhập kho",
-    href: "/admin/invoices-manager",
-    icon: ReceiptText,
-  },
-
-  // Toppings
-  { title: "Toppings", href: "/admin/toppings-manager", icon: Package },
-
-  // Công thức
-  { title: "Công thức", href: "/admin/recipes-manager", icon: NotebookPen },
-
-  // Sizes
-  { title: "Sizes", href: "/admin/sizes-manager", icon: Ruler },
-
-  // Lịch làm việc
-  { title: "Lịch làm việc", href: "/admin/schedules-manager", icon: Calendar },
-
-  // Biến thể sản phẩm
-  { title: "Biến thể sản phẩm", href: "/admin/variants-manager", icon: Layers },
-
-  // Nhân viên
-  { title: "Nhân viên", href: "/admin/employees-manager", icon: Users },
-
-  // Kiểm tra tồn kho (đổi icon cho đúng ngữ nghĩa)
-  {
-    title: "Kiểm tra tồn kho",
-    href: "/admin/stock-manager",
-    icon: ClipboardList,
-  },
+  { title: "Dashboard", href: "/system", icon: LayoutDashboard },
+  { title: "Cửa hàng", href: "/system/shop-manager", icon: FolderTree },
+  { title: "Gói ưu đãi", href: "/system/subscription-manager", icon: Tag },
 ];
 
 const cn = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(" ");
 
-export function AdminSidebar() {
+export function SystemSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { setTokens } = useAppContext();
@@ -105,6 +49,7 @@ export function AdminSidebar() {
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     if (href === "/admin") return pathname === "/admin";
+    if (href === "/system") return pathname === "/system";
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
@@ -123,7 +68,7 @@ export function AdminSidebar() {
       }
 
       try {
-        router.replace("/login");
+        router.replace("/system/login");
       } catch (err) {
         console.error("Redirect error:", err);
       }
@@ -131,28 +76,30 @@ export function AdminSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-gray-200 bg-white">
-      <SidebarHeader className="p-4 border-b border-gray-200 bg-white">
+    <Sidebar className="border-r border-sidebar-border">
+      <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#cec3bc] flex items-center justify-center">
-            <Coffee className="w-5 h-5 text-[#693916]" />
+          <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
+            <Coffee className="w-5 h-5 text-sidebar-primary-foreground" />
           </div>
 
           <div>
             <h1
-              className="font-semibold text-[#693916] text-lg"
+              className="font-semibold text-sidebar-foreground text-lg"
               style={{ fontFamily: "'Playfair Display', serif" }}
             >
               Coffee Admin
             </h1>
-            <p className="text-xs text-gray-500">Quản lý quán café</p>
+            <p className="text-xs text-sidebar-foreground/60">
+              Quản lý quán café
+            </p>
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="py-4 bg-white">
+      <SidebarContent className="py-4 bg-[#F9F7F5]">
         <SidebarGroup>
-          <SidebarGroupLabel className="px-4 text-gray-400 text-xs uppercase tracking-wider mb-2">
+          <SidebarGroupLabel className="px-4 text-sidebar-foreground/50 text-xs uppercase tracking-wider mb-2">
             Menu chính
           </SidebarGroupLabel>
 
@@ -167,17 +114,15 @@ export function AdminSidebar() {
                       <Link
                         href={item.href}
                         className={cn(
-                          "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
-                          active
-                            ? "text-[#693916] bg-[#cec3bc]"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-[#876F60]",
+                          "flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors",
+                          "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                          active &&
+                            "bg-sidebar-accent text-sidebar-primary font-medium",
                         )}
                         aria-current={active ? "page" : undefined}
                       >
                         <item.icon className="w-5 h-5" />
-                        <span className="text-sm font-medium">
-                          {item.title}
-                        </span>
+                        <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -188,14 +133,14 @@ export function AdminSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-gray-200 bg-white">
+      <SidebarFooter className="p-4 border-t border-sidebar-border">
         <button
           type="button"
-          className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-[#876F60] transition-colors"
+          className="flex items-center gap-3 w-full py-2.5 px-3 rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
           onClick={() => void handleLogout()}
         >
           <LogOut className="w-5 h-5" />
-          <span className="text-sm font-medium">Đăng xuất</span>
+          <span>Đăng xuất</span>
         </button>
       </SidebarFooter>
     </Sidebar>
