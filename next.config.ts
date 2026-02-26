@@ -54,6 +54,14 @@ const nextConfig: NextConfig = {
         source: "/api/ai/:path*",
         destination: "http://localhost:8080/api/ai/:path*",
       },
+      {
+        source: "/api/momo/:path*",
+        destination: "http://localhost:8080/api/momo/:path*",
+      },
+      {
+        source: "/api/subscriptions/:path*",
+        destination: "http://localhost:8080/api/subscriptions/:path*",
+      },
     ];
   },
   /* config options here */
