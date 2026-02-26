@@ -19,7 +19,7 @@ export function FloatingCartButton() {
       <button
         onClick={() => setModalOpen(true)}
         className={cn(
-          "fixed bottom-8 right-8 z-40",
+          "fixed bottom-6 right-6 z-40",
           "w-16 h-16 rounded-full shadow-lg",
           "bg-[#693916] hover:bg-amber-900",
           "text-white",
