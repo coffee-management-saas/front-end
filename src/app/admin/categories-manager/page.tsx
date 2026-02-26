@@ -282,7 +282,7 @@ export default function Categories() {
           </div>
           <Button
             onClick={handleCreate}
-            className="bg-[#cec3bc] text-[#693916] hover:bg-[#b8aba3]"
+            className="bg-primary hover:bg-primary/90"
           >
             <Plus className="w-4 h-4 mr-2" />
             Thêm danh mục

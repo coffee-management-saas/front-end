@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   AlertDialog,
@@ -10,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 interface DeleteConfirmDialogProps {
   open: boolean;
@@ -20,6 +21,8 @@ interface DeleteConfirmDialogProps {
   title?: string;
   description?: string;
   confirmLabel?: string;
+  confirmClassName?: string;
+  cancelClassName?: string;
 }
 
 export function DeleteConfirmDialog({
@@ -31,6 +34,8 @@ export function DeleteConfirmDialog({
   title,
   description,
   confirmLabel,
+  confirmClassName,
+  cancelClassName,
 }: DeleteConfirmDialogProps) {
   const resolvedItemName = itemName ?? categoryName;
   const resolvedTitle = title ?? "Xác nhận xóa";
@@ -49,10 +54,20 @@ export function DeleteConfirmDialog({
           <AlertDialogDescription>{resolvedDescription}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Hủy</AlertDialogCancel>
+          <AlertDialogCancel
+            className={cn(
+              "border border-gray-200 bg-white text-black shadow-none hover:bg-gray-50 hover:text-black focus-visible:ring-0 focus-visible:ring-offset-0",
+              cancelClassName,
+            )}
+          >
+            Hủy
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            className={cn(
+              "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+              confirmClassName,
+            )}
           >
             {resolvedConfirmLabel}
           </AlertDialogAction>

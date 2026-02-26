@@ -8,7 +8,8 @@ import { useRouter } from "next/navigation";
 import { getProducts } from "@/services/product.service";
 import type { Product } from "@/types/product";
 import { formatCurrency, canUseImage, FALLBACK_IMG } from "@/lib/utils";
-
+import ChatbotWidget from "@/components/ChatbotWidget";
+import { FloatingCartButton } from "@/components/floating-cart-button";
 
 const Homepage: React.FC = () => {
   const bestSellerRef = useRef<HTMLDivElement>(null);
@@ -42,7 +43,7 @@ const Homepage: React.FC = () => {
           status: "ACTIVE",
         });
 
-        setProducts(result.data);
+        setProducts(Array.isArray(result?.data) ? result.data : []);
       } catch (e) {
         setProductsError(
           e instanceof Error ? e.message : "Load products failed",
@@ -79,8 +80,8 @@ const Homepage: React.FC = () => {
         if (!res.ok) {
           const msg =
             typeof payload === "object" &&
-              payload !== null &&
-              "message" in payload
+            payload !== null &&
+            "message" in payload
               ? String((payload as { message: unknown }).message)
               : `Fetch promotions failed (status ${res.status})`;
           throw new Error(msg);
@@ -152,6 +153,8 @@ const Homepage: React.FC = () => {
     }));
   }, [promotions]);
 
+  const productsForUI = Array.isArray(products) ? products : [];
+
   const scrollLeft = (ref: React.RefObject<HTMLDivElement | null>) => {
     if (ref.current) {
       ref.current.scrollBy({ left: -200, behavior: "smooth" });
@@ -189,8 +192,9 @@ const Homepage: React.FC = () => {
               <button
                 key={i}
                 onClick={() => setActive(i)}
-                className={`h-2.5 w-2.5 rounded-full transition ${i === active ? "bg-gray-800" : "bg-white/80"
-                  }`}
+                className={`h-2.5 w-2.5 rounded-full transition ${
+                  i === active ? "bg-gray-800" : "bg-white/80"
+                }`}
                 aria-label={`Go to ${i + 1}`}
                 type="button"
               />
@@ -227,11 +231,13 @@ const Homepage: React.FC = () => {
             ref={bestSellerRef}
             className="flex overflow-x-hidden gap-3 lg:gap-4 pb-4 mb-8"
           >
-            {!productsLoading && products.length === 0 && !productsError && (
-              <div className="text-gray-600">Chưa có sản phẩm.</div>
-            )}
+            {!productsLoading &&
+              productsForUI.length === 0 &&
+              !productsError && (
+                <div className="text-gray-600">Chưa có sản phẩm.</div>
+              )}
 
-            {products.map((product) => {
+            {productsForUI.map((product) => {
               const slug = toProductSlug(product.name, product.id);
               return (
                 <div
@@ -241,7 +247,11 @@ const Homepage: React.FC = () => {
                   <Link href={`/products/${slug}`} className="block">
                     <div className="relative bg-gray-100 h-60 flex items-center justify-center">
                       <Image
-                        src={canUseImage(product.image) ? product.image! : FALLBACK_IMG}
+                        src={
+                          canUseImage(product.image)
+                            ? product.image!
+                            : FALLBACK_IMG
+                        }
                         alt={product.name}
                         fill
                         className="object-cover"
@@ -254,7 +264,9 @@ const Homepage: React.FC = () => {
                       {product.name}
                     </h3>
                     <p className="text-sm text-orange-600 font-semibold mb-4">
-                      {product.price ? formatCurrency(product.price) : "Giá cập nhật"}
+                      {product.price
+                        ? formatCurrency(product.price)
+                        : "Giá cập nhật"}
                     </p>
 
                     <Link
@@ -349,6 +361,8 @@ const Homepage: React.FC = () => {
               </div>
             ))}
           </div>
+          <ChatbotWidget />
+          <FloatingCartButton />
 
           <button
             onClick={() => scrollRight(newsRef)}
