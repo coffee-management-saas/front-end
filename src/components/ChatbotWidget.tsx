@@ -80,11 +80,12 @@ export default function ChatbotWidget() {
 
         // Khi AI đã thu thập đủ thông tin → redirect sang trang thanh toán
         if (res.action === "ORDER" && res.redirectToPayment && res.orderRequest) {
-            // Lưu orderRequest vào sessionStorage để trang checkout đọc
+            // Lưu orderRequest vào sessionStorage để trang checkout đọc (vẫn giữ để tham khảo)
             sessionStorage.setItem("chatbot_order_request", JSON.stringify(res.orderRequest));
             setTimeout(() => {
                 setIsOpen(false);
-                router.push("/checkout?mode=chatbot");
+                const orderIdParam = res.orderId ? `&orderId=${res.orderId}` : "";
+                router.push(`/checkout?mode=chatbot${orderIdParam}`);
             }, 1500);
         }
     };
