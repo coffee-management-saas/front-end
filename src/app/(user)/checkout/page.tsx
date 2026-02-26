@@ -135,18 +135,19 @@ const CheckoutContent = () => {
 
   useEffect(() => {
     const resultCode = searchParams.get("resultCode");
-    const orderId = searchParams.get("orderId");
+    const orderIdParam = searchParams.get("orderId");
     const message = searchParams.get("message");
 
-    if (resultCode !== null) {
+    if (resultCode !== null && accessToken) {
       if (resultCode === "0") {
         setPaymentStatus("success");
         setCurrentStep(2);
-        if (orderId && accessToken) {
+
+        if (orderIdParam) {
           // Extra handling for Momo orderId format: ORD_19_timestamp
-          let realOrderId = orderId;
-          if (orderId.includes("_")) {
-            const parts = orderId.split("_");
+          let realOrderId = orderIdParam;
+          if (orderIdParam.includes("_")) {
+            const parts = orderIdParam.split("_");
             if (parts.length > 1) realOrderId = parts[1];
           }
 
@@ -154,11 +155,19 @@ const CheckoutContent = () => {
             .then((order) => {
               setSuccessOrder(order);
               setCreatedOrderId(order.orderId);
+              if (order.paymentGateway) {
+                setPaymentMethod(order.paymentGateway.toLowerCase() as "cash" | "momo");
+              }
               setShowSuccessModal(true);
+
+              // Only clear URL after successful processing
+              const newUrl = window.location.pathname;
+              window.history.replaceState({}, "", newUrl);
             })
-            .catch((err) =>
-              console.error("Failed to fetch momo order details", err),
-            );
+            .catch((err) => {
+              console.error("Failed to fetch momo order details", err);
+              toast.error("Không thể tải thông tin đơn hàng.");
+            });
         }
 
         toast.success("Thanh toán MoMo thành công!");
@@ -166,11 +175,13 @@ const CheckoutContent = () => {
       } else {
         setPaymentStatus("failed");
         toast.error(`Thanh toán thất bại: ${message}`);
+
+        // Clear URL for failure too
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, "", newUrl);
       }
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, "", newUrl);
     }
-  }, [searchParams, clearCart]);
+  }, [searchParams, clearCart, accessToken]);
 
   const [isUpdatingAddress, setIsUpdatingAddress] = useState(false);
 
@@ -738,7 +749,7 @@ const CheckoutContent = () => {
                     >
                       <div className="h-12 w-12 rounded-lg bg-pink-600 flex items-center justify-center text-white shrink-0 shadow-sm overflow-hidden">
                         <Image
-                          src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png"
+                          src="/images/momo.jpg"
                           alt="MoMo"
                           width={48}
                           height={48}
@@ -857,7 +868,7 @@ const CheckoutContent = () => {
                         {(paymentMethod === "momo" || successOrder?.paymentGateway?.toLowerCase() === "momo") ? (
                           <>
                             <Image
-                              src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png"
+                              src="/images/momo.jpg"
                               alt="MoMo"
                               width={16}
                               height={16}
@@ -931,10 +942,17 @@ const CheckoutContent = () => {
                       })}
                     </div>
                   </div>
-                  <div className="bg-green-50 p-3 text-center border-t border-green-100">
-                    <p className="text-xs font-medium text-green-700 flex items-center justify-center gap-1">
-                      <ShieldCheck className="w-3 h-3" />
-                      Đơn hàng đã được xác nhận thanh toán
+                  <div className={cn(
+                    "p-3 text-center border-t",
+                    (successOrder?.orderStatus === "PAID" || paymentMethod === "cash") ? "bg-green-50 border-green-100 text-green-700" : "bg-amber-50 border-amber-100 text-amber-700"
+                  )}>
+                    <p className="text-xs font-medium flex items-center justify-center gap-1">
+                      {(successOrder?.orderStatus === "PAID" || paymentMethod === "cash") ? (
+                        <ShieldCheck className="w-3 h-3" />
+                      ) : (
+                        <Clock3 className="w-3 h-3" />
+                      )}
+                      {(successOrder?.orderStatus === "PAID" || paymentMethod === "cash") ? "Đơn hàng đã được xác nhận thanh toán" : "Đơn hàng đang chờ xử lý thanh toán"}
                     </p>
                   </div>
                 </Card>

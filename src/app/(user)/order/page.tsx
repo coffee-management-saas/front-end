@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAppContext } from "@/app/AppProvider";
+import { useCart } from "@/contexts/CartContext";
 import {
   getOrderById,
   confirmCashPayment,
@@ -32,7 +33,10 @@ function OrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { accessToken } = useAppContext();
+  const { clearCart } = useCart();
+
   const orderId = searchParams.get("orderId");
+  const resultCode = searchParams.get("resultCode");
 
   const [order, setOrder] = useState<OrderResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,40 +46,63 @@ function OrderContent() {
   const [paid, setPaid] = useState(false);
 
   useEffect(() => {
-    if (!orderId || !accessToken) {
-      setError(!orderId ? "Không tìm thấy mã đơn hàng." : "Vui lòng đăng nhập.");
+    let finalOrderId = orderId;
+
+    // Handle MoMo orderId format (ORD_ID_TIMESTAMP)
+    if (orderId && orderId.startsWith("ORD_")) {
+      const parts = orderId.split("_");
+      if (parts.length >= 2) {
+        finalOrderId = parts[1];
+      }
+    }
+
+    if (!finalOrderId || !accessToken) {
+      setError(!finalOrderId ? "Không tìm thấy mã đơn hàng." : "Vui lòng đăng nhập.");
       setLoading(false);
       return;
     }
 
-    getOrderById(accessToken, Number(orderId))
+    // Process MoMo callback result
+    if (resultCode === "0") {
+      toast.success("✅ Thanh toán MoMo thành công!");
+      clearCart();
+      setPaid(true);
+      // Clean URL and redirect to checkout for success UI
+      router.replace(`/checkout?resultCode=0&orderId=${orderId}`, { scroll: false });
+    } else if (resultCode && resultCode !== "0") {
+      toast.error("Thanh toán MoMo thất bại hoặc đã bị hủy.");
+      router.replace(`/checkout?resultCode=${resultCode}&orderId=${orderId}`, { scroll: false });
+    }
+
+    getOrderById(accessToken, Number(finalOrderId))
       .then((data) => {
         setOrder(data);
-        // Nếu đơn đã PAID rồi (vd do thanh toán trước đó) thì đánh dấu
-        if (data.orderStatus === "PAID") setPaid(true);
+        if (data.orderStatus === "PAID") {
+          setPaid(true);
+          // If already paid (maybe from IPN), ensure cart is cleared
+          clearCart();
+        }
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Lỗi tải đơn hàng."))
       .finally(() => setLoading(false));
-  }, [orderId, accessToken]);
+  }, [orderId, accessToken, resultCode, clearCart, router]);
 
   const handlePay = async () => {
     if (!order || !accessToken) return;
     setPaying(true);
     try {
       if (paymentMethod === "momo") {
-        // Gọi backend để tạo MoMo payment URL
         const result = await payWithMomo(accessToken, order.orderId);
         if (result.payUrl) {
-          // Redirect sang trang thanh toán MoMo
           window.location.href = result.payUrl;
         } else {
           toast.error("Không nhận được link thanh toán MoMo. Vui lòng thử lại.");
         }
       } else {
-        // Xác nhận thanh toán tiền mặt — triggers stock deduction & điểm
         await confirmCashPayment(accessToken, order.orderId);
         setPaid(true);
-        toast.success("✅ Đã xác nhận thanh toán tiền mặt!");
+        clearCart();
+        toast.success("✅ Đã xác nhận đặt hàng thành công!");
         setTimeout(() => router.push("/profile?tab=orders"), 2000);
       }
     } catch (err: any) {
@@ -109,7 +136,6 @@ function OrderContent() {
   return (
     <div className="min-h-screen bg-white pt-10">
       <div className="container mx-auto max-w-2xl px-4 py-10 space-y-6">
-        {/* Header */}
         <div>
           <Button
             variant="ghost"
@@ -125,7 +151,7 @@ function OrderContent() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
                 {paid
-                  ? `Đơn hàng #${order.orderId} đã thanh toán!`
+                  ? `Đơn hàng #${order.orderId} đã được ghi nhận!`
                   : `Đơn hàng #${order.orderId} đã được tạo!`}
               </h1>
               <p className="text-sm text-gray-500 mt-0.5">
@@ -137,7 +163,6 @@ function OrderContent() {
           </div>
         </div>
 
-        {/* Order Summary */}
         <Card className="border-amber-100">
           <CardHeader>
             <CardTitle className="text-base">Chi tiết đơn hàng</CardTitle>
@@ -175,14 +200,12 @@ function OrderContent() {
           </CardContent>
         </Card>
 
-        {/* Payment Method — chỉ hiện khi chưa thanh toán */}
         {!paid && (
           <Card className="border-amber-200">
             <CardHeader>
               <CardTitle className="text-base">Hình thức thanh toán</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {/* MoMo */}
               <button
                 type="button"
                 onClick={() => setPaymentMethod("momo")}
@@ -194,7 +217,6 @@ function OrderContent() {
                 )}
               >
                 <div className="h-10 w-10 rounded-lg bg-pink-600 flex items-center justify-center overflow-hidden shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png"
                     alt="MoMo"
@@ -217,7 +239,6 @@ function OrderContent() {
                 </div>
               </button>
 
-              {/* Tiền mặt */}
               <button
                 type="button"
                 onClick={() => setPaymentMethod("cash")}
@@ -259,7 +280,6 @@ function OrderContent() {
           </Card>
         )}
 
-        {/* Actions */}
         <div className="grid grid-cols-2 gap-3">
           <Button
             variant="outline"

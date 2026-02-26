@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import type { CartItem, CartContextType } from "@/types/cart";
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -32,29 +32,29 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
     }, [items, isHydrated]);
 
-    const addItem = (item: Omit<CartItem, "id">) => {
+    const addItem = useCallback((item: Omit<CartItem, "id">) => {
         const id = `${item.productId}-${item.size}-${Date.now()}`;
         const newItem: CartItem = { ...item, id };
         setItems((prev) => [...prev, newItem]);
-    };
+    }, []);
 
-    const removeItem = (itemId: string) => {
+    const removeItem = useCallback((itemId: string) => {
         setItems((prev) => prev.filter((item) => item.id !== itemId));
-    };
+    }, []);
 
-    const updateQuantity = (itemId: string, quantity: number) => {
+    const updateQuantity = useCallback((itemId: string, quantity: number) => {
         if (quantity <= 0) {
-            removeItem(itemId);
+            setItems((prev) => prev.filter((item) => item.id !== itemId));
             return;
         }
         setItems((prev) =>
             prev.map((item) => (item.id === itemId ? { ...item, quantity } : item)),
         );
-    };
+    }, []);
 
-    const clearCart = () => {
+    const clearCart = useCallback(() => {
         setItems([]);
-    };
+    }, []);
 
     const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -68,7 +68,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return sum + itemPrice;
     }, 0);
 
-    const value: CartContextType = {
+    const value: CartContextType = useMemo(() => ({
         items,
         addItem,
         removeItem,
@@ -76,7 +76,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         clearCart,
         totalItems,
         totalPrice,
-    };
+    }), [items, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice]);
 
     return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
