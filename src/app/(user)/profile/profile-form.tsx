@@ -3,17 +3,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ChevronRight,
   CreditCard,
-  Heart,
-  HelpCircle,
-  MapPin,
   Pencil,
   ShoppingCart,
   Tag,
+  User,
 } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import OrderHistory from "./order-history";
 import MemberTier from "./member-tier";
-import Favorites from "./favorites";
 
 import { ProfileData } from "@/types/profile";
 
@@ -22,14 +19,21 @@ export default function ProfileForm() {
   const router = useRouter();
   const pathname = usePathname();
 
+  const allowedTabs = useMemo(
+    () => new Set(["personal-info", "member", "orders", "deals"]),
+    [],
+  );
+
   const [activeTab, setActiveTab] = useState("personal-info");
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab) {
+    if (tab && allowedTabs.has(tab)) {
       setActiveTab(tab);
+    } else {
+      setActiveTab("personal-info");
     }
-  }, [searchParams]);
+  }, [allowedTabs, searchParams]);
 
   const handleTabChange = (id: string) => {
     setActiveTab(id);
@@ -78,7 +82,7 @@ export default function ProfileForm() {
   const menuItems = [
     {
       id: "personal-info",
-      icon: CreditCard,
+      icon: User,
       label: "Thông tin cá nhân",
       color: "text-amber-600",
     },
@@ -95,34 +99,10 @@ export default function ProfileForm() {
       color: "text-orange-600",
     },
     {
-      id: "address",
-      icon: MapPin,
-      label: "Sổ địa chỉ",
-      color: "text-amber-600",
-    },
-    {
       id: "orders",
       icon: ShoppingCart,
       label: "Lịch sử đơn hàng",
       color: "text-amber-600",
-    },
-    {
-      id: "favorites",
-      icon: Heart,
-      label: "Sản phẩm yêu thích",
-      color: "text-amber-600",
-    },
-    {
-      id: "viewed",
-      icon: Tag,
-      label: "Sản phẩm đã xem",
-      color: "text-amber-600",
-    },
-    {
-      id: "support",
-      icon: HelpCircle,
-      label: "Trung tâm trợ giúp",
-      color: "text-orange-600",
     },
   ];
 
@@ -426,17 +406,22 @@ export default function ProfileForm() {
 
             {activeTab === "orders" && <OrderHistory />}
             {activeTab === "member" && <MemberTier />}
-            {activeTab === "favorites" && <Favorites />}
 
             {/* Fallback for other tabs */}
             {activeTab !== "orders" &&
               activeTab !== "personal-info" &&
               activeTab !== "member" &&
-              activeTab !== "favorites" && (
+              activeTab !== "deals" && (
                 <div className="flex flex-col items-center justify-center py-20 text-gray-400">
                   <p>Tính năng đang được phát triển</p>
                 </div>
               )}
+
+            {activeTab === "deals" && (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                <p>Tính năng đang được phát triển</p>
+              </div>
+            )}
           </form>
         </div>
       </div>

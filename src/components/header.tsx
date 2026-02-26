@@ -4,7 +4,6 @@ import {
   Search,
   User,
   ShoppingBag,
-  Heart,
   Users,
   Star,
   LogOut,
@@ -193,7 +192,10 @@ export default function PhucLongHeader() {
                       asChild
                       className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
                     >
-                      <Link href="/profile" className="flex items-center gap-3">
+                      <Link
+                        href="/profile?tab=personal-info"
+                        className="flex items-center gap-3"
+                      >
                         <User className="w-4 h-4 text-gray-500 group-hover:text-[#693916]" />
                         <span className="text-sm text-gray-700 group-hover:text-[#693916]">
                           Thông tin cá nhân
@@ -205,7 +207,10 @@ export default function PhucLongHeader() {
                       asChild
                       className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
                     >
-                      <Link href="/orders" className="flex items-center gap-3">
+                      <Link
+                        href="/profile?tab=orders"
+                        className="flex items-center gap-3"
+                      >
                         <ShoppingBag className="w-4 h-4 text-gray-500 group-hover:text-[#693916]" />
                         <span className="text-sm text-gray-700 group-hover:text-[#693916]">
                           Đơn hàng
@@ -218,36 +223,12 @@ export default function PhucLongHeader() {
                       className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
                     >
                       <Link
-                        href="/favorites"
+                        href="/profile?tab=member"
                         className="flex items-center gap-3"
                       >
-                        <Heart className="w-4 h-4 text-gray-500 group-hover:text-[#693916]" />
-                        <span className="text-sm text-gray-700 group-hover:text-[#693916]">
-                          Sản phẩm yêu thích
-                        </span>
-                      </Link>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      asChild
-                      className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
-                    >
-                      <Link href="/members" className="flex items-center gap-3">
                         <Users className="w-4 h-4 text-gray-500 group-hover:text-[#693916]" />
                         <span className="text-sm text-gray-700 group-hover:text-[#693916]">
                           Khách hàng thành viên
-                        </span>
-                      </Link>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      asChild
-                      className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-green-50"
-                    >
-                      <Link href="/points" className="flex items-center gap-3">
-                        <Star className="w-4 h-4 text-gray-500 group-hover:text-[#693916]" />
-                        <span className="text-sm text-gray-700 group-hover:text-[#693916]">
-                          Điểm và hạng
                         </span>
                       </Link>
                     </DropdownMenuItem>
@@ -357,14 +338,14 @@ export default function PhucLongHeader() {
               </div>
             </li>
 
-            <li>
+            {/* <li>
               <a
                 href="#"
                 className="block py-3 hover:text-[#876F60] transition border-b-2 border-transparent hover:border-[#876F60]"
               >
                 SẢN PHẨM ĐÓNG GÓI
               </a>
-            </li>
+            </li> */}
 
             <li>
               <Link
@@ -385,12 +366,12 @@ export default function PhucLongHeader() {
             </li>
 
             <li>
-              <a
-                href="#"
+              <Link
+                href="/membership"
                 className="block py-3 hover:text-[#876F60] transition border-b-2 border-transparent hover:border-[#876F60]"
               >
-                HỘI VIÊN
-              </a>
+                THẺ THÀNH VIÊN
+              </Link>
             </li>
           </ul>
         </div>
