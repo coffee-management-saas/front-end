@@ -3,8 +3,10 @@
 import PhucLongHeader from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
 import Footer from "@/components/footer";
+import ChatbotWidget from "@/components/ChatbotWidget";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { FloatingCartButton } from "@/components/floating-cart-button";
 
 export default function LayoutContent({
   children,
@@ -18,12 +20,11 @@ export default function LayoutContent({
     pathname.startsWith("/admin") ||
     pathname.startsWith("/system") ||
     pathname.startsWith("/staff") ||
-    pathname.startsWith("/forbidden") ||
-    pathname === "/login" ||
-    pathname === "/system/login" ||
-    pathname === "/system/register" ||
-    pathname === "/register" ||
     pathname === "/verification";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!mounted) {
     return (
@@ -45,6 +46,8 @@ export default function LayoutContent({
       {!hideShell && <PhucLongHeader />}
       <div className={!hideShell ? "pt-16" : ""}>{children}</div>
       {!hideShell && <Footer />}
+      {!hideShell && <ChatbotWidget />}
+      {!hideShell && <FloatingCartButton />}
     </ThemeProvider>
   );
 }

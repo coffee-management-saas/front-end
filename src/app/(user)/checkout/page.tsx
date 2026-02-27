@@ -262,7 +262,7 @@ const CheckoutContent = () => {
     setIsPlacingOrder(true);
     try {
       if (!accessToken) {
-        toast.error("Vui lòng đăng nhập để đặt hàng");
+        router.push("/login");
         return;
       }
 
@@ -1276,6 +1276,10 @@ const CheckoutContent = () => {
                     className="w-full h-12 text-base font-bold bg-[#693916] hover:bg-amber-900 shadow-warm"
                     disabled={isEmpty}
                     onClick={() => {
+                      if (!accessToken) {
+                        router.push("/login");
+                        return;
+                      }
                       if (currentStep === 0) {
                         setCurrentStep(1);
                         window.scrollTo(0, 0);

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
@@ -19,8 +19,8 @@ export function FloatingCartButton() {
       <button
         onClick={() => setModalOpen(true)}
         className={cn(
-          "fixed bottom-6 right-6 z-40",
-          "w-16 h-16 rounded-full shadow-lg",
+          "fixed bottom-24 right-6 z-40",
+          "w-14 h-14 rounded-full shadow-lg",
           "bg-[#693916] hover:bg-amber-900",
           "text-white",
           "flex items-center justify-center",
@@ -28,7 +28,7 @@ export function FloatingCartButton() {
         )}
         aria-label="Giỏ hàng"
       >
-        <ShoppingCart className="w-8 h-8" data-cart-icon />
+        <ShoppingCart className="w-6 h-6" data-cart-icon />
         {totalItems > 0 && (
           <span className="absolute -top-2 -right-2 bg-red-500 text-white text-sm w-7 h-7 rounded-full flex items-center justify-center font-bold shadow-md">
             {totalItems > 99 ? "99+" : totalItems}

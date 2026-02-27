@@ -115,7 +115,7 @@ export default function ChatbotWidget() {
 
             {/* Chat Panel */}
             <div
-                className={`fixed bottom-24 right-6 z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-amber-100 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right ${isOpen
+                className={`fixed bottom-44 right-6 z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-amber-100 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right ${isOpen
                     ? "opacity-100 scale-100 pointer-events-auto"
                     : "opacity-0 scale-90 pointer-events-none"
                     }`}

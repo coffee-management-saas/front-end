@@ -15,7 +15,7 @@ function RegisterPage() {
       </div>
 
       {/* Form */}
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-4">
+      <div className="relative z-10 flex min-h-[calc(100vh-64px)] items-center justify-center px-4 py-8">
         <RegisterForm />
       </div>
     </div>
