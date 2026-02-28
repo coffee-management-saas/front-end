@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Promotion } from "@/types/promotion";
 import { useRouter } from "next/navigation";
-import { getProducts } from "@/services/product.service";
+import { getProducts, getBestSellers } from "@/services/product.service";
 import type { Product } from "@/types/product";
 import { formatCurrency, canUseImage, FALLBACK_IMG } from "@/lib/utils";
 import ChatbotWidget from "@/components/ChatbotWidget";
@@ -21,7 +21,7 @@ const Homepage: React.FC = () => {
   const [promoLoading, setPromoLoading] = useState<boolean>(true);
   const [promoError, setPromoError] = useState<string | null>(null);
 
-  // Products state
+  // Products state (Best Sellers)
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState<boolean>(true);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -30,23 +30,23 @@ const Homepage: React.FC = () => {
   const [active, setActive] = useState(0);
   const [perView, setPerView] = useState(1);
 
-  // Fetch products from API
+  // Fetch best sellers from API
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchBestSellers = async () => {
       try {
         setProductsLoading(true);
         setProductsError(null);
 
-        const result = await getProducts({
-          page: 0,
-          size: 10,
-          status: "ACTIVE",
-        });
+        const result = await getBestSellers(10);
 
+<<<<<<< HEAD
+        setProducts(result);
+=======
         setProducts(Array.isArray(result?.data) ? result.data : []);
+>>>>>>> f0998bf629e14a27d0dfae1adcf4493c9ff14243
       } catch (e) {
         setProductsError(
-          e instanceof Error ? e.message : "Load products failed",
+          e instanceof Error ? e.message : "Load best sellers failed",
         );
         setProducts([]);
       } finally {
@@ -54,7 +54,7 @@ const Homepage: React.FC = () => {
       }
     };
 
-    fetchProducts();
+    fetchBestSellers();
   }, []);
 
   // Fetch promotions
@@ -381,7 +381,7 @@ const Homepage: React.FC = () => {
 export default Homepage;
 
 function toPromotionSlug(name: string, id: number) {
-  const base = name
+  const base = (name || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -392,7 +392,7 @@ function toPromotionSlug(name: string, id: number) {
 }
 
 function toProductSlug(name: string, id: number) {
-  const base = name
+  const base = (name || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
