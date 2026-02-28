@@ -159,7 +159,7 @@ export default function MenuPage() {
 }
 
 function toProductSlug(name: string, id: string) {
-  const base = name
+  const base = (name || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()

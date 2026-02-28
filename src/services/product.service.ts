@@ -242,3 +242,43 @@ export async function getProductSizes(options?: {
 
   return payload;
 }
+
+export async function getBestSellers(
+  limit: number = 10,
+  options?: { accessToken?: string; viaNextApi?: boolean },
+): Promise<Product[]> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const useNextApi = shouldUseNextApi(options);
+
+  const beUrl = useNextApi
+    ? `/api/products/best-seller?limit=${limit}`
+    : `${base}/products/best-seller?limit=${limit}`;
+
+  const res = await fetch(beUrl, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi ? {} : authHeaders(options?.accessToken)),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
+    cache: "no-store",
+  });
+
+  const rawData = await parseJsonSafely<any[]>(res);
+
+  if (!res.ok) {
+    throw new ApiError("Fetch best sellers failed", res.status, rawData);
+  }
+
+  // Map BestSellerProjection to Product type
+  return rawData.map((item: any) => ({
+    id: item?.productId || 0,
+    name: item?.productName || "Sản phẩm",
+    image: item?.productImage || "",
+    price: (item?.totalQuantity > 0) ? Math.round(item.totalRevenue / item.totalQuantity) : 0,
+    status: "ACTIVE",
+    categoryId: 0,
+    categoryName: "",
+    description: "",
+  }));
+}
