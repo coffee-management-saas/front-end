@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -6,10 +6,7 @@ import {
   Home,
   Menu,
   ShoppingBag,
-  Clock,
   Users,
-  Settings,
-  Heart,
   LogOut,
   BookOpen,
   Gift,
@@ -35,7 +32,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
     { icon: Menu, label: "Menu", href: "/staff/menu" },
     {
       icon: ShoppingBag,
-      label: "Trạng thái đơn",
+      label: "Trạng thái đơn hàng",
       href: "/staff/order",
       badge: 0,
     },
@@ -45,7 +42,6 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
   const bottomItems = [
     { icon: Users, label: "Nhân viên", href: "/staff/employees" },
     { icon: Gift, label: "Khuyến mãi", href: "/staff/promotion" },
-    { icon: Settings, label: "Cài đặt", href: "/settings" },
   ];
 
   const handleLogout = async () => {
@@ -154,6 +150,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
         title="Xác nhận đăng xuất"
         description="Bạn có chắc chắn muốn đăng xuất không?"
         confirmLabel="Đăng xuất"
+        confirmClassName="bg-[#cec3bc] text-[#693916] hover:bg-[#b8aba3]"
       />
     </aside>
   );

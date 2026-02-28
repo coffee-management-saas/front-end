@@ -8,7 +8,7 @@ function RegisterPage() {
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage:
-            "url('https://i.pinimg.com/736x/30/27/ef/3027efad065c22a31944b6d2969962de.jpg')",
+            "url('https://i.pinimg.com/736x/88/86/4a/88864a6f409f8e837421c182a75e6197.jpg')",
         }}
       >
         <div className="absolute inset-0 backdrop-blur-sm" />
