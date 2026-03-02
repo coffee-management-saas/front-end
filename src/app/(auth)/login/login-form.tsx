@@ -27,7 +27,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAppContext } from "@/app/AppProvider";
 import { getJwtExpiresAt } from "@/lib/utils";
-import { Home } from "lucide-react";
+import { Home, Lock, LogIn, User } from "lucide-react";
 
 function getRoleFromAccessToken(token: string): string | null {
   try {
@@ -172,61 +172,75 @@ export default function LoginForm() {
   const isSubmitDisabled = loading || !form.formState.isValid;
 
   return (
-    <Card className="relative w-full sm:max-w-sm p-0 max-h-[90vh] overflow-hidden">
+    <Card className="relative w-full max-w-[400px] gap-0 overflow-hidden rounded-[28px] border-0 bg-[#F7F1EA] p-0 py-0 shadow-[0_28px_80px_-28px_rgba(0,0,0,0.65)]">
       <Button
         asChild
         variant="ghost"
         size="icon-sm"
-        className="absolute left-2 top-2 z-10"
+        className="absolute left-2 top-2 z-10 rounded-full bg-white/60 text-[#3b2314] backdrop-blur hover:bg-white/80"
       >
         <Link href="/" aria-label="Về trang chủ">
           <Home className="size-4" />
         </Link>
       </Button>
       {/* Logo */}
-      <div className="flex justify-center pt-2 pb-0 -mb-4">
-        <Image
-          src="https://i.pinimg.com/1200x/fc/da/b7/fcdab7e591105149942a91cea82afbf1.jpg"
-          alt="Cafe Logo"
-          width={72}
-          height={72}
-          className="h-16 w-16 rounded-full"
-          priority
-        />
+      <div className="flex justify-center pt-7 pb-0">
+        <div className="flex justify-center pt-2 pb-0 -mb-4">
+          <Image
+            src="https://i.pinimg.com/736x/9b/41/3e/9b413e743be2d101c400a7b85d6d3e26.jpg"
+            alt="Cafe Logo"
+            width={72}
+            height={72}
+            className="h-16 w-16 rounded-full"
+            priority
+          />
+        </div>
       </div>
 
       {/* Header */}
-      <CardHeader className="pt-0 pb-0 px-4 space-y-0">
-        <CardTitle className="text-xl font-bold text-center">
+      <CardHeader className="space-y-0 px-8 pb-0 pt-4 text-center">
+        <CardTitle className="text-2xl font-semibold tracking-tight text-[#3b2314]">
           Đăng nhập
         </CardTitle>
-        <CardDescription className="text-sm font-semibold text-center">
+        <CardDescription className="mt-0 text-sm font-medium text-[#B36A2E]">
           Chào mừng bạn quay lại
         </CardDescription>
       </CardHeader>
 
       {/* Content */}
-      <CardContent className="pt-0 pb-2 px-4 overflow-y-auto max-h-[65vh]">
+      <CardContent className="px-8 pb-0 pt-4">
+        <div className="relative mb-4">
+          <div className="absolute inset-x-0 top-1/2 h-px bg-[#E6D6C8]" />
+          <div className="relative mx-auto w-fit bg-[#F7F1EA] px-3 text-[11px] font-medium tracking-[0.32em] text-[#B9A79B]">
+            TÀI KHOẢN
+          </div>
+        </div>
         <form id="form-rhf-demo" onSubmit={form.handleSubmit(onSubmit)}>
-          <FieldGroup className="space-y-0">
+          <FieldGroup className="gap-4">
             {/* Username */}
             <Controller
               name="username"
               control={form.control}
               render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid} className="space-y-0">
-                  <FieldLabel className="text-sm mb-0" htmlFor="username">
+                <Field data-invalid={fieldState.invalid} className="gap-2">
+                  <FieldLabel
+                    className="text-[11px] font-semibold tracking-[0.22em] text-[#9E8B7C] uppercase"
+                    htmlFor="username"
+                  >
                     Tên đăng nhập
                   </FieldLabel>
-                  <Input
-                    {...field}
-                    id="username"
-                    placeholder="nguyenvana"
-                    autoComplete="username"
-                    aria-invalid={fieldState.invalid}
-                    className="h-10 text-base placeholder:text-sm"
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#B9A79B]" />
+                    <Input
+                      {...field}
+                      id="username"
+                      placeholder="nguyenvana"
+                      autoComplete="username"
+                      aria-invalid={fieldState.invalid}
+                      className="h-10 rounded-xl border-[#E6D6C8] bg-white/70 pl-10 text-[#3b2314] placeholder:text-[#B9A79B] focus-visible:border-[#D18B4C] focus-visible:ring-[#D18B4C]/25"
+                      disabled={loading}
+                    />
+                  </div>
                   {fieldState.error && (
                     <FieldError errors={[fieldState.error]} />
                   )}
@@ -239,20 +253,36 @@ export default function LoginForm() {
               name="password"
               control={form.control}
               render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid} className="space-y-0">
-                  <FieldLabel className="text-sm mb-0" htmlFor="password">
+                <Field data-invalid={fieldState.invalid} className="gap-2">
+                  <FieldLabel
+                    className="text-[11px] font-semibold tracking-[0.22em] text-[#9E8B7C] uppercase"
+                    htmlFor="password"
+                  >
                     Mật khẩu
                   </FieldLabel>
-                  <Input
-                    {...field}
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                    aria-invalid={fieldState.invalid}
-                    className="h-10 text-base placeholder:text-sm"
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#B9A79B]" />
+                    <Input
+                      {...field}
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      aria-invalid={fieldState.invalid}
+                      className="h-10 rounded-xl border-[#E6D6C8] bg-white/70 pl-10 text-[#3b2314] placeholder:text-[#B9A79B] focus-visible:border-[#D18B4C] focus-visible:ring-[#D18B4C]/25"
+                      disabled={loading}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <Link
+                      href="#"
+                      onClick={(e) => e.preventDefault()}
+                      className="text-xs font-medium text-[#B36A2E] hover:text-[#8E4E24]"
+                      aria-disabled={loading}
+                    >
+                      Quên mật khẩu?
+                    </Link>
+                  </div>
                   {fieldState.error && (
                     <FieldError errors={[fieldState.error]} />
                   )}
@@ -264,25 +294,26 @@ export default function LoginForm() {
       </CardContent>
 
       {/* Footer */}
-      <CardFooter className="pt-1 pb-4 px-2 flex flex-col gap-4">
-        <Field orientation="horizontal" className="w-full flex justify-center">
+      <CardFooter className="flex flex-col gap-4 px-8 pb-6 pt-5">
+        <Field orientation="horizontal" className="w-full">
           <Button
             type="submit"
             form="form-rhf-demo"
-            className="h-8 px-10 text-sm bg-[#7a4a2a] hover:bg-[#8b5e44] text-white"
+            className="h-11 w-full rounded-xl  bg-[#7a4a2a] text-white shadow-[0_14px_30px_-18px_rgba(0,0,0,0.65)] hover:bg-[#8b5e44] disabled:opacity-60"
             disabled={isSubmitDisabled}
             aria-disabled={isSubmitDisabled}
             aria-busy={loading}
           >
+            <LogIn className="size-4" />
             {loading ? "Đang đăng nhập..." : "Đăng nhập ngay"}
           </Button>
         </Field>
 
-        <div className="text-center text-sm">
+        <div className="text-center text-sm text-[#7E6B5C]">
           Chưa có tài khoản?{" "}
           <Link
             href="/register"
-            className="font-semibold text-[#7a4a2a] hover:text-[#8b5e44] hover:underline"
+            className="font-semibold text-[#B36A2E] hover:text-[#8E4E24] hover:underline"
           >
             Đăng ký ngay
           </Link>

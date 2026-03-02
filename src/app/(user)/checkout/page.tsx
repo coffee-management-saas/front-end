@@ -84,7 +84,9 @@ const CheckoutContent = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
   const [successOrder, setSuccessOrder] = useState<OrderResponse | null>(null);
-  const [capturedItems, setCapturedItems] = useState<Record<number, { name: string, size: string }>>({});
+  const [capturedItems, setCapturedItems] = useState<
+    Record<number, { name: string; size: string }>
+  >({});
 
   const [paymentStatus, setPaymentStatus] = useState<
     "success" | "failed" | null
@@ -156,7 +158,9 @@ const CheckoutContent = () => {
               setSuccessOrder(order);
               setCreatedOrderId(order.orderId);
               if (order.paymentGateway) {
-                setPaymentMethod(order.paymentGateway.toLowerCase() as "cash" | "momo");
+                setPaymentMethod(
+                  order.paymentGateway.toLowerCase() as "cash" | "momo",
+                );
               }
               setShowSuccessModal(true);
 
@@ -194,12 +198,12 @@ const CheckoutContent = () => {
           setCreatedOrderId(order.orderId);
 
           // Map items from fetched order to capturedItems for display consistency
-          const namesMap: Record<number, { name: string, size: string }> = {};
-          order.orderItems?.forEach(i => {
+          const namesMap: Record<number, { name: string; size: string }> = {};
+          order.orderItems?.forEach((i) => {
             if (i.productVariantId) {
               namesMap[i.productVariantId] = {
                 name: i.productName || "Sản phẩm",
-                size: i.sizeName || "-"
+                size: i.sizeName || "-",
               };
             }
           });
@@ -252,7 +256,8 @@ const CheckoutContent = () => {
 
   const handlePlaceOrder = async () => {
     // If we're coming from chatbot, the order is already in DB
-    const isChatbotFlow = searchParams.get("mode") === "chatbot" && createdOrderId;
+    const isChatbotFlow =
+      searchParams.get("mode") === "chatbot" && createdOrderId;
 
     if (!isChatbotFlow && items.length === 0) {
       toast.error("Giỏ hàng đang trống");
@@ -271,7 +276,11 @@ const CheckoutContent = () => {
       if (isChatbotFlow && createdOrderId) {
         // Reuse existing order
         if (paymentMethod === "momo") {
-          res = await initiatePayment(accessToken, createdOrderId, window.location.origin + window.location.pathname);
+          res = await initiatePayment(
+            accessToken,
+            createdOrderId,
+            window.location.origin + window.location.pathname,
+          );
         } else {
           // If cash, just use the fetched order as success
           res = successOrder!;
@@ -309,7 +318,6 @@ const CheckoutContent = () => {
       setCurrentStep(2);
       window.scrollTo(0, 0);
       setShowSuccessModal(true);
-
     } catch (error) {
       console.error("Checkout Error:", error);
       toast.error(error instanceof Error ? error.message : "Đặt hàng thất bại");
@@ -373,21 +381,29 @@ const CheckoutContent = () => {
 
   const totals = useMemo(() => {
     // If we have a fetched order from chatbot/momo redirect, use its values
-    if (successOrder && (searchParams.get("mode") === "chatbot" || searchParams.get("resultCode"))) {
+    if (
+      successOrder &&
+      (searchParams.get("mode") === "chatbot" || searchParams.get("resultCode"))
+    ) {
       const subtotal = successOrder.basePrice || 0;
       const total = successOrder.paidPrice || 0;
-      // We don't have explicit shipping/discount fields in OrderResponse yet, 
+      // We don't have explicit shipping/discount fields in OrderResponse yet,
       // but we can infer or just show the main ones.
       return {
         subtotal,
-        shipping: (deliveryMethod === "delivery" && subtotal > 0) ? 15000 : 0,
-        voucherDiscount: Math.max(0, (subtotal + ((deliveryMethod === "delivery" && subtotal > 0) ? 15000 : 0)) - total),
-        total
+        shipping: deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0,
+        voucherDiscount: Math.max(
+          0,
+          subtotal +
+            (deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0) -
+            total,
+        ),
+        total,
       };
     }
 
     const subtotal = totalPrice;
-    const shipping = (deliveryMethod === "delivery" && subtotal > 0) ? 15000 : 0;
+    const shipping = deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0;
 
     let voucherDiscount = 0;
     if (appliedVoucher) {
@@ -631,7 +647,10 @@ const CheckoutContent = () => {
                   <CardHeader className="flex flex-col gap-1">
                     <CardTitle className="text-xl">Danh sách món</CardTitle>
                     <CardDescription>
-                      {successOrder ? (successOrder.orderItems?.length || 0) : items.length} sản phẩm · Kiểm tra lại đơn hàng của bạn.
+                      {successOrder
+                        ? successOrder.orderItems?.length || 0
+                        : items.length}{" "}
+                      sản phẩm · Kiểm tra lại đơn hàng của bạn.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -650,128 +669,173 @@ const CheckoutContent = () => {
                         </div>
                       </div>
                     ) : (
-                      (successOrder?.orderItems || items).map((item: any, idx) => {
-                        const isFetchedItem = !!successOrder;
+                      (successOrder?.orderItems || items).map(
+                        (item: any, idx) => {
+                          const isFetchedItem = !!successOrder;
 
-                        // Local cart item properties
-                        const localItem = !isFetchedItem ? (item as any) : null;
-                        // Fetched order item properties
-                        const fetchedItem = isFetchedItem ? (item as any) : null;
+                          // Local cart item properties
+                          const localItem = !isFetchedItem
+                            ? (item as any)
+                            : null;
+                          // Fetched order item properties
+                          const fetchedItem = isFetchedItem
+                            ? (item as any)
+                            : null;
 
-                        const name = fetchedItem?.productName || localItem?.productName ||
-                          capturedItems[fetchedItem?.productVariantId || localItem?.variantId]?.name || "Sản phẩm";
-                        const size = fetchedItem?.sizeName || localItem?.size || "-";
+                          const name =
+                            fetchedItem?.productName ||
+                            localItem?.productName ||
+                            capturedItems[
+                              fetchedItem?.productVariantId ||
+                                localItem?.variantId
+                            ]?.name ||
+                            "Sản phẩm";
+                          const size =
+                            fetchedItem?.sizeName || localItem?.size || "-";
 
-                        let displayPrice = 0;
-                        if (isFetchedItem) {
-                          displayPrice = (fetchedItem.unitPrice || 0) * (fetchedItem.quantity || 1);
-                        } else {
-                          const sizeDelta = localItem.size === "M" ? -4000 : 0;
-                          const toppingTotal = localItem.toppings.reduce(
-                            (sum: number, t: any) => sum + t.price * t.quantity,
-                            0,
-                          );
-                          displayPrice = (localItem.basePrice + sizeDelta + toppingTotal) * localItem.quantity;
-                        }
+                          let displayPrice = 0;
+                          if (isFetchedItem) {
+                            displayPrice =
+                              (fetchedItem.unitPrice || 0) *
+                              (fetchedItem.quantity || 1);
+                          } else {
+                            const sizeDelta =
+                              localItem.size === "M" ? -4000 : 0;
+                            const toppingTotal = localItem.toppings.reduce(
+                              (sum: number, t: any) =>
+                                sum + t.price * t.quantity,
+                              0,
+                            );
+                            displayPrice =
+                              (localItem.basePrice + sizeDelta + toppingTotal) *
+                              localItem.quantity;
+                          }
 
-                        const image = localItem?.productImage || (fetchedItem?.productVariantId ? null : null); // We don't have images in fetched items easily
+                          const image =
+                            localItem?.productImage ||
+                            (fetchedItem?.productVariantId ? null : null); // We don't have images in fetched items easily
 
-                        return (
-                          <div
-                            key={isFetchedItem ? idx : item.id}
-                            className="group relative flex flex-col gap-3 rounded-xl border border-amber-100 bg-white/80 p-4 shadow-sm transition hover:-translate-y-[1px] hover:shadow-md"
-                          >
-                            {!isFetchedItem && (
-                              <button
-                                onClick={() => removeItem(item.id)}
-                                className="absolute right-3 top-3 rounded-full p-2 text-gray-400 transition hover:bg-amber-50 hover:text-amber-800"
-                                aria-label={`Xóa ${name}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
+                          return (
+                            <div
+                              key={isFetchedItem ? idx : item.id}
+                              className="group relative flex flex-col gap-3 rounded-xl border border-amber-100 bg-white/80 p-4 shadow-sm transition hover:-translate-y-[1px] hover:shadow-md"
+                            >
+                              {!isFetchedItem && (
+                                <button
+                                  onClick={() => removeItem(item.id)}
+                                  className="absolute right-3 top-3 rounded-full p-2 text-gray-400 transition hover:bg-amber-50 hover:text-amber-800"
+                                  aria-label={`Xóa ${name}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
 
-                            <div className="flex gap-4">
-                              <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-amber-50">
-                                <Image
-                                  src={canUseImage(image) ? (image as string) : FALLBACK_IMG}
-                                  alt={name}
-                                  fill
-                                  sizes="80px"
-                                  className="object-cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).src = FALLBACK_IMG;
-                                  }}
-                                />
-                              </div>
-
-                              <div className="flex-1 space-y-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <p className="text-base font-semibold text-stone-900">
-                                    {name}
-                                  </p>
+                              <div className="flex gap-4">
+                                <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-amber-50">
+                                  <Image
+                                    src={
+                                      canUseImage(image)
+                                        ? (image as string)
+                                        : FALLBACK_IMG
+                                    }
+                                    alt={name}
+                                    fill
+                                    sizes="80px"
+                                    className="object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).src =
+                                        FALLBACK_IMG;
+                                    }}
+                                  />
                                 </div>
 
-                                <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-amber-800">
-                                  <span className="rounded-full bg-amber-50 px-2 py-0.5">
-                                    Size {size}
-                                  </span>
-                                  {!isFetchedItem && localItem.iceLevel && (
+                                <div className="flex-1 space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-base font-semibold text-stone-900">
+                                      {name}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-amber-800">
                                     <span className="rounded-full bg-amber-50 px-2 py-0.5">
-                                      Đá {localItem.iceLevel}
+                                      Size {size}
+                                    </span>
+                                    {!isFetchedItem && localItem.iceLevel && (
+                                      <span className="rounded-full bg-amber-50 px-2 py-0.5">
+                                        Đá {localItem.iceLevel}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {(
+                                    fetchedItem?.toppingPerOrderItems ||
+                                    localItem?.toppings
+                                  )?.length > 0 && (
+                                    <div className="text-xs text-gray-600">
+                                      Topping:{" "}
+                                      {isFetchedItem
+                                        ? fetchedItem.toppingPerOrderItems
+                                            .map((t: any) => t.toppingName)
+                                            .join(", ")
+                                        : localItem.toppings
+                                            .map(
+                                              (t: any) =>
+                                                `${t.name} x${t.quantity}`,
+                                            )
+                                            .join(", ")}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {!isFetchedItem ? (
+                                    <>
+                                      <button
+                                        onClick={() =>
+                                          updateQuantity(
+                                            item.id,
+                                            item.quantity - 1,
+                                          )
+                                        }
+                                        disabled={item.quantity <= 1}
+                                        className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 text-amber-800 transition hover:bg-amber-50 disabled:opacity-50"
+                                      >
+                                        <Minus className="w-3 h-3" />
+                                      </button>
+                                      <span className="min-w-[24px] text-center text-sm font-semibold text-stone-900">
+                                        {item.quantity}
+                                      </span>
+                                      <button
+                                        onClick={() =>
+                                          updateQuantity(
+                                            item.id,
+                                            item.quantity + 1,
+                                          )
+                                        }
+                                        className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 bg-[#693916] text-white transition hover:bg-amber-900"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-sm font-semibold text-gray-600">
+                                      Số lượng: {fetchedItem.quantity}
                                     </span>
                                   )}
                                 </div>
 
-                                {(fetchedItem?.toppingPerOrderItems || localItem?.toppings)?.length > 0 && (
-                                  <div className="text-xs text-gray-600">
-                                    Topping:{" "}
-                                    {isFetchedItem
-                                      ? fetchedItem.toppingPerOrderItems.map((t: any) => t.toppingName).join(", ")
-                                      : localItem.toppings.map((t: any) => `${t.name} x${t.quantity}`).join(", ")
-                                    }
-                                  </div>
-                                )}
+                                <div className="text-right">
+                                  <p className="text-base font-semibold text-amber-800">
+                                    {formatCurrency(displayPrice)}
+                                  </p>
+                                </div>
                               </div>
                             </div>
-
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                {!isFetchedItem ? (
-                                  <>
-                                    <button
-                                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                      disabled={item.quantity <= 1}
-                                      className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 text-amber-800 transition hover:bg-amber-50 disabled:opacity-50"
-                                    >
-                                      <Minus className="w-3 h-3" />
-                                    </button>
-                                    <span className="min-w-[24px] text-center text-sm font-semibold text-stone-900">
-                                      {item.quantity}
-                                    </span>
-                                    <button
-                                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                      className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 bg-[#693916] text-white transition hover:bg-amber-900"
-                                    >
-                                      <Plus className="w-3 h-3" />
-                                    </button>
-                                  </>
-                                ) : (
-                                  <span className="text-sm font-semibold text-gray-600">
-                                    Số lượng: {fetchedItem.quantity}
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="text-right">
-                                <p className="text-base font-semibold text-amber-800">
-                                  {formatCurrency(displayPrice)}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
+                          );
+                        },
+                      )
                     )}
                   </CardContent>
                 </Card>
@@ -930,11 +994,19 @@ const CheckoutContent = () => {
                       <span className="text-gray-600">
                         Phương thức thanh toán
                       </span>
-                      <span className={cn(
-                        "font-medium flex items-center gap-2",
-                        (paymentMethod === "momo" || successOrder?.paymentGateway?.toLowerCase() === "momo") ? "text-pink-600" : "text-amber-800"
-                      )}>
-                        {(paymentMethod === "momo" || successOrder?.paymentGateway?.toLowerCase() === "momo") ? (
+                      <span
+                        className={cn(
+                          "font-medium flex items-center gap-2",
+                          paymentMethod === "momo" ||
+                            successOrder?.paymentGateway?.toLowerCase() ===
+                              "momo"
+                            ? "text-pink-600"
+                            : "text-amber-800",
+                        )}
+                      >
+                        {paymentMethod === "momo" ||
+                        successOrder?.paymentGateway?.toLowerCase() ===
+                          "momo" ? (
                           <>
                             <Image
                               src="/images/momo.jpg"
@@ -968,21 +1040,33 @@ const CheckoutContent = () => {
                     <div className="space-y-4">
                       {successOrder?.orderItems?.map((item, idx) => {
                         // Resilient Fallback Logic
-                        const fallbackList = JSON.parse(sessionStorage.getItem("last_order_items_fallback") || "[]");
+                        const fallbackList = JSON.parse(
+                          sessionStorage.getItem("last_order_items_fallback") ||
+                            "[]",
+                        );
                         const fallback = fallbackList[idx];
 
-                        const displayName = item.productName ||
-                          (item.productVariantId ? capturedItems[item.productVariantId]?.name : null) ||
+                        const displayName =
+                          item.productName ||
+                          (item.productVariantId
+                            ? capturedItems[item.productVariantId]?.name
+                            : null) ||
                           fallback?.name ||
                           "Sản phẩm";
 
-                        const displaySize = item.sizeName ||
-                          (item.productVariantId ? capturedItems[item.productVariantId]?.size : null) ||
+                        const displaySize =
+                          item.sizeName ||
+                          (item.productVariantId
+                            ? capturedItems[item.productVariantId]?.size
+                            : null) ||
                           fallback?.size ||
                           "-";
 
                         return (
-                          <div key={idx} className="flex justify-between items-start text-sm bg-gray-50/50 p-3 rounded-lg border border-gray-100/50">
+                          <div
+                            key={idx}
+                            className="flex justify-between items-start text-sm bg-gray-50/50 p-3 rounded-lg border border-gray-100/50"
+                          >
                             <div className="flex-1">
                               <p className="font-bold text-gray-900 text-base">
                                 {displayName}
@@ -995,15 +1079,21 @@ const CheckoutContent = () => {
                                   x{item.quantity || 1}
                                 </span>
                               </div>
-                              {item.toppingPerOrderItems && item.toppingPerOrderItems.length > 0 && (
-                                <p className="text-[11px] text-gray-500 mt-1.5 italic">
-                                  + Topping: {item.toppingPerOrderItems.map(t => t.toppingName).join(", ")}
-                                </p>
-                              )}
+                              {item.toppingPerOrderItems &&
+                                item.toppingPerOrderItems.length > 0 && (
+                                  <p className="text-[11px] text-gray-500 mt-1.5 italic">
+                                    + Topping:{" "}
+                                    {item.toppingPerOrderItems
+                                      .map((t) => t.toppingName)
+                                      .join(", ")}
+                                  </p>
+                                )}
                             </div>
                             <div className="text-right ml-4">
                               <span className="font-bold text-gray-900">
-                                {formatCurrency((item.unitPrice || 0) * (item.quantity || 1))}
+                                {formatCurrency(
+                                  (item.unitPrice || 0) * (item.quantity || 1),
+                                )}
                               </span>
                             </div>
                           </div>
@@ -1011,17 +1101,26 @@ const CheckoutContent = () => {
                       })}
                     </div>
                   </div>
-                  <div className={cn(
-                    "p-3 text-center border-t",
-                    (successOrder?.orderStatus === "PAID" || paymentMethod === "cash") ? "bg-green-50 border-green-100 text-green-700" : "bg-amber-50 border-amber-100 text-amber-700"
-                  )}>
+                  <div
+                    className={cn(
+                      "p-3 text-center border-t",
+                      successOrder?.orderStatus === "PAID" ||
+                        paymentMethod === "cash"
+                        ? "bg-green-50 border-green-100 text-green-700"
+                        : "bg-amber-50 border-amber-100 text-amber-700",
+                    )}
+                  >
                     <p className="text-xs font-medium flex items-center justify-center gap-1">
-                      {(successOrder?.orderStatus === "PAID" || paymentMethod === "cash") ? (
+                      {successOrder?.orderStatus === "PAID" ||
+                      paymentMethod === "cash" ? (
                         <ShieldCheck className="w-3 h-3" />
                       ) : (
                         <Clock3 className="w-3 h-3" />
                       )}
-                      {(successOrder?.orderStatus === "PAID" || paymentMethod === "cash") ? "Đơn hàng đã được xác nhận thanh toán" : "Đơn hàng đang chờ xử lý thanh toán"}
+                      {successOrder?.orderStatus === "PAID" ||
+                      paymentMethod === "cash"
+                        ? "Đơn hàng đã được xác nhận thanh toán"
+                        : "Đơn hàng đang chờ xử lý thanh toán"}
                     </p>
                   </div>
                 </Card>
@@ -1029,7 +1128,7 @@ const CheckoutContent = () => {
                 <div className="grid grid-cols-2 gap-3 w-full">
                   <Button
                     onClick={() => router.push("/menu")}
-                    className="h-11 bg-amber-700 hover:bg-amber-800 text-white shadow-md shadow-amber-900/10"
+                    className="h-11 bg-[#7a4a2a] hover:bg-[#986d50] text-white shadow-md shadow-amber-900/10"
                   >
                     Tiếp tục mua hàng
                   </Button>
@@ -1056,7 +1155,10 @@ const CheckoutContent = () => {
                 <CardTitle className="flex items-center justify-between text-xl">
                   Tóm tắt đơn
                   <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">
-                    {successOrder ? (successOrder.orderItems?.length || 0) : items.length} món
+                    {successOrder
+                      ? successOrder.orderItems?.length || 0
+                      : items.length}{" "}
+                    món
                   </span>
                 </CardTitle>
               </CardHeader>
@@ -1164,10 +1266,10 @@ const CheckoutContent = () => {
                                 </div>
                                 {tempSelectedVoucher?.promotionId ===
                                   promo.promotionId && (
-                                    <div className="self-center">
-                                      <CheckCircle2 className="w-5 h-5 text-amber-600" />
-                                    </div>
-                                  )}
+                                  <div className="self-center">
+                                    <CheckCircle2 className="w-5 h-5 text-amber-600" />
+                                  </div>
+                                )}
                               </div>
                             ))
                         )}
@@ -1212,22 +1314,32 @@ const CheckoutContent = () => {
                 {/* List items in sidebar for summary */}
                 {(successOrder || items.length > 0) && (
                   <div className="py-2 space-y-2 max-h-40 overflow-y-auto pr-1 scrollbar-thin border-b border-gray-50">
-                    {(successOrder?.orderItems || items).map((item: any, idx: number) => {
-                      const name = item.productName || capturedItems[item.productVariantId || item.variantId]?.name || "Sản phẩm";
-                      const size = item.sizeName || item.size || "-";
-                      const qty = item.quantity || 1;
-                      const price = (item.unitPrice || item.basePrice || 0) * qty;
-                      return (
-                        <div key={idx} className="flex justify-between text-xs">
-                          <span className="text-gray-600 line-clamp-1 flex-1">
-                            {name} (Size {size}) x{qty}
-                          </span>
-                          <span className="font-medium text-stone-900 ml-2">
-                            {formatCurrency(price)}
-                          </span>
-                        </div>
-                      );
-                    })}
+                    {(successOrder?.orderItems || items).map(
+                      (item: any, idx: number) => {
+                        const name =
+                          item.productName ||
+                          capturedItems[item.productVariantId || item.variantId]
+                            ?.name ||
+                          "Sản phẩm";
+                        const size = item.sizeName || item.size || "-";
+                        const qty = item.quantity || 1;
+                        const price =
+                          (item.unitPrice || item.basePrice || 0) * qty;
+                        return (
+                          <div
+                            key={idx}
+                            className="flex justify-between text-xs"
+                          >
+                            <span className="text-gray-600 line-clamp-1 flex-1">
+                              {name} (Size {size}) x{qty}
+                            </span>
+                            <span className="font-medium text-stone-900 ml-2">
+                              {formatCurrency(price)}
+                            </span>
+                          </div>
+                        );
+                      },
+                    )}
                   </div>
                 )}
 

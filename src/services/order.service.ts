@@ -57,6 +57,38 @@ export async function createOrder(
   return data;
 }
 
+export async function createEmployeeOrder(
+  accessToken: string,
+  request: CreateOrderRequest,
+): Promise<OrderResponse> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/employee/orders`;
+
+  const res = await fetch(beUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(request),
+    cache: "no-store",
+  });
+
+  const data = await parseJsonSafely<OrderResponse>(res);
+
+  if (!res.ok) {
+    console.error("DEBUG CreateEmployeeOrder Failed:", data);
+    throw new ApiError(
+      data?.message || "Create employee order failed",
+      res.status,
+      data,
+    );
+  }
+
+  return data;
+}
+
 export async function getMyOrders(
   accessToken: string,
 ): Promise<OrderResponse[]> {
@@ -120,7 +152,10 @@ export async function getOrderById(
   return data as OrderResponse;
 }
 
-export async function confirmCashPayment(accessToken: string, orderId: number): Promise<OrderResponse> {
+export async function confirmCashPayment(
+  accessToken: string,
+  orderId: number,
+): Promise<OrderResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const beUrl = `${base}/orders/${orderId}/confirm-cash`;
 
@@ -135,7 +170,37 @@ export async function confirmCashPayment(accessToken: string, orderId: number): 
 
   if (!res.ok) {
     const errorData = await parseJsonSafely<any>(res).catch(() => null);
-    throw new ApiError(errorData?.message || "Failed to confirm cash payment", res.status);
+    throw new ApiError(
+      errorData?.message || "Failed to confirm cash payment",
+      res.status,
+    );
+  }
+
+  return parseJsonSafely<OrderResponse>(res);
+}
+
+export async function confirmEmployeeCashPayment(
+  accessToken: string,
+  orderId: number,
+): Promise<OrderResponse> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/employee/orders/${orderId}/confirm-cash`;
+
+  const res = await fetch(beUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const errorData = await parseJsonSafely<any>(res).catch(() => null);
+    throw new ApiError(
+      errorData?.message || "Failed to confirm employee cash payment",
+      res.status,
+    );
   }
 
   return parseJsonSafely<OrderResponse>(res);
@@ -148,6 +213,34 @@ export async function initiatePayment(
 ): Promise<OrderResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const beUrl = `${base}/orders/${orderId}/initiate-payment?returnUrl=${encodeURIComponent(returnUrl)}`;
+
+  const res = await fetch(beUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const errorData = await parseJsonSafely<any>(res).catch(() => null);
+    throw new ApiError(
+      errorData?.message || "Khởi tạo thanh toán thất bại",
+      res.status,
+    );
+  }
+
+  return parseJsonSafely<OrderResponse>(res);
+}
+
+export async function initiateEmployeePayment(
+  accessToken: string,
+  orderId: number,
+  returnUrl: string,
+): Promise<OrderResponse> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = `${base}/employee/orders/${orderId}/initiate-payment?returnUrl=${encodeURIComponent(returnUrl)}`;
 
   const res = await fetch(beUrl, {
     method: "POST",

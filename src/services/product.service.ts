@@ -56,7 +56,7 @@ export async function getProducts(
 
   const beUrl = useNextApi
     ? `/api/products?${qs.toString()}`
-    : `${base}/product/products?${qs.toString()}`;
+    : `${base}/products?${qs.toString()}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -82,9 +82,7 @@ export async function getProductById(
 ): Promise<Product> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const useNextApi = shouldUseNextApi();
-  const beUrl = useNextApi
-    ? `/api/products/${id}`
-    : `${base}/product/products/${id}`;
+  const beUrl = useNextApi ? `/api/products/${id}` : `${base}/products/${id}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -111,9 +109,7 @@ export async function createProduct(
 ): Promise<Product> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const useNextApi = shouldUseNextApi(options);
-  const beUrl = useNextApi
-    ? "/api/products"
-    : `${base}/product/products`;
+  const beUrl = useNextApi ? "/api/products" : `${base}/products`;
 
   const res = await fetch(beUrl, {
     method: "POST",
@@ -143,9 +139,7 @@ export async function updateProductById(
 ): Promise<Product> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const useNextApi = shouldUseNextApi();
-  const beUrl = useNextApi
-    ? `/api/products/${id}`
-    : `${base}/product/products/${id}`;
+  const beUrl = useNextApi ? `/api/products/${id}` : `${base}/products/${id}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
@@ -170,7 +164,7 @@ export async function updateProductById(
 
 export async function deleteProductById(id: number | string): Promise<void> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/product/products/${id}`;
+  const beUrl = `${base}/products/${id}`;
 
   const res = await fetch(beUrl, {
     method: "DELETE",
@@ -264,21 +258,69 @@ export async function getBestSellers(
     cache: "no-store",
   });
 
-  const rawData = await parseJsonSafely<any[]>(res);
+  const rawData = await parseJsonSafely<unknown>(res);
 
   if (!res.ok) {
     throw new ApiError("Fetch best sellers failed", res.status, rawData);
   }
 
-  // Map BestSellerProjection to Product type
-  return rawData.map((item: any) => ({
-    id: item?.productId || 0,
-    name: item?.productName || "Sản phẩm",
-    image: item?.productImage || "",
-    price: (item?.totalQuantity > 0) ? Math.round(item.totalRevenue / item.totalQuantity) : 0,
-    status: "ACTIVE",
-    categoryId: 0,
-    categoryName: "",
-    description: "",
-  }));
+  const items: unknown[] = Array.isArray(rawData)
+    ? rawData
+    : rawData &&
+        typeof rawData === "object" &&
+        "data" in (rawData as Record<string, unknown>) &&
+        Array.isArray((rawData as { data: unknown[] }).data)
+      ? (rawData as { data: unknown[] }).data
+      : [];
+
+  return items.map((item: any) => {
+    const id =
+      typeof item?.id === "number"
+        ? item.id
+        : typeof item?.productId === "number"
+          ? item.productId
+          : 0;
+
+    const name =
+      (typeof item?.name === "string" && item.name.trim() !== ""
+        ? item.name
+        : undefined) ??
+      (typeof item?.productName === "string" && item.productName.trim() !== ""
+        ? item.productName
+        : undefined) ??
+      "Sản phẩm";
+
+    const image =
+      (typeof item?.image === "string" ? item.image : undefined) ??
+      (typeof item?.productImage === "string"
+        ? item.productImage
+        : undefined) ??
+      "";
+
+    const directPrice = Number(item?.price);
+    const derivedPrice =
+      Number(item?.totalQuantity) > 0
+        ? Math.round(Number(item?.totalRevenue) / Number(item?.totalQuantity))
+        : 0;
+
+    const price =
+      Number.isFinite(directPrice) && directPrice > 0
+        ? directPrice
+        : Number.isFinite(derivedPrice) && derivedPrice > 0
+          ? derivedPrice
+          : 0;
+
+    return {
+      id,
+      name,
+      image,
+      price,
+      status: item?.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+      categoryId: Number(item?.categoryId) || 0,
+      categoryName:
+        typeof item?.categoryName === "string" ? item.categoryName : "",
+      description:
+        typeof item?.description === "string" ? item.description : "",
+    } as Product;
+  });
 }
