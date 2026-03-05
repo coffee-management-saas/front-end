@@ -183,7 +183,7 @@ export default function ProfileForm() {
               onClick={() => handleTabChange(item.id)}
               className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
                 activeTab === item.id
-                  ? "bg-amber-50 border-l-4 border-amber-700"
+                  ? "bg-amber-50 border-l-4 border-[#7a4a2a]"
                   : "hover:bg-gray-50"
               }`}
             >

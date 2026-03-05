@@ -225,7 +225,7 @@ export default function MembershipPage() {
             CẤP ĐỘ THÀNH VIÊN
           </div>
 
-          <h1 className="mt-4 text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
+          <h1 className="text-4xl md:text-5xl font-bold text-[#693916] mb-4 tracking-tight">
             Danh sách hạng thành viên
           </h1>
           <p className="mt-3 text-sm sm:text-base text-gray-600 max-w-2xl mx-auto">

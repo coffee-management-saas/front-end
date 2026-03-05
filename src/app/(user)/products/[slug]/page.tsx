@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Minus,
   Plus,
+  Flame,
   ShoppingCart,
   ChevronLeft,
   ChevronRight,
@@ -43,6 +44,8 @@ interface SuggestItem {
   name: string;
   price: number;
   image: string;
+  categoryName?: string;
+  description?: string;
   isBestSeller?: boolean;
 }
 interface ProductListMeta {
@@ -58,7 +61,6 @@ interface ProductListResponse {
   data: Product[];
   meta: ProductListMeta;
 }
-
 
 const getVariantName = (v: ProductVariant) => {
   if (typeof v.size === "string") return v.size;
@@ -170,7 +172,7 @@ const DetailProduct: React.FC = () => {
         ) {
           throw new Error(
             ("message" in productPayload && productPayload.message) ||
-            "Load product failed",
+              "Load product failed",
           );
         }
         if ("data" in productPayload) {
@@ -241,14 +243,14 @@ const DetailProduct: React.FC = () => {
         if (!res.ok) {
           throw new Error(
             ("message" in payload && payload.message) ||
-            "Load suggestions failed",
+              "Load suggestions failed",
           );
         }
 
         if (!("code" in payload) || payload.code !== 200) {
           throw new Error(
             ("message" in payload && payload.message) ||
-            "Load suggestions failed",
+              "Load suggestions failed",
           );
         }
 
@@ -259,6 +261,12 @@ const DetailProduct: React.FC = () => {
             name: p.name,
             price: p.price ?? 0,
             image: canUseImage(p.image) ? p.image : FALLBACK_IMG,
+            categoryName:
+              typeof p.categoryName === "string" ? p.categoryName : "",
+            description: typeof p.description === "string" ? p.description : "",
+            isBestSeller: Boolean(
+              p?.isBestSeller ?? p?.bestSeller ?? p?.isPopular ?? false,
+            ),
           }));
 
         setCoffeeItems(mapped);
@@ -284,7 +292,9 @@ const DetailProduct: React.FC = () => {
   const item = useMemo(() => {
     return {
       name: product?.name ?? "Đang tải...",
-      image: canUseImage(product?.image) ? (product?.image as string) : FALLBACK_IMG,
+      image: canUseImage(product?.image)
+        ? (product?.image as string)
+        : FALLBACK_IMG,
       sku: activeVariant?.skuCode || product?.id || 0,
       categoryName: product?.categoryName ?? "",
       description: product?.description ?? "",
@@ -316,7 +326,7 @@ const DetailProduct: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#F9F7F5] to-white">
-      <div className="max-w-5xl mx-auto px-4 md:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         {/* Breadcrumb with Back Button */}
         <div className="pt-6 pb-4 flex items-center gap-3">
           <button
@@ -423,7 +433,7 @@ const DetailProduct: React.FC = () => {
                         className={[
                           "h-9 rounded-lg font-bold text-xs transition-all duration-300 transform hover:scale-105",
                           selectedVariantId === v.id
-                            ? "bg-gradient-to-br from-[#693916] to-[#876F60] text-white shadow-md scale-105"
+                            ? "bg-[#7a4a2a] text-white shadow-md scale-105"
                             : "bg-gray-50 text-gray-700 border border-gray-200 hover:border-amber-300",
                         ].join(" ")}
                       >
@@ -441,7 +451,7 @@ const DetailProduct: React.FC = () => {
               {/* Ice Level */}
               <div className="bg-white rounded-xl p-3 shadow-sm border border-amber-100">
                 <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
-                  <div className="w-5 h-5 bg-[#693916] rounded-md flex items-center justify-center">
+                  <div className="w-5 h-5 bg-[#7a4a2a] rounded-md flex items-center justify-center">
                     <span className="text-white text-[10px]">❄️</span>
                   </div>
                   Đá
@@ -452,10 +462,11 @@ const DetailProduct: React.FC = () => {
                       <button
                         key={opt}
                         onClick={() => setSelectedIce(opt)}
-                        className={`h-9 rounded-lg font-semibold text-[10px] transition-all duration-300 ${selectedIce === opt
-                          ? "bg-gradient-to-br from-[#693916] to-[#876F60] text-white shadow-md scale-105"
-                          : "bg-gray-50 border border-gray-200 text-gray-700 hover:border-[#693916]"
-                          }`}
+                        className={`h-9 rounded-lg font-semibold text-[10px] transition-all duration-300 ${
+                          selectedIce === opt
+                            ? " bg-[#7a4a2a] text-white shadow-md scale-105"
+                            : "bg-gray-50 border border-gray-200 text-gray-700 hover:border-[#693916]"
+                        }`}
                       >
                         {opt}
                       </button>
@@ -546,7 +557,9 @@ const DetailProduct: React.FC = () => {
                 addItem({
                   productId: product.id,
                   productName: product.name,
-                  productImage: canUseImage(product.image) ? (product.image as string) : FALLBACK_IMG,
+                  productImage: canUseImage(product.image)
+                    ? (product.image as string)
+                    : FALLBACK_IMG,
                   variantId: activeVariant.id,
                   size: getVariantName(activeVariant),
                   basePrice: productPrice,
@@ -564,14 +577,16 @@ const DetailProduct: React.FC = () => {
 
                 // Trigger flying animation
                 triggerFlyToCart(
-                  canUseImage(product.image) ? (product.image as string) : FALLBACK_IMG,
+                  canUseImage(product.image)
+                    ? (product.image as string)
+                    : FALLBACK_IMG,
                   e.currentTarget,
                 );
 
                 toast.success("Đã thêm vào giỏ hàng!");
                 setQuantity(1);
               }}
-              className="w-full bg-gradient-to-r from-[#693916] to-[#876F60] hover:from-[#876F60] hover:to-[#693916] text-white py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
+              className="w-full bg-[#7a4a2a]  hover:from-[#876F60] hover:to-[#693916] text-white py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
               type="button"
             >
               <ShoppingCart className="w-6 h-6" />
@@ -609,33 +624,55 @@ const DetailProduct: React.FC = () => {
               {coffeeItems.map((it) => (
                 <div
                   key={it.id}
-                  className="group bg-white rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 shrink-0 w-[200px] overflow-hidden border border-amber-100 transform hover:-translate-y-2"
+                  className={cn(
+                    "group shrink-0 w-[220px] sm:w-[240px] lg:w-[calc((100%-96px)/5)] overflow-hidden rounded-2xl border border-[#EDE2D7] bg-white min-h-[360px] flex flex-col",
+                    "shadow-[0_18px_50px_-34px_rgba(0,0,0,0.45)] hover:shadow-[0_26px_70px_-40px_rgba(0,0,0,0.55)]",
+                    "hover:-translate-y-1 transition-all duration-300",
+                  )}
                 >
                   <Link href={`/products/${it.id}`} className="block">
-                    <div className="relative bg-gradient-to-br from-amber-50 to-orange-50 h-40 overflow-hidden">
+                    <div className="relative h-56 overflow-hidden bg-[#F7F1EA]">
                       <Image
                         src={it.image}
                         alt={it.name}
                         fill
-                        className="object-cover group-hover:scale-110 transition-transform duration-500"
+                        className="object-cover transition-transform duration-500 group-hover:scale-110"
+                        sizes="260px"
                       />
+                      {it.isBestSeller && (
+                        <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#E23B2E] px-2.5 py-1 text-[11px] font-semibold text-white shadow-[0_10px_24px_-16px_rgba(0,0,0,0.65)]">
+                          <Flame className="size-3" />
+                          HOT
+                        </div>
+                      )}
                     </div>
                   </Link>
 
-                  <div className="p-5">
-                    <h3 className="text-base font-bold text-gray-800 mb-2 h-12 line-clamp-2 leading-tight group-hover:text-[#693916] transition-colors">
+                  <div className="flex flex-1 flex-col p-4">
+                    <div className="text-[11px] font-semibold tracking-[0.22em] text-[#B36A2E] uppercase">
+                      {it.categoryName || "Sản phẩm"}
+                    </div>
+                    <h3 className="mt-1 font-display font-semibold text-base text-[#3b2314] line-clamp-2">
                       {it.name}
                     </h3>
-                    <p className="text-xl font-bold text-[#693916] mb-4">
-                      {formatCurrency(it.price)}
-                    </p>
-                    <button
-                      className="w-full bg-gradient-to-r from-[#693916] to-[#876F60] hover:from-[#876F60] hover:to-[#693916] text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
-                      type="button"
-                    >
-                      <ShoppingCart className="w-4 h-4" />
-                      Đặt mua
-                    </button>
+
+                    <div className="mt-auto flex items-end justify-between pt-3">
+                      <span className="font-display text-lg font-bold text-[#7a4a2a]">
+                        {formatCurrency(it.price)}
+                      </span>
+                      <Link
+                        href={`/products/${it.id}`}
+                        className={cn(
+                          "flex h-10 w-10 items-center justify-center rounded-full",
+                          "bg-[#7a4a2a] text-white",
+                          "shadow-[0_16px_34px_-18px_rgba(0,0,0,0.65)]",
+                          "transition-transform duration-200 hover:scale-110 active:scale-95",
+                        )}
+                        aria-label={`Đặt mua ${it.name}`}
+                      >
+                        <Plus className="h-5 w-5" />
+                      </Link>
+                    </div>
                   </div>
                 </div>
               ))}

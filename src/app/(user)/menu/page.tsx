@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, formatCurrency, canUseImage, FALLBACK_IMG } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { Flame, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -25,57 +25,72 @@ interface BeverageCardProps {
 
 function BeverageCard({ beverage, index = 0 }: BeverageCardProps) {
   const slug = toProductSlug(beverage.name, beverage.id);
+  const [imgSrc, setImgSrc] = useState(beverage.image);
+
+  // useEffect(() => {
+  //   setImgSrc(beverage.image);
+  // }, [beverage.image]);
+
   return (
     <div
       className={cn(
-        "group bg-card rounded-2xl overflow-hidden shadow-soft border border-border/30 min-h-[320px]",
-        "hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300",
+        "group rounded-2xl overflow-hidden border border-[#EDE2D7] bg-white min-h-[360px] flex flex-col",
+        "shadow-[0_18px_50px_-34px_rgba(0,0,0,0.45)] hover:shadow-[0_26px_70px_-40px_rgba(0,0,0,0.55)]",
+        "hover:-translate-y-1 transition-all duration-300",
         "animate-scale-in",
       )}
       style={{ animationDelay: `${index * 80}ms` }}
     >
-      <div className="relative h-52 overflow-hidden bg-secondary/30">
+      <div className="relative h-56 overflow-hidden bg-[#F7F1EA]">
         <Link href={`/products/${slug}`} className="block h-full w-full">
           <img
-            src={beverage.image}
+            src={imgSrc}
             alt={beverage.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
             loading="lazy"
+            decoding="async"
+            onError={() => {
+              setImgSrc((prev) =>
+                prev === FALLBACK_IMG ? prev : FALLBACK_IMG,
+              );
+            }}
           />
         </Link>
 
         {beverage.isPopular && (
-          <div className="absolute top-3 left-3 px-3 py-1 bg-accent text-accent-foreground text-xs font-semibold rounded-full shadow-lg">
-            Bán chạy
+          <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#E23B2E] px-2.5 py-1 text-[11px] font-semibold text-white shadow-[0_10px_24px_-16px_rgba(0,0,0,0.65)]">
+            <Flame className="size-3" />
+            HOT
           </div>
         )}
-
-        <Link
-          href={`/products/${slug}`}
-          className={cn(
-            "absolute bottom-3 right-3 w-10 h-10 rounded-full",
-            "bg-primary text-primary-foreground shadow-warm",
-            "flex items-center justify-center",
-            "opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0",
-            "transition-all duration-300 hover:scale-110 active:scale-95",
-          )}
-          aria-label={`Đặt mua ${beverage.name}`}
-        >
-          <Plus className="w-5 h-5" />
-        </Link>
       </div>
 
-      <div className="p-4">
-        <h3 className="font-display font-semibold text-lg text-foreground mb-1 line-clamp-1">
+      <div className="flex flex-1 flex-col p-4">
+        <div className="text-[11px] font-semibold tracking-[0.22em] text-[#B36A2E] uppercase">
+          {beverage.category || "Sản phẩm"}
+        </div>
+        <h3 className="mt-1 font-display font-semibold text-base text-[#3b2314] line-clamp-2">
           {beverage.name}
         </h3>
-        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+        <p className="mt-2 text-sm leading-relaxed text-[#9E8B7C] line-clamp-3">
           {beverage.description}
         </p>
-        <div className="flex items-center justify-between mt-auto">
-          <span className="font-bold text-[#693916]">
+        <div className="mt-auto flex items-end justify-between pt-3">
+          <span className="font-display text-lg font-bold text-[#7a4a2a]">
             {formatCurrency(beverage.price)}
           </span>
+          <Link
+            href={`/products/${slug}`}
+            className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-full",
+              "bg-[#7a4a2a] text-white",
+              "shadow-[0_16px_34px_-18px_rgba(0,0,0,0.65)]",
+              "transition-transform duration-200 hover:scale-110 active:scale-95",
+            )}
+            aria-label={`Đặt mua ${beverage.name}`}
+          >
+            <Plus className="h-5 w-5" />
+          </Link>
         </div>
       </div>
     </div>
@@ -136,7 +151,9 @@ export default function MenuPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-display font-semibold">Menu đồ uống</h1>
+        <h1 className="text-2xl font-display font-semibold text-[#3b2314] line-clamp-2">
+          Tất cả sản phẩm
+        </h1>
         {loading && (
           <p className="text-sm text-muted-foreground">Đang tải...</p>
         )}
@@ -149,7 +166,7 @@ export default function MenuPage() {
         </p>
       )}
 
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
         {beverages.map((b, i) => (
           <BeverageCard key={b.id} beverage={b} index={i} />
         ))}

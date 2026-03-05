@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Crown, Flame, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Promotion } from "@/types/promotion";
@@ -39,11 +39,7 @@ const Homepage: React.FC = () => {
 
         const result = await getBestSellers(10);
 
-<<<<<<< HEAD
         setProducts(result);
-=======
-        setProducts(Array.isArray(result?.data) ? result.data : []);
->>>>>>> f0998bf629e14a27d0dfae1adcf4493c9ff14243
       } catch (e) {
         setProductsError(
           e instanceof Error ? e.message : "Load best sellers failed",
@@ -143,6 +139,16 @@ const Homepage: React.FC = () => {
     return () => clearInterval(t);
   }, [bannerImages.length]);
 
+  const marqueeItems = useMemo(
+    () => [
+      "PHA CH\u1EBE CHUY\u00CAN NGHI\u1EC6P",
+      "TH\u1EF0C \u0110\u01A0N M\u1EDAI M\u1ED6I TU\u1EA6N",
+      "CH\u01AF\u01A0NG TR\u00CCNH TH\u00C0NH VI\u00CAN",
+      "H\u1ED6 TR\u1EE2 GIAO H\u00C0NG",
+    ],
+    [],
+  );
+
   const itemsForUI = useMemo(() => {
     return promotions.map((p) => ({
       id: p.promotionId,
@@ -203,9 +209,36 @@ const Homepage: React.FC = () => {
         </div>
       </main>
 
+      {/* Marquee under hero */}
+      <section
+        aria-label="Highlights"
+        className="w-full bg-[#c1a695] border-y border-white/15"
+      >
+        <div className="mx-auto max-w-[1400px] px-3">
+          <div className="homeMarquee py-3">
+            <div className="homeMarqueeInner">
+              {[...marqueeItems, ...marqueeItems].map((label, idx) => (
+                <div key={`${idx}-${label}`} className="flex items-center">
+                  <span className="mx-6 text-[#d7b46a] text-lg leading-none">
+                    {"\u2022"}
+                  </span>
+                  <span className="whitespace-nowrap text-[12px] sm:text-[13px] font-semibold uppercase tracking-[0.28em] text-white/95">
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Products Section */}
       <main className="container mx-auto px-2 py-4 pt-1">
         <div className="text-center mb-8 mt-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-xs font-semibold tracking-wide text-amber-800">
+            <Crown className="h-4 w-4 " />
+            ĐƯỢC YÊU THÍCH NHẤT
+          </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-[0.12em] text-[#6a3715]">
             BEST SELLERS - TRÀ SỮA ĐẬM VỊ
           </h1>
@@ -229,7 +262,7 @@ const Homepage: React.FC = () => {
 
           <div
             ref={bestSellerRef}
-            className="flex overflow-x-hidden gap-3 lg:gap-4 pb-4 mb-8"
+            className="flex overflow-x-hidden gap-4 pb-4 mb-8"
           >
             {!productsLoading &&
               productsForUI.length === 0 &&
@@ -242,10 +275,10 @@ const Homepage: React.FC = () => {
               return (
                 <div
                   key={product.id}
-                  className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 shrink-0 w-60 sm:w-64 lg:w-[240px]"
+                  className="group shrink-0 w-[240px] sm:w-[250px] lg:w-[260px] overflow-hidden rounded-[28px] border border-[#EDE2D7] bg-white shadow-[0_18px_50px_-34px_rgba(0,0,0,0.45)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-40px_rgba(0,0,0,0.55)] flex flex-col"
                 >
                   <Link href={`/products/${slug}`} className="block">
-                    <div className="relative bg-gray-100 h-60 flex items-center justify-center">
+                    <div className="relative h-56 bg-[#F7F1EA]">
                       <Image
                         src={
                           canUseImage(product.image)
@@ -254,28 +287,44 @@ const Homepage: React.FC = () => {
                         }
                         alt={product.name}
                         fill
-                        className="object-cover"
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        sizes="260px"
                       />
+
+                      <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#E23B2E] px-2.5 py-1 text-[11px] font-semibold text-white shadow-[0_10px_24px_-16px_rgba(0,0,0,0.65)]">
+                        <Flame className="size-3" />
+                        HOT
+                      </div>
                     </div>
                   </Link>
 
-                  <div className="p-4">
-                    <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-2">
+                  <div className="flex flex-1 flex-col px-5 pb-3 pt-3">
+                    <div className="text-[11px] font-semibold tracking-[0.22em] text-[#B36A2E] uppercase">
+                      BEST SELLER
+                    </div>
+
+                    <h3 className="mt-1 line-clamp-2 text-base font-semibold text-[#3b2314]">
                       {product.name}
                     </h3>
-                    <p className="text-sm text-orange-600 font-semibold mb-4">
-                      {product.price
-                        ? formatCurrency(product.price)
-                        : "Giá cập nhật"}
+
+                    <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-[#9E8B7C]">
+                      {product.description ?? ""}
                     </p>
 
-                    <Link
-                      href={`/products/${slug}`}
-                      className="w-full bg-[#8b4f22] hover:bg-[#9a5b2a] text-white font-semibold py-2 rounded-full transition-colors duration-300 flex items-center justify-center gap-2 text-sm"
-                    >
-                      <ShoppingCart className="w-4 h-4" />
-                      Mua hàng
-                    </Link>
+                    <div className="mt-auto flex items-end justify-between pt-2">
+                      <span className="font-display text-lg font-bold text-[#7a4a2a]">
+                        {product.price
+                          ? formatCurrency(product.price)
+                          : "Giá cập nhật"}
+                      </span>
+                      <Link
+                        href={`/products/${slug}`}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#7a4a2a] text-white shadow-[0_16px_34px_-18px_rgba(0,0,0,0.65)] transition-transform duration-200 hover:scale-110 active:scale-95"
+                        aria-label={`Mua ${product.name}`}
+                      >
+                        <Plus className="h-5 w-5" />
+                      </Link>
+                    </div>
                   </div>
                 </div>
               );
@@ -324,7 +373,7 @@ const Homepage: React.FC = () => {
             {itemsForUI.map((item) => (
               <div
                 key={item.id}
-                className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex-shrink-0 w-60 sm:w-64 lg:w-[240px]"
+                className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex-shrink-0 w-60 sm:w-64 lg:w-[240px] flex flex-col min-h-[400px]"
               >
                 <div className="relative bg-gray-100 h-60 flex items-center justify-center">
                   {canUseImage(item.image) ? (
@@ -342,7 +391,7 @@ const Homepage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="p-4">
+                <div className="p-4 flex flex-col flex-1">
                   <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-2">
                     {item.name}
                   </h3>
@@ -353,7 +402,7 @@ const Homepage: React.FC = () => {
 
                   <button
                     onClick={() => handleViewPromotion(item.id, item.name)}
-                    className="w-full bg-[#8b4f22] hover:bg-[#9a5b2a] text-white font-semibold py-2 rounded-full transition-colors duration-300 flex items-center justify-center gap-2 text-sm"
+                    className="mt-auto w-full bg-[#8b4f22] hover:bg-[#9a5b2a] text-white font-semibold py-2 rounded-full transition-colors duration-300 flex items-center justify-center gap-2 text-sm"
                   >
                     Xem ngay
                   </button>
@@ -374,6 +423,38 @@ const Homepage: React.FC = () => {
           </button>
         </div>
       </main>
+
+      <style jsx>{`
+        .homeMarquee {
+          overflow: hidden;
+          position: relative;
+        }
+
+        .homeMarqueeInner {
+          display: flex;
+          width: max-content;
+          will-change: transform;
+          animation: homeMarqueeScroll 22s linear infinite;
+        }
+
+        @keyframes homeMarqueeScroll {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .homeMarquee {
+            overflow-x: auto;
+          }
+          .homeMarqueeInner {
+            animation: none;
+          }
+        }
+      `}</style>
     </div>
   );
 };

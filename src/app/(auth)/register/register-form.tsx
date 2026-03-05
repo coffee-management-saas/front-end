@@ -25,7 +25,16 @@ import envConfig from "@/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Home } from "lucide-react";
+import {
+  CalendarDays,
+  Home,
+  Lock,
+  Mail,
+  MapPin,
+  Phone,
+  User,
+  UserPlus,
+} from "lucide-react";
 
 const formSchema = z.object({
   username: z
@@ -131,62 +140,78 @@ export default function RegisterForm() {
   const isSubmitDisabled = loading || !form.formState.isValid;
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex items-center justify-center p-4">
-      <Card className="relative w-full sm:max-w-sm p-0 max-h-[90vh] overflow-hidden">
-        <Button
-          asChild
-          variant="ghost"
-          size="icon-sm"
-          className="absolute left-2 top-2 z-10"
-        >
-          <Link href="/" aria-label="Về trang chủ">
-            <Home className="size-4" />
-          </Link>
-        </Button>
-        <div className="flex justify-center pt-2 pb-0 -mb-4">
+    <Card className="relative w-full max-w-[400px] gap-0 overflow-hidden rounded-[28px] border-0 bg-[#F7F1EA] p-0 py-0 shadow-[0_28px_80px_-28px_rgba(0,0,0,0.65)]">
+      <Button
+        asChild
+        variant="ghost"
+        size="icon-sm"
+        className="absolute left-2 top-2 z-10 rounded-full bg-white/60 text-[#3b2314] backdrop-blur hover:bg-white/80"
+      >
+        <Link href="/" aria-label="Về trang chủ">
+          <Home className="size-4" />
+        </Link>
+      </Button>
+
+      {/* Logo */}
+      <div className="flex justify-center pt-4 pb-0">
+        <div className="flex justify-center pt-1 pb-0 -mb-3">
           <Image
-            src="https://i.pinimg.com/1200x/fc/da/b7/fcdab7e591105149942a91cea82afbf1.jpg"
+            src="https://i.pinimg.com/736x/9b/41/3e/9b413e743be2d101c400a7b85d6d3e26.jpg"
             alt="Cafe Logo"
-            width={72}
-            height={72}
-            className="h-16 w-16 rounded-full"
+            width={64}
+            height={64}
+            className="h-14 w-14 rounded-full"
             priority
           />
         </div>
+      </div>
 
-        <CardHeader className="pt-0 pb-0 px-4 space-y-0">
-          <CardTitle className="text-xl font-bold text-center">
-            Đăng kí
-          </CardTitle>
-          <CardDescription className="text-sm font-semibold text-center">
-            Chào mừng bạn đến với Cafe
-          </CardDescription>
-        </CardHeader>
+      {/* Header */}
+      <CardHeader className="space-y-0 px-7 pb-0 pt-2 text-center">
+        <CardTitle className="text-xl font-semibold tracking-tight text-[#3b2314]">
+          Đăng ký
+        </CardTitle>
+        <CardDescription className="mt-0 text-xs font-medium text-[#B36A2E]">
+          Tạo tài khoản mới
+        </CardDescription>
+      </CardHeader>
 
-        <CardContent className="pt-0 pb-2 px-4 overflow-y-auto max-h-[65vh]">
+      {/* Content */}
+      <CardContent className="px-7 pb-0 pt-2">
+        <div className="relative mb-2">
+          <div className="absolute inset-x-0 top-1/2 h-px bg-[#E6D6C8]" />
+          <div className="relative mx-auto w-fit bg-[#F7F1EA] px-3 text-[10px] font-medium tracking-[0.32em] text-[#B9A79B]">
+            TÀI KHOẢN
+          </div>
+        </div>
+
+        <div className="max-h-[40vh] overflow-y-auto pb-1 pr-3 pt-1">
           <form id="form-rhf-demo" onSubmit={form.handleSubmit(onSubmit)}>
-            <FieldGroup className="space-y-0">
+            <FieldGroup className="gap-2">
               {/* Username */}
               <Controller
                 name="username"
                 control={form.control}
                 render={({ field, fieldState }) => (
-                  <Field
-                    data-invalid={fieldState.invalid}
-                    className="space-y-0"
-                  >
-                    <FieldLabel className="text-sm mb-0" htmlFor="username">
+                  <Field data-invalid={fieldState.invalid} className="gap-1.5">
+                    <FieldLabel
+                      className="text-[11px] font-semibold tracking-[0.22em] text-[#9E8B7C] uppercase"
+                      htmlFor="username"
+                    >
                       Tên đăng nhập
                     </FieldLabel>
-                    <Input
-                      {...field}
-                      id="username"
-                      placeholder="nguyenvana"
-                      autoComplete="username"
-                      aria-invalid={fieldState.invalid}
-                      className="h-10 text-base placeholder:text-sm"
-                      disabled={loading}
-                    />
+                    <div className="relative">
+                      <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#B9A79B]" />
+                      <Input
+                        {...field}
+                        id="username"
+                        placeholder="nguyenvana"
+                        autoComplete="username"
+                        aria-invalid={fieldState.invalid}
+                        className="h-9 rounded-xl border-[#E6D6C8] bg-white/70 pl-10 text-[#3b2314] placeholder:text-[#B9A79B] focus-visible:border-[#D18B4C] focus-visible:ring-[#D18B4C]/25"
+                        disabled={loading}
+                      />
+                    </div>
                     {fieldState.error && (
                       <FieldError errors={[fieldState.error]} />
                     )}
@@ -199,22 +224,25 @@ export default function RegisterForm() {
                 name="fullName"
                 control={form.control}
                 render={({ field, fieldState }) => (
-                  <Field
-                    data-invalid={fieldState.invalid}
-                    className="space-y-0"
-                  >
-                    <FieldLabel className="text-sm mb-0" htmlFor="fullName">
+                  <Field data-invalid={fieldState.invalid} className="gap-1.5">
+                    <FieldLabel
+                      className="text-[11px] font-semibold tracking-[0.22em] text-[#9E8B7C] uppercase"
+                      htmlFor="fullName"
+                    >
                       Họ và tên
                     </FieldLabel>
-                    <Input
-                      {...field}
-                      id="fullName"
-                      placeholder="Nguyen Van A"
-                      autoComplete="name"
-                      aria-invalid={fieldState.invalid}
-                      className="h-10 text-base placeholder:text-sm"
-                      disabled={loading}
-                    />
+                    <div className="relative">
+                      <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#B9A79B]" />
+                      <Input
+                        {...field}
+                        id="fullName"
+                        placeholder="Nguyen Van A"
+                        autoComplete="name"
+                        aria-invalid={fieldState.invalid}
+                        className="h-9 rounded-xl border-[#E6D6C8] bg-white/70 pl-10 text-[#3b2314] placeholder:text-[#B9A79B] focus-visible:border-[#D18B4C] focus-visible:ring-[#D18B4C]/25"
+                        disabled={loading}
+                      />
+                    </div>
                     {fieldState.error && (
                       <FieldError errors={[fieldState.error]} />
                     )}
@@ -222,19 +250,20 @@ export default function RegisterForm() {
                 )}
               />
 
-              {/* Email + Password */}
-              <div className="grid grid-cols-2 gap-1.5">
-                <Controller
-                  name="email"
-                  control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field
-                      data-invalid={fieldState.invalid}
-                      className="space-y-0"
+              {/* Email */}
+              <Controller
+                name="email"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid} className="gap-1.5">
+                    <FieldLabel
+                      className="text-[11px] font-semibold tracking-[0.22em] text-[#9E8B7C] uppercase"
+                      htmlFor="email"
                     >
-                      <FieldLabel className="text-sm mb-0" htmlFor="email">
-                        Email
-                      </FieldLabel>
+                      Email
+                    </FieldLabel>
+                    <div className="relative">
+                      <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#B9A79B]" />
                       <Input
                         {...field}
                         id="email"
@@ -242,58 +271,63 @@ export default function RegisterForm() {
                         placeholder="email@example.com"
                         autoComplete="email"
                         aria-invalid={fieldState.invalid}
-                        className="h-10 text-base placeholder:text-sm"
+                        className="h-9 rounded-xl border-[#E6D6C8] bg-white/70 pl-10 text-[#3b2314] placeholder:text-[#B9A79B] focus-visible:border-[#D18B4C] focus-visible:ring-[#D18B4C]/25"
                         disabled={loading}
                       />
-                      {fieldState.error && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
-                    </Field>
-                  )}
-                />
+                    </div>
+                    {fieldState.error && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
 
-                <Controller
-                  name="password"
-                  control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field
-                      data-invalid={fieldState.invalid}
-                      className="space-y-0"
+              {/* Password */}
+              <Controller
+                name="password"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid} className="gap-1.5">
+                    <FieldLabel
+                      className="text-[11px] font-semibold tracking-[0.22em] text-[#9E8B7C] uppercase"
+                      htmlFor="password"
                     >
-                      <FieldLabel className="text-sm mb-0" htmlFor="password">
-                        Mật khẩu
-                      </FieldLabel>
+                      Mật khẩu
+                    </FieldLabel>
+                    <div className="relative">
+                      <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#B9A79B]" />
                       <Input
                         {...field}
                         id="password"
                         type="password"
-                        placeholder="********"
+                        placeholder="••••••••"
                         autoComplete="new-password"
                         aria-invalid={fieldState.invalid}
-                        className="h-10 text-base placeholder:text-sm"
+                        className="h-9 rounded-xl border-[#E6D6C8] bg-white/70 pl-10 text-[#3b2314] placeholder:text-[#B9A79B] focus-visible:border-[#D18B4C] focus-visible:ring-[#D18B4C]/25"
                         disabled={loading}
                       />
-                      {fieldState.error && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
-                    </Field>
-                  )}
-                />
-              </div>
+                    </div>
+                    {fieldState.error && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
 
-              {/* Phone + DOB */}
-              <div className="grid grid-cols-2 gap-1.5">
-                <Controller
-                  name="phone"
-                  control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field
-                      data-invalid={fieldState.invalid}
-                      className="space-y-0"
+              {/* Phone */}
+              <Controller
+                name="phone"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid} className="gap-1.5">
+                    <FieldLabel
+                      className="text-[11px] font-semibold tracking-[0.22em] text-[#9E8B7C] uppercase"
+                      htmlFor="phone"
                     >
-                      <FieldLabel className="text-sm mb-0" htmlFor="phone">
-                        Số điện thoại
-                      </FieldLabel>
+                      Số điện thoại
+                    </FieldLabel>
+                    <div className="relative">
+                      <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#B9A79B]" />
                       <Input
                         {...field}
                         id="phone"
@@ -301,33 +335,37 @@ export default function RegisterForm() {
                         placeholder="0901234567"
                         autoComplete="tel"
                         aria-invalid={fieldState.invalid}
-                        className="h-10 text-base placeholder:text-sm"
+                        className="h-9 rounded-xl border-[#E6D6C8] bg-white/70 pl-10 text-[#3b2314] placeholder:text-[#B9A79B] focus-visible:border-[#D18B4C] focus-visible:ring-[#D18B4C]/25"
                         disabled={loading}
                       />
-                      {fieldState.error && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
-                    </Field>
-                  )}
-                />
+                    </div>
+                    {fieldState.error && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
 
-                <Controller
-                  name="dob"
-                  control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field
-                      data-invalid={fieldState.invalid}
-                      className="space-y-0"
+              {/* DOB */}
+              <Controller
+                name="dob"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid} className="gap-1.5">
+                    <FieldLabel
+                      className="text-[11px] font-semibold tracking-[0.22em] text-[#9E8B7C] uppercase"
+                      htmlFor="dob"
                     >
-                      <FieldLabel className="text-sm mb-0" htmlFor="dob">
-                        Ngày sinh
-                      </FieldLabel>
+                      Ngày sinh
+                    </FieldLabel>
+                    <div className="relative">
+                      <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#B9A79B]" />
                       <Input
                         {...field}
                         id="dob"
                         type={dobType}
                         placeholder={dobType === "text" ? "dd/mm/yyyy" : ""}
-                        className="h-10 text-base placeholder:text-sm"
+                        className="h-9 rounded-xl border-[#E6D6C8] bg-white/70 pl-10 text-[#3b2314] placeholder:text-[#B9A79B] focus-visible:border-[#D18B4C] focus-visible:ring-[#D18B4C]/25"
                         onFocus={() => !loading && setDobType("date")}
                         onBlur={() => {
                           if (!field.value) setDobType("text");
@@ -335,35 +373,38 @@ export default function RegisterForm() {
                         autoComplete="bday"
                         disabled={loading}
                       />
-                      {fieldState.error && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
-                    </Field>
-                  )}
-                />
-              </div>
+                    </div>
+                    {fieldState.error && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
 
               {/* Address */}
               <Controller
                 name="address"
                 control={form.control}
                 render={({ field, fieldState }) => (
-                  <Field
-                    data-invalid={fieldState.invalid}
-                    className="space-y-0"
-                  >
-                    <FieldLabel className="text-sm mb-0" htmlFor="address">
+                  <Field data-invalid={fieldState.invalid} className="gap-1.5">
+                    <FieldLabel
+                      className="text-[11px] font-semibold tracking-[0.22em] text-[#9E8B7C] uppercase"
+                      htmlFor="address"
+                    >
                       Địa chỉ
                     </FieldLabel>
-                    <Input
-                      {...field}
-                      id="address"
-                      placeholder="123 Nguyễn Trãi, Q1, TP.HCM"
-                      autoComplete="street-address"
-                      aria-invalid={fieldState.invalid}
-                      className="h-10 text-base placeholder:text-sm"
-                      disabled={loading}
-                    />
+                    <div className="relative">
+                      <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#B9A79B]" />
+                      <Input
+                        {...field}
+                        id="address"
+                        placeholder="123 Nguyễn Trãi, Q1, TP.HCM"
+                        autoComplete="street-address"
+                        aria-invalid={fieldState.invalid}
+                        className="h-9 rounded-xl border-[#E6D6C8] bg-white/70 pl-10 text-[#3b2314] placeholder:text-[#B9A79B] focus-visible:border-[#D18B4C] focus-visible:ring-[#D18B4C]/25"
+                        disabled={loading}
+                      />
+                    </div>
                     {fieldState.error && (
                       <FieldError errors={[fieldState.error]} />
                     )}
@@ -372,36 +413,35 @@ export default function RegisterForm() {
               />
             </FieldGroup>
           </form>
-        </CardContent>
+        </div>
+      </CardContent>
 
-        <CardFooter className="pt-1 pb-4 px-2 flex flex-col gap-4">
-          <Field
-            orientation="horizontal"
-            className="w-full flex justify-center"
+      {/* Footer */}
+      <CardFooter className="flex flex-col gap-2.5 px-7 pb-4 pt-3">
+        <Field orientation="horizontal" className="w-full">
+          <Button
+            type="submit"
+            form="form-rhf-demo"
+            className="h-10 w-full rounded-xl bg-[#7a4a2a] text-white shadow-[0_14px_30px_-18px_rgba(0,0,0,0.65)] hover:bg-[#8b5e44] disabled:opacity-60"
+            disabled={isSubmitDisabled}
+            aria-disabled={isSubmitDisabled}
+            aria-busy={loading}
           >
-            <Button
-              type="submit"
-              form="form-rhf-demo"
-              className="h-8 px-10 text-sm bg-[#7a4a2a] hover:bg-[#8b5e44] text-white"
-              disabled={isSubmitDisabled}
-              aria-disabled={isSubmitDisabled}
-              aria-busy={loading}
-            >
-              {loading ? "Đang đăng kí..." : "Đăng kí ngay"}
-            </Button>
-          </Field>
+            <UserPlus className="size-4" />
+            {loading ? "Đang đăng ký..." : "Đăng ký ngay"}
+          </Button>
+        </Field>
 
-          <div className="text-center text-sm">
-            Đã có tài khoản?{" "}
-            <Link
-              href="/login"
-              className="font-semibold text-[#7a4a2a] hover:text-[#8b5e44] hover:underline"
-            >
-              Đăng nhập
-            </Link>
-          </div>
-        </CardFooter>
-      </Card>
-    </div>
+        <div className="text-center text-sm text-[#7E6B5C]">
+          Đã có tài khoản?{" "}
+          <Link
+            href="/login"
+            className="font-semibold text-[#B36A2E] hover:text-[#8E4E24] hover:underline"
+          >
+            Đăng nhập
+          </Link>
+        </div>
+      </CardFooter>
+    </Card>
   );
 }

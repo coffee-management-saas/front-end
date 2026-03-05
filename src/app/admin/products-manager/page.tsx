@@ -29,6 +29,7 @@ import {
   getProductById,
   getProducts,
   updateProductById,
+  uploadProductImage,
 } from "@/services/product.service";
 
 type ProductRow = {
@@ -46,7 +47,6 @@ type ProductFormState = {
   categoryId: string;
   price: string;
   description: string;
-  image: string;
   status: ProductStatus;
 };
 
@@ -70,7 +70,6 @@ const createFormState = (product: Product): ProductFormState => ({
       ? ""
       : String(product.price),
   description: product.description ?? "",
-  image: product.image ?? "",
   status: product.status ?? "INACTIVE",
 });
 
@@ -102,6 +101,10 @@ export default function ProductsManagerPage() {
   const [editForm, setEditForm] = useState<ProductFormState | null>(null);
   const [editErrors, setEditErrors] = useState<ProductFormErrors>({});
   const [editMode, setEditMode] = useState<"create" | "edit">("edit");
+  const [createImageFile, setCreateImageFile] = useState<File | null>(null);
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [createImageUploading, setCreateImageUploading] = useState(false);
+  const [editImageUploading, setEditImageUploading] = useState(false);
 
   useEffect(() => {
     const run = async () => {
@@ -200,6 +203,7 @@ export default function ProductsManagerPage() {
     setEditLoading(true);
     setEditForm(null);
     setEditErrors({});
+    setEditImageFile(null);
     setEditMode("edit");
     try {
       const data = await getProductById(product.id);
@@ -216,12 +220,13 @@ export default function ProductsManagerPage() {
   const handleCreate = () => {
     setSelectedProduct(null);
     setEditMode("create");
+    setCreateImageFile(null);
+    setEditImageFile(null);
     setEditForm({
       name: "",
       categoryId: "",
       price: "",
       description: "",
-      image: "",
       status: "ACTIVE",
     });
     setEditErrors({});
@@ -245,6 +250,7 @@ export default function ProductsManagerPage() {
     if (!editForm) return;
 
     const errors: ProductFormErrors = {};
+    const imageFile = editMode === "create" ? createImageFile : editImageFile;
 
     const name = editForm.name.trim();
     if (!name) {
@@ -261,18 +267,6 @@ export default function ProductsManagerPage() {
       errors.price = "Vui lòng nhập giá hợp lệ";
     }
 
-    const image = editForm.image.trim();
-    if (image) {
-      try {
-        const u = new URL(image);
-        if (u.protocol !== "http:" && u.protocol !== "https:") {
-          errors.image = "Ảnh phải là URL http/https";
-        }
-      } catch {
-        errors.image = "Ảnh không đúng định dạng URL";
-      }
-    }
-
     if (Object.keys(errors).length > 0) {
       setEditErrors(errors);
       toast.error("Vui lòng kiểm tra lại thông tin");
@@ -284,7 +278,6 @@ export default function ProductsManagerPage() {
       categoryId,
       price,
       description: editForm.description.trim(),
-      image,
       status: editForm.status,
     };
 
@@ -297,7 +290,68 @@ export default function ProductsManagerPage() {
         data = await updateProductById(selectedProduct?.id ?? "", payload);
       }
 
-      // Đóng modal và reset form ngay khi API thành công
+      let finalData = data;
+      if (data && imageFile) {
+        if (editMode === "create") {
+          setCreateImageUploading(true);
+        } else {
+          setEditImageUploading(true);
+        }
+        try {
+          const uploadRes = await uploadProductImage(data.id, imageFile);
+          const isRecord = (v: unknown): v is Record<string, unknown> =>
+            typeof v === "object" && v !== null;
+
+          const readProductFromUploadRes = (v: unknown): Product | null => {
+            if (isRecord(v) && typeof v.id === "number") {
+              return v as unknown as Product;
+            }
+            if (
+              isRecord(v) &&
+              isRecord(v.data) &&
+              typeof v.data.id === "number"
+            ) {
+              return v.data as unknown as Product;
+            }
+            return null;
+          };
+
+          const readImageFromUploadRes = (v: unknown): string | null => {
+            const readFrom = (obj: unknown): string | null => {
+              if (!isRecord(obj)) return null;
+              const image = obj.image;
+              if (typeof image === "string" && image.trim())
+                return image.trim();
+              const imageUrl = obj.imageUrl;
+              if (typeof imageUrl === "string" && imageUrl.trim())
+                return imageUrl.trim();
+              return null;
+            };
+
+            return readFrom(v) ?? (isRecord(v) ? readFrom(v.data) : null);
+          };
+
+          const uploadedProduct = readProductFromUploadRes(uploadRes);
+          if (uploadedProduct) {
+            finalData = uploadedProduct;
+          } else {
+            const uploadedImage = readImageFromUploadRes(uploadRes);
+            if (uploadedImage) {
+              finalData = { ...data, image: uploadedImage };
+            }
+          }
+        } finally {
+          if (editMode === "create") {
+            setCreateImageUploading(false);
+            setCreateImageFile(null);
+          } else {
+            setEditImageUploading(false);
+            setEditImageFile(null);
+          }
+        }
+      }
+
+      // Đóng modal và reset form khi API thành công (kèm upload nếu có)
       setEditDialogOpen(false);
       setSelectedProduct(null);
       setEditForm(null);
@@ -305,8 +359,8 @@ export default function ProductsManagerPage() {
       setEditMode("edit");
 
       // Cập nhật danh sách ngay (optimistic)
-      if (data) {
-        const row = mapProduct(data);
+      if (finalData) {
+        const row = mapProduct(finalData);
         if (editMode === "create") {
           const filterId = categoryFilter ? Number(categoryFilter) : undefined;
           const matchesFilter =
@@ -319,8 +373,8 @@ export default function ProductsManagerPage() {
         }
         toast.success(
           editMode === "create"
-            ? `Đã thêm sản phẩm "${data.name}"`
-            : `Đã cập nhật sản phẩm "${data.name}"`,
+            ? `Đã thêm sản phẩm "${finalData.name}"`
+            : `Đã cập nhật sản phẩm "${finalData.name}"`,
         );
       }
 
@@ -616,7 +670,11 @@ export default function ProductsManagerPage() {
       <Dialog
         open={editDialogOpen}
         onOpenChange={(open) => {
-          if (!open && editSaving) return;
+          if (
+            !open &&
+            (editSaving || createImageUploading || editImageUploading)
+          )
+            return;
           setEditDialogOpen(open);
           if (!open) setEditErrors({});
         }}
@@ -703,15 +761,23 @@ export default function ProductsManagerPage() {
               </div>
               <div className="grid grid-cols-1 gap-3">
                 <div className="grid gap-1">
-                  <label className="text-sm font-medium">Ảnh (URL)</label>
+                  <label className="text-sm font-medium">
+                    {editMode === "create" ? "Tải ảnh" : "Tải ảnh mới"}
+                  </label>
                   <Input
-                    className={`h-9 ${editErrors.image ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
-                    value={editForm.image}
-                    onChange={(e) => setEditField("image", e.target.value)}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      if (editMode === "create") setCreateImageFile(file);
+                      else setEditImageFile(file);
+                    }}
                   />
-                  {editErrors.image ? (
-                    <p className="text-xs text-destructive">
-                      {editErrors.image}
+                  {(editMode === "create" ? createImageFile : editImageFile) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Đã chọn:{" "}
+                      {(editMode === "create" ? createImageFile : editImageFile)
+                        ?.name ?? ""}
                     </p>
                   ) : null}
                 </div>
@@ -731,16 +797,31 @@ export default function ProductsManagerPage() {
             <Button
               variant="ghost"
               onClick={() => {
-                if (editSaving) return;
+                if (editSaving || createImageUploading || editImageUploading)
+                  return;
                 setEditDialogOpen(false);
                 setEditErrors({});
               }}
-              disabled={editSaving}
+              disabled={
+                editSaving || createImageUploading || editImageUploading
+              }
             >
               Hủy
             </Button>
-            <Button onClick={handleSave} disabled={editSaving || editLoading}>
-              {editSaving ? "Đang lưu..." : "Lưu thay đổi"}
+            <Button
+              onClick={handleSave}
+              disabled={
+                editSaving ||
+                editLoading ||
+                createImageUploading ||
+                editImageUploading
+              }
+            >
+              {createImageUploading || editImageUploading
+                ? "Đang tải ảnh..."
+                : editSaving
+                  ? "Đang lưu..."
+                  : "Lưu thay đổi"}
             </Button>
           </DialogFooter>
         </DialogContent>

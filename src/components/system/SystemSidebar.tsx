@@ -2,13 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import {
-  Coffee,
-  LayoutDashboard,
-  FolderTree,
-  LogOut,
-  Tag,
-} from "lucide-react";
+import { Coffee, LayoutDashboard, FolderTree, LogOut, Tag } from "lucide-react";
 
 import {
   Sidebar,

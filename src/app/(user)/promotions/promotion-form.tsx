@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { Promotion } from "@/types/promotion";
 import { useRouter } from "next/navigation";
-import { useAppContext } from "@/app/AppProvider";
 import { getPromotions } from "@/services/promotion.service";
 import { ApiError } from "@/lib/utils";
 
@@ -52,7 +51,6 @@ const SubscriptionCards: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const { accessToken } = useAppContext();
 
   useEffect(() => {
     const fetchPromotions = async () => {
@@ -60,17 +58,12 @@ const SubscriptionCards: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        if (!accessToken) {
-          setPromotions([]);
-          setError("Vui lòng đăng nhập để xem khuyến mãi.");
-          return;
-        }
-
-        const data = await getPromotions(accessToken);
+        // Public like homepage: don't require login and don't send Bearer token.
+        const data = await getPromotions(undefined, { viaNextApi: true });
         setPromotions(Array.isArray(data) ? data : []);
       } catch (e: unknown) {
         if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
-          setError("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+          setError("Bạn không có quyền xem khuyến mãi.");
         } else {
           setError(e instanceof Error ? e.message : String(e));
         }
@@ -81,7 +74,7 @@ const SubscriptionCards: React.FC = () => {
     };
 
     fetchPromotions();
-  }, [accessToken]);
+  }, []);
 
   const activePromotions = useMemo(() => {
     const active = promotions.filter((p) => p.promotionStatus === "ACTIVE");

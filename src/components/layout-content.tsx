@@ -20,11 +20,15 @@ export default function LayoutContent({
     pathname.startsWith("/admin") ||
     pathname.startsWith("/system") ||
     pathname.startsWith("/staff") ||
+    pathname === "/login" ||
+    pathname === "/forgot" ||
+    pathname === "/register" ||
+    pathname === "/portal" ||
     pathname === "/verification";
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // useEffect(() => {
+  //   setMounted(true);
+  // }, []);
 
   if (!mounted) {
     return (

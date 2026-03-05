@@ -8,6 +8,21 @@ import {
 
 type Ctx = { params: Promise<{ id: string }> };
 
+function isAccessDeniedLike(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return false;
+  const msg = String(err.message ?? "").toLowerCase();
+  const payloadMsg =
+    err.payload && typeof err.payload === "object"
+      ? String((err.payload as { message?: unknown }).message ?? "").toLowerCase()
+      : "";
+  const combined = `${msg} ${payloadMsg}`;
+  return (
+    combined.includes("access denied") ||
+    combined.includes("forbidden") ||
+    combined.includes("unauthorized")
+  );
+}
+
 function extractIdFromUrl(req: Request) {
   try {
     const url = new URL(req.url);
@@ -33,8 +48,25 @@ export async function GET(req: Request, ctx: Ctx) {
     const cookieStore = await cookies();
     const accessToken = cookieStore.get("accessToken")?.value;
 
-    const data = await getPromotionById(promotionId, accessToken);
-    return Response.json(data, { status: 200 });
+    // Prefer public (no token) like homepage to avoid BE denying when Authorization is present.
+    try {
+      const data = await getPromotionById(promotionId, undefined);
+      return Response.json(data, { status: 200 });
+    } catch (publicErr) {
+      if (
+        publicErr instanceof ApiError &&
+        (publicErr.status === 401 ||
+          publicErr.status === 403 ||
+          (publicErr.status === 400 && isAccessDeniedLike(publicErr)) ||
+          isAccessDeniedLike(publicErr)) &&
+        accessToken
+      ) {
+        const data = await getPromotionById(promotionId, accessToken);
+        return Response.json(data, { status: 200 });
+      }
+
+      throw publicErr;
+    }
   } catch (err: unknown) {
     if (err instanceof ApiError) {
       return Response.json(
