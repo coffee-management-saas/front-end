@@ -19,6 +19,8 @@ import {
   Calendar,
   ClipboardList,
   Award,
+  User,
+  User2,
 } from "lucide-react";
 
 import {
@@ -46,6 +48,8 @@ type MenuItem = {
 const menuItems: MenuItem[] = [
   { title: "Dashboard", href: "/admin", icon: LayoutDashboard },
 
+  // Danh mục
+  { title: "Khách hàng", href: "/admin/users-manager", icon: User },
   // Danh mục
   { title: "Danh mục", href: "/admin/categories-manager", icon: FolderTree },
 

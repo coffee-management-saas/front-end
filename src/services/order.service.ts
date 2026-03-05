@@ -2,6 +2,21 @@ import envConfig from "@/config";
 import { ApiError } from "@/lib/utils";
 import type { CreateOrderRequest, OrderResponse } from "@/types/order";
 
+export type OrderHistoryMeta = {
+  currentPage: number;
+  size: number;
+  lastPage: number;
+  totalElements: number;
+};
+
+export type OrderHistoryResponse = {
+  code: number;
+  status: string;
+  message: string;
+  data: OrderResponse[];
+  meta?: OrderHistoryMeta;
+};
+
 async function parseJsonSafely<T>(res: Response): Promise<T> {
   const raw = await res.text();
   if (!raw) throw new ApiError("BE trả về rỗng", 502);
@@ -13,8 +28,40 @@ async function parseJsonSafely<T>(res: Response): Promise<T> {
   }
 }
 
-function authHeaders(accessToken?: string): Record<string, string> {
-  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+function extractErrorMessage(input: unknown): string | null {
+  const visited = new Set<unknown>();
+
+  const walk = (value: unknown): string | null => {
+    if (value == null) return null;
+    if (visited.has(value)) return null;
+    visited.add(value);
+
+    if (typeof value === "string") {
+      const msg = value.trim();
+      if (!msg) return null;
+      if (msg.toLowerCase() === "be error") return null;
+      return msg;
+    }
+
+    if (typeof value !== "object") return null;
+
+    const obj = value as Record<string, unknown>;
+
+    if (typeof obj.message === "string") {
+      const msg = obj.message.trim();
+      if (msg && msg.toLowerCase() !== "be error") return msg;
+    }
+
+    return (
+      walk(obj.payload) ??
+      walk(obj.error) ??
+      walk(obj.data) ??
+      walk(obj.details) ??
+      null
+    );
+  };
+
+  return walk(input);
 }
 
 function shouldUseNextApi(options?: { viaNextApi?: boolean }) {
@@ -48,7 +95,7 @@ export async function createOrder(
   if (!res.ok) {
     console.error("DEBUG CreateOrder Failed:", data);
     throw new ApiError(
-      data?.message || "Create order failed",
+      extractErrorMessage(data) || "Create order failed",
       res.status,
       data,
     );
@@ -80,7 +127,7 @@ export async function createEmployeeOrder(
   if (!res.ok) {
     console.error("DEBUG CreateEmployeeOrder Failed:", data);
     throw new ApiError(
-      data?.message || "Create employee order failed",
+      extractErrorMessage(data) || "Create employee order failed",
       res.status,
       data,
     );
@@ -91,9 +138,10 @@ export async function createEmployeeOrder(
 
 export async function getMyOrders(
   accessToken: string,
+  options?: { viaNextApi?: boolean; throwOnError?: boolean },
 ): Promise<OrderResponse[]> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const useNextApi = shouldUseNextApi();
+  const useNextApi = shouldUseNextApi(options);
   const beUrl = useNextApi ? "/api/orders" : `${base}/orders/my-orders`;
 
   const res = await fetch(beUrl, {
@@ -109,11 +157,15 @@ export async function getMyOrders(
   const data = await parseJsonSafely<OrderResponse[]>(res).catch(() => null);
 
   if (!res.ok) {
-    const message =
-      data && typeof data === "object" && "message" in data
-        ? String((data as { message?: unknown }).message)
-        : "Failed to fetch orders";
-    throw new ApiError(message, res.status, data);
+    const message = extractErrorMessage(data) || "Failed to fetch orders";
+    if (options?.throwOnError) {
+      throw new ApiError(message, res.status, data);
+    }
+    console.warn("[getMyOrders] Request failed:", {
+      status: res.status,
+      message,
+    });
+    return [];
   }
 
   return (data ?? []) as OrderResponse[];
@@ -143,13 +195,66 @@ export async function getOrderById(
 
   if (!res.ok) {
     const message =
-      data && typeof data === "object" && "message" in data
-        ? String((data as { message?: unknown }).message)
-        : "Failed to fetch order details";
+      extractErrorMessage(data) || "Failed to fetch order details";
     throw new ApiError(message, res.status, data);
   }
 
   return data as OrderResponse;
+}
+
+export async function getOrderHistory(
+  accessToken: string,
+  params: { page: number; size: number; customerId: number },
+  options?: { viaNextApi?: boolean; throwOnError?: boolean },
+): Promise<OrderHistoryResponse> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const useNextApi = shouldUseNextApi(options);
+  const search = new URLSearchParams({
+    page: String(params.page),
+    size: String(params.size),
+    customerId: String(params.customerId),
+  });
+
+  const beUrl = useNextApi
+    ? `/api/orders/history?${search.toString()}`
+    : `${base}/orders/history?${search.toString()}`;
+
+  const res = await fetch(beUrl, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonSafely<OrderHistoryResponse>(res).catch(
+    () => null,
+  );
+
+  if (!res.ok) {
+    const message =
+      extractErrorMessage(payload) || "Failed to fetch order history";
+    if (options?.throwOnError) {
+      throw new ApiError(message, res.status, payload);
+    }
+    return {
+      code: res.status,
+      status: "ERROR",
+      message,
+      data: [],
+    };
+  }
+
+  return (
+    payload ?? {
+      code: 200,
+      status: "OK",
+      message: "",
+      data: [],
+    }
+  );
 }
 
 export async function confirmCashPayment(
@@ -169,9 +274,9 @@ export async function confirmCashPayment(
   });
 
   if (!res.ok) {
-    const errorData = await parseJsonSafely<any>(res).catch(() => null);
+    const errorData = await parseJsonSafely<unknown>(res).catch(() => null);
     throw new ApiError(
-      errorData?.message || "Failed to confirm cash payment",
+      extractErrorMessage(errorData) || "Failed to confirm cash payment",
       res.status,
     );
   }
@@ -196,9 +301,10 @@ export async function confirmEmployeeCashPayment(
   });
 
   if (!res.ok) {
-    const errorData = await parseJsonSafely<any>(res).catch(() => null);
+    const errorData = await parseJsonSafely<unknown>(res).catch(() => null);
     throw new ApiError(
-      errorData?.message || "Failed to confirm employee cash payment",
+      extractErrorMessage(errorData) ||
+        "Failed to confirm employee cash payment",
       res.status,
     );
   }
@@ -224,9 +330,9 @@ export async function initiatePayment(
   });
 
   if (!res.ok) {
-    const errorData = await parseJsonSafely<any>(res).catch(() => null);
+    const errorData = await parseJsonSafely<unknown>(res).catch(() => null);
     throw new ApiError(
-      errorData?.message || "Khởi tạo thanh toán thất bại",
+      extractErrorMessage(errorData) || "Khởi tạo thanh toán thất bại",
       res.status,
     );
   }
@@ -252,9 +358,9 @@ export async function initiateEmployeePayment(
   });
 
   if (!res.ok) {
-    const errorData = await parseJsonSafely<any>(res).catch(() => null);
+    const errorData = await parseJsonSafely<unknown>(res).catch(() => null);
     throw new ApiError(
-      errorData?.message || "Khởi tạo thanh toán thất bại",
+      extractErrorMessage(errorData) || "Khởi tạo thanh toán thất bại",
       res.status,
     );
   }

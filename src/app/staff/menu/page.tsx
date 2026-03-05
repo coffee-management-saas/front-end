@@ -1,10 +1,10 @@
 ﻿"use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { canUseImage, FALLBACK_IMG } from "@/lib/utils";
+import { ApiError, canUseImage, FALLBACK_IMG } from "@/lib/utils";
 import {
   ChevronLeft,
   ChevronRight,
@@ -45,6 +45,12 @@ import type {
 import type { ToppingsResponse } from "@/types/topping";
 import type { ScheduleDto, SchedulesResponse } from "@/types/schedules";
 import type { Promotion } from "@/types/promotion";
+import {
+  createOrder,
+  getOrderById,
+  initiatePayment,
+} from "@/services/order.service";
+import type { CreateOrderRequest, OrderResponse } from "@/types/order";
 
 type MenuItem = {
   id: number;
@@ -58,6 +64,7 @@ type MenuItem = {
 };
 
 type LevelOption = "Ít" | "Bình thường" | "Nhiều";
+type PaymentMethod = "cash" | "momo";
 type SelectedTopping = {
   id: string;
   name: string;
@@ -275,6 +282,7 @@ const StaffPosPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { tokens } = useAppContext();
+  const momoHandledRef = useRef(false);
 
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
@@ -308,6 +316,11 @@ const StaffPosPage = () => {
   const [note, setNote] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
+  const [successOrder, setSuccessOrder] = useState<OrderResponse | null>(null);
+  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [isSessionRestored, setIsSessionRestored] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [customIce, setCustomIce] = useState<LevelOption>("Bình thường");
@@ -332,6 +345,60 @@ const StaffPosPage = () => {
   }, [categoryIdFromUrl]);
 
   useEffect(() => {
+    const resultCode = searchParams.get("resultCode");
+    if (resultCode === null) return;
+    if (momoHandledRef.current) return;
+    momoHandledRef.current = true;
+
+    const message = searchParams.get("message") || "";
+    const orderIdParam = searchParams.get("orderId");
+
+    if (resultCode === "0") {
+      let realOrderId = orderIdParam;
+      if (realOrderId && realOrderId.includes("_")) {
+        const parts = realOrderId.split("_");
+        if (parts.length > 1) realOrderId = parts[1];
+      }
+      const parsed = realOrderId ? Number(realOrderId) : NaN;
+      setIsSuccessOpen(true);
+      setCreatedOrderId(Number.isFinite(parsed) ? parsed : null);
+      if (Number.isFinite(parsed) && tokens.accessToken) {
+        getOrderById(tokens.accessToken, parsed)
+          .then((order) => setSuccessOrder(order))
+          .catch(() => setSuccessOrder(null));
+      } else {
+        setSuccessOrder(null);
+      }
+      toast.success("Thanh toán MoMo thành công!");
+
+      setCart([]);
+      setAppliedVoucher(null);
+      setVoucherCode("");
+      setNote("");
+      setCustomerName("");
+      setCustomerPhone("");
+      try {
+        sessionStorage.removeItem("staff-pos-checkout");
+      } catch {}
+    } else {
+      toast.error(`Thanh toán thất bại: ${message || resultCode}`);
+    }
+
+    try {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("resultCode");
+      params.delete("message");
+      params.delete("orderId");
+      router.replace(
+        params.toString() ? `?${params.toString()}` : "/staff/menu",
+        {
+          scroll: false,
+        },
+      );
+    } catch {}
+  }, [router, searchParams, tokens.accessToken]);
+
+  useEffect(() => {
     try {
       const raw = sessionStorage.getItem("staff-pos-checkout");
       if (!raw) {
@@ -345,6 +412,7 @@ const StaffPosPage = () => {
         note?: unknown;
         customerName?: unknown;
         customerPhone?: unknown;
+        paymentMethod?: unknown;
         voucherCode?: unknown;
         appliedVoucher?: unknown;
       };
@@ -364,6 +432,10 @@ const StaffPosPage = () => {
       }
       if (typeof payload.customerPhone === "string" && !customerPhone) {
         setCustomerPhone(payload.customerPhone);
+      }
+      if (typeof payload.paymentMethod === "string") {
+        const pm = payload.paymentMethod as string;
+        if (pm === "cash" || pm === "momo") setPaymentMethod(pm);
       }
       if (typeof payload.voucherCode === "string" && !voucherCode) {
         setVoucherCode(payload.voucherCode);
@@ -425,7 +497,9 @@ const StaffPosPage = () => {
       }
 
       const prevRaw = sessionStorage.getItem("staff-pos-checkout");
-      const prev = prevRaw ? (JSON.parse(prevRaw) as { createdAt?: unknown }) : null;
+      const prev = prevRaw
+        ? (JSON.parse(prevRaw) as { createdAt?: unknown })
+        : null;
       const createdAt =
         typeof prev?.createdAt === "number" ? prev.createdAt : Date.now();
 
@@ -435,6 +509,7 @@ const StaffPosPage = () => {
         note,
         customerName,
         customerPhone,
+        paymentMethod,
         voucherCode,
         appliedVoucher,
         createdAt,
@@ -452,8 +527,23 @@ const StaffPosPage = () => {
     isSessionRestored,
     note,
     orderType,
+    paymentMethod,
     voucherCode,
   ]);
+
+  useEffect(() => {
+    if (cart.length > 0 && createdOrderId !== null) {
+      setCreatedOrderId(null);
+      setSuccessOrder(null);
+      setIsSuccessOpen(false);
+    }
+  }, [cart.length, createdOrderId]);
+
+  const resetSuccess = () => {
+    setCreatedOrderId(null);
+    setSuccessOrder(null);
+    setIsSuccessOpen(false);
+  };
 
   useEffect(() => {
     const tick = () => {
@@ -1020,28 +1110,80 @@ const StaffPosPage = () => {
     return cart.find((c) => getCartItemKey(c) === selectedCartKey) ?? null;
   }, [cart, selectedCartKey]);
 
-  const goToCheckout = () => {
+  const placeOrder = async () => {
+    if (placingOrder) return;
     if (cart.length === 0) {
       toast.error("Chưa có món trong đơn");
       return;
     }
 
+    if (!tokens.accessToken) {
+      toast.error("Vui lòng đăng nhập để tạo đơn");
+      return;
+    }
+
+    setPlacingOrder(true);
     try {
-      const payload = {
-        cart,
-        orderType,
-        note,
-        customerName,
-        customerPhone,
-        voucherCode,
-        appliedVoucher,
-        createdAt: Date.now(),
+      const url = new URL(window.location.href);
+      url.searchParams.delete("resultCode");
+      url.searchParams.delete("message");
+      url.searchParams.delete("orderId");
+      const returnUrl = url.toString();
+
+      const payload: CreateOrderRequest = {
+        orderType: "OFFLINE",
+        promotionCode: appliedVoucher?.promotionCode,
+        orderItems: cart.map((item) => ({
+          productVariantId: item.variantId,
+          quantity: item.quantity,
+          toppingItems: item.toppings
+            .filter((t) => t.quantity > 0)
+            .map((t) => ({ toppingId: Number(t.id), quantity: t.quantity }))
+            .filter((t) => Number.isFinite(t.toppingId) && t.toppingId > 0),
+        })),
+        paymentGateway: paymentMethod.toUpperCase(),
+        ...(returnUrl ? { returnUrl } : {}),
       };
-      sessionStorage.setItem("staff-pos-checkout", JSON.stringify(payload));
-      router.push("/staff/checkout");
+
+      const res = await createOrder(tokens.accessToken, payload);
+
+      if (paymentMethod === "momo") {
+        const payUrl =
+          res.payUrl ??
+          (await initiatePayment(tokens.accessToken, res.orderId, returnUrl))
+            .payUrl;
+        if (!payUrl) throw new Error("Không lấy được link thanh toán MoMo");
+        window.location.href = payUrl;
+        return;
+      }
+
+      setCreatedOrderId(res.orderId);
+      setSuccessOrder(res);
+      setIsSuccessOpen(true);
+      toast.success(`Tạo đơn thành công (#${res.orderId})`);
+
+      setCart([]);
+      setAppliedVoucher(null);
+      setVoucherCode("");
+      setNote("");
+      setCustomerName("");
+      setCustomerPhone("");
+      try {
+        sessionStorage.removeItem("staff-pos-checkout");
+      } catch {}
     } catch (e) {
       console.error(e);
-      toast.error("Không thể chuyển sang trang thanh toán.");
+      if (e instanceof ApiError) {
+        const payloadMsg =
+          e.payload && typeof e.payload === "object" && "message" in e.payload
+            ? String((e.payload as { message?: unknown }).message ?? "")
+            : "";
+        toast.error(payloadMsg || `${e.message} (${e.status})`);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Tạo đơn thất bại");
+      }
+    } finally {
+      setPlacingOrder(false);
     }
   };
 
@@ -1254,7 +1396,7 @@ const StaffPosPage = () => {
             Đơn hiện tại
           </h2>
           <span className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-full border border-[#cec3bc]/60">
-            POS-#A123
+            {createdOrderId ? `ORD-#${createdOrderId}` : "POS-#A123"}
           </span>
         </div>
 
@@ -1508,13 +1650,42 @@ const StaffPosPage = () => {
             </div>
           </div>
 
+          <div className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod("cash")}
+              className={`flex-1 h-10 text-xs font-semibold rounded-full border transition-colors ${
+                paymentMethod === "cash"
+                  ? "bg-[#cec3bc] text-[#693916] border-[#cec3bc]"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              Tiền mặt
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod("momo")}
+              className={`flex-1 h-10 text-xs font-semibold rounded-full border transition-colors ${
+                paymentMethod === "momo"
+                  ? "bg-[#cec3bc] text-[#693916] border-[#cec3bc]"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              MoMo
+            </button>
+          </div>
+
           <Button
             className="w-full h-12 text-base bg-[#693916] hover:bg-[#876F60] text-white disabled:opacity-60 disabled:pointer-events-none"
             type="button"
-            onClick={goToCheckout}
-            disabled={cart.length === 0}
+            onClick={placeOrder}
+            disabled={cart.length === 0 || placingOrder}
           >
-            Thanh toán
+            {placingOrder
+              ? "Đang tạo đơn..."
+              : paymentMethod === "momo"
+                ? "Thanh toán MoMo"
+                : "Xác nhận tiền mặt"}
           </Button>
 
           <Button
@@ -1525,6 +1696,51 @@ const StaffPosPage = () => {
           </Button>
         </div>
       </div>
+
+      {/* Success */}
+      <Dialog
+        open={isSuccessOpen}
+        onOpenChange={(open) => !open && resetSuccess()}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Đặt hàng thành công</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-2 text-sm text-gray-700">
+            <div className="flex items-center justify-between">
+              <span>Mã đơn</span>
+              <span className="font-semibold text-stone-900">
+                {createdOrderId ? `#${createdOrderId}` : "-"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Thanh toán</span>
+              <span className="font-semibold text-stone-900">
+                {successOrder?.paymentGateway
+                  ? successOrder.paymentGateway
+                  : paymentMethod === "momo"
+                    ? "MOMO"
+                    : "CASH"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Tổng tiền</span>
+              <span className="font-semibold text-[#693916]">
+                {typeof successOrder?.paidPrice === "number"
+                  ? formatVnd(successOrder.paidPrice)
+                  : formatVnd(total)}
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={resetSuccess}>
+              Tiếp tục bán
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Cart item detail */}
       <Dialog

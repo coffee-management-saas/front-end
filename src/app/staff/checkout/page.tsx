@@ -28,7 +28,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, canUseImage, FALLBACK_IMG } from "@/lib/utils";
-import { createEmployeeOrder, initiateEmployeePayment } from "@/services/order.service";
+import {
+  createEmployeeOrder,
+  initiateEmployeePayment,
+} from "@/services/order.service";
 import { useAppContext } from "@/app/AppProvider";
 import type { CreateOrderRequest } from "@/types/order";
 import type { Promotion } from "@/types/promotion";
@@ -358,7 +361,8 @@ export default function StaffCheckoutPage() {
 
     setPlacingOrder(true);
     try {
-      const returnUrl = typeof window !== "undefined" ? window.location.href : "";
+      const returnUrl =
+        typeof window !== "undefined" ? window.location.href : "";
       const payload: CreateOrderRequest = {
         orderType: "OFFLINE",
         promotionCode: appliedVoucher?.promotionCode,
@@ -564,7 +568,9 @@ export default function StaffCheckoutPage() {
                         <div className="rounded-lg border border-gray-100 bg-white p-2">
                           <p className="text-[11px] text-gray-500">Khách</p>
                           <p className="font-semibold text-stone-900">
-                            {customerName.trim() ? customerName.trim() : "Khách lẻ"}
+                            {customerName.trim()
+                              ? customerName.trim()
+                              : "Khách lẻ"}
                           </p>
                         </div>
                         <div className="rounded-lg border border-gray-100 bg-white p-2">

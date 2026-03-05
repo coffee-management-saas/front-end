@@ -21,6 +21,17 @@ async function parseJsonSafely<T>(res: Response): Promise<T> {
   }
 }
 
+async function parseJsonSafelyNullable<T>(res: Response): Promise<T | null> {
+  const raw = await res.text();
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new ApiError("BE trả về không phải JSON", 502, raw);
+  }
+}
+
 function authHeaders(accessToken?: string): Record<string, string> {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
@@ -323,4 +334,46 @@ export async function getBestSellers(
         typeof item?.description === "string" ? item.description : "",
     } as Product;
   });
+}
+
+export async function uploadProductImage(
+  productId: number | string,
+  file: File,
+  accessToken?: string,
+): Promise<
+  | Product
+  | ApiEnvelope<Product>
+  | { image?: string | null }
+  | { imageUrl?: string }
+  | null
+> {
+  const useNextApi = shouldUseNextApi();
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const beUrl = useNextApi
+    ? `/api/products/${productId}/image`
+    : `${base}/products/${productId}/image`;
+
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const res = await fetch(beUrl, {
+    method: "PATCH",
+    headers: {
+      Accept: "application/json",
+      ...(useNextApi ? {} : authHeaders(accessToken)),
+    },
+    body: formData,
+    credentials: useNextApi ? "same-origin" : "omit",
+    cache: "no-store",
+  });
+
+  const data = await parseJsonSafelyNullable<
+    Product | ApiEnvelope<Product> | { image?: string | null } | { imageUrl?: string }
+  >(res);
+
+  if (!res.ok) {
+    throw new ApiError("BE error", res.status, data);
+  }
+
+  return data ?? null;
 }

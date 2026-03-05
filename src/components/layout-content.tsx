@@ -21,7 +21,9 @@ export default function LayoutContent({
     pathname.startsWith("/system") ||
     pathname.startsWith("/staff") ||
     pathname === "/login" ||
+    pathname === "/forgot" ||
     pathname === "/register" ||
+    pathname === "/portal" ||
     pathname === "/verification";
 
   // useEffect(() => {
