@@ -46,7 +46,7 @@ import { useCart } from "@/contexts/CartContext";
 import type { Promotion } from "@/types/promotion";
 import { useAppContext } from "@/app/AppProvider";
 import { toast } from "sonner";
-import { createOrder, initiatePayment } from "@/services/order.service";
+import { createOrder, initiatePayment, confirmCashPayment } from "@/services/order.service";
 import type { CreateOrderRequest } from "@/types/order";
 import Link from "next/link";
 
@@ -153,25 +153,28 @@ const CheckoutContent = () => {
             if (parts.length > 1) realOrderId = parts[1];
           }
 
-          getOrderById(accessToken, Number(realOrderId))
-            .then((order) => {
-              setSuccessOrder(order);
-              setCreatedOrderId(order.orderId);
-              if (order.paymentGateway) {
-                setPaymentMethod(
-                  order.paymentGateway.toLowerCase() as "cash" | "momo",
-                );
-              }
-              setShowSuccessModal(true);
+          // Add a small delay to ensure backend transaction is committed
+          setTimeout(() => {
+            getOrderById(accessToken, Number(realOrderId))
+              .then((order) => {
+                setSuccessOrder(order);
+                setCreatedOrderId(order.orderId);
+                if (order.paymentGateway) {
+                  setPaymentMethod(
+                    order.paymentGateway.toLowerCase() as "cash" | "momo",
+                  );
+                }
+                setShowSuccessModal(true);
 
-              // Only clear URL after successful processing
-              const newUrl = window.location.pathname;
-              window.history.replaceState({}, "", newUrl);
-            })
-            .catch((err) => {
-              console.error("Failed to fetch momo order details", err);
-              toast.error("Không thể tải thông tin đơn hàng.");
-            });
+                // Only clear URL after successful processing
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, "", newUrl);
+              })
+              .catch((err) => {
+                console.error("Failed to fetch momo order details", err);
+                toast.error("Không thể tải thông tin đơn hàng.");
+              });
+          }, 600);
         }
 
         toast.success("Thanh toán MoMo thành công!");
@@ -274,7 +277,7 @@ const CheckoutContent = () => {
       let res: OrderResponse;
 
       if (isChatbotFlow && createdOrderId) {
-        // Reuse existing order
+        // Reuse existing order — choose payment method
         if (paymentMethod === "momo") {
           res = await initiatePayment(
             accessToken,
@@ -282,8 +285,8 @@ const CheckoutContent = () => {
             window.location.origin + window.location.pathname,
           );
         } else {
-          // If cash, just use the fetched order as success
-          res = successOrder!;
+          // CASH: gọi API confirm-cash để backend xử lý thanh toán thực sự
+          res = await confirmCashPayment(accessToken, createdOrderId);
         }
       } else {
         // Create new order
@@ -395,8 +398,8 @@ const CheckoutContent = () => {
         voucherDiscount: Math.max(
           0,
           subtotal +
-            (deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0) -
-            total,
+          (deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0) -
+          total,
         ),
         total,
       };
@@ -687,7 +690,7 @@ const CheckoutContent = () => {
                             localItem?.productName ||
                             capturedItems[
                               fetchedItem?.productVariantId ||
-                                localItem?.variantId
+                              localItem?.variantId
                             ]?.name ||
                             "Sản phẩm";
                           const size =
@@ -771,20 +774,20 @@ const CheckoutContent = () => {
                                     fetchedItem?.toppingPerOrderItems ||
                                     localItem?.toppings
                                   )?.length > 0 && (
-                                    <div className="text-xs text-gray-600">
-                                      Topping:{" "}
-                                      {isFetchedItem
-                                        ? fetchedItem.toppingPerOrderItems
+                                      <div className="text-xs text-gray-600">
+                                        Topping:{" "}
+                                        {isFetchedItem
+                                          ? fetchedItem.toppingPerOrderItems
                                             .map((t: any) => t.toppingName)
                                             .join(", ")
-                                        : localItem.toppings
+                                          : localItem.toppings
                                             .map(
                                               (t: any) =>
                                                 `${t.name} x${t.quantity}`,
                                             )
                                             .join(", ")}
-                                    </div>
-                                  )}
+                                      </div>
+                                    )}
                                 </div>
                               </div>
 
@@ -999,13 +1002,13 @@ const CheckoutContent = () => {
                           "font-medium flex items-center gap-2",
                           paymentMethod === "momo" ||
                             successOrder?.paymentGateway?.toLowerCase() ===
-                              "momo"
+                            "momo"
                             ? "text-pink-600"
                             : "text-amber-800",
                         )}
                       >
                         {paymentMethod === "momo" ||
-                        successOrder?.paymentGateway?.toLowerCase() ===
+                          successOrder?.paymentGateway?.toLowerCase() ===
                           "momo" ? (
                           <>
                             <Image
@@ -1042,7 +1045,7 @@ const CheckoutContent = () => {
                         // Resilient Fallback Logic
                         const fallbackList = JSON.parse(
                           sessionStorage.getItem("last_order_items_fallback") ||
-                            "[]",
+                          "[]",
                         );
                         const fallback = fallbackList[idx];
 
@@ -1104,21 +1107,18 @@ const CheckoutContent = () => {
                   <div
                     className={cn(
                       "p-3 text-center border-t",
-                      successOrder?.orderStatus === "PAID" ||
-                        paymentMethod === "cash"
+                      successOrder?.orderStatus === "PAID"
                         ? "bg-green-50 border-green-100 text-green-700"
                         : "bg-amber-50 border-amber-100 text-amber-700",
                     )}
                   >
                     <p className="text-xs font-medium flex items-center justify-center gap-1">
-                      {successOrder?.orderStatus === "PAID" ||
-                      paymentMethod === "cash" ? (
+                      {successOrder?.orderStatus === "PAID" ? (
                         <ShieldCheck className="w-3 h-3" />
                       ) : (
                         <Clock3 className="w-3 h-3" />
                       )}
-                      {successOrder?.orderStatus === "PAID" ||
-                      paymentMethod === "cash"
+                      {successOrder?.orderStatus === "PAID"
                         ? "Đơn hàng đã được xác nhận thanh toán"
                         : "Đơn hàng đang chờ xử lý thanh toán"}
                     </p>
@@ -1266,10 +1266,10 @@ const CheckoutContent = () => {
                                 </div>
                                 {tempSelectedVoucher?.promotionId ===
                                   promo.promotionId && (
-                                  <div className="self-center">
-                                    <CheckCircle2 className="w-5 h-5 text-amber-600" />
-                                  </div>
-                                )}
+                                    <div className="self-center">
+                                      <CheckCircle2 className="w-5 h-5 text-amber-600" />
+                                    </div>
+                                  )}
                               </div>
                             ))
                         )}
