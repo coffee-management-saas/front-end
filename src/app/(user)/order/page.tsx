@@ -57,7 +57,9 @@ function OrderContent() {
     }
 
     if (!finalOrderId || !accessToken) {
-      setError(!finalOrderId ? "Không tìm thấy mã đơn hàng." : "Vui lòng đăng nhập.");
+      setError(
+        !finalOrderId ? "Không tìm thấy mã đơn hàng." : "Vui lòng đăng nhập.",
+      );
       setLoading(false);
       return;
     }
@@ -68,10 +70,14 @@ function OrderContent() {
       clearCart();
       setPaid(true);
       // Clean URL and redirect to checkout for success UI
-      router.replace(`/checkout?resultCode=0&orderId=${orderId}`, { scroll: false });
+      router.replace(`/checkout?resultCode=0&orderId=${orderId}`, {
+        scroll: false,
+      });
     } else if (resultCode && resultCode !== "0") {
       toast.error("Thanh toán MoMo thất bại hoặc đã bị hủy.");
-      router.replace(`/checkout?resultCode=${resultCode}&orderId=${orderId}`, { scroll: false });
+      router.replace(`/checkout?resultCode=${resultCode}&orderId=${orderId}`, {
+        scroll: false,
+      });
     }
 
     getOrderById(accessToken, Number(finalOrderId))
@@ -83,7 +89,9 @@ function OrderContent() {
           clearCart();
         }
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Lỗi tải đơn hàng."))
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : "Lỗi tải đơn hàng."),
+      )
       .finally(() => setLoading(false));
   }, [orderId, accessToken, resultCode, clearCart, router]);
 
@@ -96,7 +104,9 @@ function OrderContent() {
         if (result.payUrl) {
           window.location.href = result.payUrl;
         } else {
-          toast.error("Không nhận được link thanh toán MoMo. Vui lòng thử lại.");
+          toast.error(
+            "Không nhận được link thanh toán MoMo. Vui lòng thử lại.",
+          );
         }
       } else {
         await confirmCashPayment(accessToken, order.orderId);
@@ -169,7 +179,10 @@ function OrderContent() {
           </CardHeader>
           <CardContent className="space-y-3">
             {order.orderItems?.map((item, idx) => (
-              <div key={item.orderItemId ?? idx} className="flex justify-between items-start text-sm">
+              <div
+                key={item.orderItemId ?? idx}
+                className="flex justify-between items-start text-sm"
+              >
                 <div className="flex-1 mr-4">
                   <p className="font-medium text-gray-800">
                     {item.productName ?? `Sản phẩm #${item.orderItemId}`}
@@ -178,13 +191,19 @@ function OrderContent() {
                         {item.sizeName}
                       </span>
                     )}
-                    <span className="text-gray-400 font-normal ml-1">x{item.quantity}</span>
+                    <span className="text-gray-400 font-normal ml-1">
+                      x{item.quantity}
+                    </span>
                   </p>
-                  {item.toppingPerOrderItems && item.toppingPerOrderItems.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      + {item.toppingPerOrderItems.map(t => t.toppingName).join(", ")}
-                    </p>
-                  )}
+                  {item.toppingPerOrderItems &&
+                    item.toppingPerOrderItems.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        +{" "}
+                        {item.toppingPerOrderItems
+                          .map((t) => t.toppingName)
+                          .join(", ")}
+                      </p>
+                    )}
                 </div>
                 <span className="font-semibold text-amber-800 shrink-0">
                   {formatCurrency((item.unitPrice ?? 0) * (item.quantity ?? 1))}
@@ -225,12 +244,16 @@ function OrderContent() {
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-gray-900">Ví MoMo</p>
-                  <p className="text-xs text-gray-500">Thanh toán nhanh qua app MoMo</p>
+                  <p className="text-xs text-gray-500">
+                    Thanh toán nhanh qua app MoMo
+                  </p>
                 </div>
                 <div
                   className={cn(
                     "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                    paymentMethod === "momo" ? "border-pink-600 bg-pink-600" : "border-gray-300",
+                    paymentMethod === "momo"
+                      ? "border-pink-600 bg-pink-600"
+                      : "border-gray-300",
                   )}
                 >
                   {paymentMethod === "momo" && (
@@ -254,12 +277,16 @@ function OrderContent() {
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-gray-900">Tiền mặt</p>
-                  <p className="text-xs text-gray-500">Thanh toán khi nhận hàng hoặc tại quầy</p>
+                  <p className="text-xs text-gray-500">
+                    Thanh toán khi nhận hàng hoặc tại quầy
+                  </p>
                 </div>
                 <div
                   className={cn(
                     "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                    paymentMethod === "cash" ? "border-amber-700 bg-amber-700" : "border-gray-300",
+                    paymentMethod === "cash"
+                      ? "border-amber-700 bg-amber-700"
+                      : "border-gray-300",
                   )}
                 >
                   {paymentMethod === "cash" && (
@@ -298,7 +325,9 @@ function OrderContent() {
               {paying ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
               ) : null}
-              {paymentMethod === "momo" ? "Thanh toán MoMo" : "Xác nhận đơn hàng"}
+              {paymentMethod === "momo"
+                ? "Thanh toán MoMo"
+                : "Xác nhận đơn hàng"}
             </Button>
           )}
           {paid && (

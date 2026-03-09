@@ -1,12 +1,11 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-import Link from "next/link";
-import Script from "next/script";
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { PortalFooter } from "@/components/portal/PortalFooter";
 import { PortalHeader } from "@/components/portal/PortalHeader";
 import { formatCurrency } from "@/lib/utils";
-import React, { useEffect, useMemo, useState } from "react";
 
 type SubscriptionPlanStatus = "ACTIVE" | "INACTIVE" | "DELETED" | string;
 
@@ -18,6 +17,18 @@ type SubscriptionPlan = {
   priceYearly?: number;
   configLimit?: Record<string, string>;
   subscriptionPlanStatus?: SubscriptionPlanStatus;
+};
+
+type ShopStatus = "ACTIVE" | "INACTIVE" | "PENDING" | "BANNED" | "DELETED" | string;
+
+type Shop = {
+  id: number;
+  shopName: string;
+  address: string;
+  phone: string;
+  email: string;
+  domain: string;
+  status: ShopStatus;
 };
 
 const normalizeConfigKey = (key: string) =>
@@ -100,14 +111,89 @@ const coercePlans = (data: unknown): SubscriptionPlan[] => {
     .filter(Boolean) as SubscriptionPlan[];
 };
 
+const coerceShops = (data: unknown): Shop[] => {
+  const payload =
+    data && typeof data === "object" && "data" in data
+      ? (data as Record<string, unknown>).data
+      : data;
+
+  if (!Array.isArray(payload)) return [];
+
+  return payload
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const obj = item as Record<string, unknown>;
+
+      const id = Number(obj.id);
+      const shopName = String(obj.shopName ?? "").trim();
+      const address = String(obj.address ?? "").trim();
+      const phone = String(obj.phone ?? "").trim();
+      const email = String(obj.email ?? "").trim();
+      const domain = String(obj.domain ?? "").trim();
+      const status = String(obj.status ?? "").trim();
+
+      if (!Number.isFinite(id) || !shopName) return null;
+
+      return {
+        id,
+        shopName,
+        address,
+        phone,
+        email,
+        domain,
+        status,
+      } satisfies Shop;
+    })
+    .filter(Boolean) as Shop[];
+};
+
+const pickShopForCheckout = (shops: Shop[]): Shop | null => {
+  if (!shops.length) return null;
+  const active = shops.find((s) => normalizeStatus(s.status) === "ACTIVE");
+  return active ?? shops[0] ?? null;
+};
+
+const extractCheckoutUrl = (payload: unknown): string | null => {
+  if (!payload || typeof payload !== "object") return null;
+
+  const obj = payload as Record<string, unknown>;
+
+  const direct = obj.payUrl;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+
+  const data = obj.data;
+  if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>;
+    const candidates = [d.payUrl, d.checkoutUrl, d.paymentUrl, d.redirectUrl];
+    for (const candidate of candidates) {
+      if (typeof candidate === "string" && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+  }
+
+  const candidates = [obj.checkoutUrl, obj.paymentUrl, obj.redirectUrl];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  }
+
+  return null;
+};
+
 function PricingPlanCard({
   plan,
   billingMode,
   featured,
+  onSelect,
+  disabled,
+  selecting,
 }: {
   plan: SubscriptionPlan;
   billingMode: "monthly" | "yearly";
   featured?: boolean;
+  onSelect: (plan: SubscriptionPlan) => void;
+  disabled?: boolean;
+  selecting?: boolean;
 }) {
   const features = Object.entries(plan.configLimit ?? {})
     .filter(([, v]) => String(v ?? "").trim())
@@ -120,7 +206,7 @@ function PricingPlanCard({
   return (
     <div
       className={[
-        "rounded-[32px] border shadow-[0_26px_80px_rgba(0,0,0,0.9)] px-8 py-10 flex flex-col justify-between reveal",
+        "rounded-[32px] border shadow-[0_26px_80px_rgba(0,0,0,0.9)] px-8 py-10 flex flex-col justify-between",
         featured
           ? "bg-neutral-900/70 border-orange-500/40 ring-1 ring-orange-500/20"
           : "bg-neutral-950/70 border-neutral-800",
@@ -155,12 +241,12 @@ function PricingPlanCard({
                     </span>
                   </div>
                 </div>
-                <span className="text-sm text-neutral-400">/month</span>
+                <span className="text-sm text-neutral-400">/tháng</span>
               </div>
               <p className="mt-1 text-xs text-neutral-500">
-                Billed{" "}
+                Thanh toán{" "}
                 <span className="">
-                  {billingMode === "monthly" ? "monthly" : "yearly"}
+                  {billingMode === "monthly" ? "theo tháng" : "theo năm"}
                 </span>
                 .
               </p>
@@ -168,10 +254,10 @@ function PricingPlanCard({
           ) : (
             <>
               <p className="text-3xl md:text-4xl font-semibold tracking-tight mb-1">
-                Contact us
+                Liên hệ
               </p>
               <p className="text-xs text-neutral-500">
-                Liên hệ với chúng tôi để được hỗ trợ
+                Liên hệ để được tư vấn gói phù hợp
               </p>
             </>
           )}
@@ -179,17 +265,20 @@ function PricingPlanCard({
       </div>
 
       <div className="space-y-6">
-        <Link
-          href="/register"
+        <button
+          type="button"
           className={[
             "w-full inline-flex items-center justify-center rounded-full transition-colors px-6 py-3 text-sm",
             featured
               ? "bg-orange-500 hover:bg-orange-400 font-semibold text-black"
               : "bg-neutral-800/80 hover:bg-neutral-700 font-medium text-white",
+            disabled || selecting ? "opacity-70 cursor-not-allowed" : "",
           ].join(" ")}
+          onClick={() => onSelect(plan)}
+          disabled={Boolean(disabled || selecting)}
         >
-          Chọn gói
-        </Link>
+          {selecting ? "Đang chuyển..." : "Chọn gói"}
+        </button>
 
         {features.length ? (
           <ul
@@ -216,13 +305,15 @@ function PricingPlanCard({
   );
 }
 
-export default function Page() {
+export default function SubscriptionPage() {
   const [billingMode, setBillingMode] = useState<"monthly" | "yearly">(
     "monthly",
   );
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [plansLoading, setPlansLoading] = useState<boolean>(true);
   const [plansError, setPlansError] = useState<string>("");
+  const [checkoutPlanId, setCheckoutPlanId] = useState<number | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     let cancelled = false;
@@ -249,13 +340,18 @@ export default function Page() {
               : "";
           if (!cancelled) {
             setPlansError(
-              message || `Không tải được gói thành viên (${res.status}).`,
+              message || `Không tải được gói thuê (${res.status}).`,
             );
           }
           return;
         }
 
-        const parsed = coercePlans(data);
+        const payload =
+          data && typeof data === "object" && "data" in data
+            ? (data as Record<string, unknown>).data
+            : data;
+
+        const parsed = coercePlans(payload);
         if (!cancelled) {
           setPlans(parsed);
           setPlansError("");
@@ -269,6 +365,91 @@ export default function Page() {
       cancelled = true;
     };
   }, []);
+
+  const handleSelectPlan = async (plan: SubscriptionPlan) => {
+    if (checkoutPlanId != null) return;
+
+    const billingCycle = billingMode === "monthly" ? "MONTHLY" : "YEARLY";
+
+    setCheckoutPlanId(plan.subscriptionPlanId);
+    try {
+      const shopsRes = await fetch("/api/shops?page=0&size=50", {
+        cache: "no-store",
+        credentials: "include",
+      }).catch(() => null);
+
+      if (!shopsRes) {
+        toast.error("Không kết nối được máy chủ.");
+        return;
+      }
+
+      if (shopsRes.status === 401 || shopsRes.status === 403) {
+        toast.error("Vui lòng đăng nhập để tiếp tục");
+        router.push("/system/login");
+        return;
+      }
+
+      const shopsPayload = await parseJsonSafely<unknown>(shopsRes);
+      const shops = coerceShops(shopsPayload);
+      const shop = pickShopForCheckout(shops);
+      if (!shop) {
+        toast.error("Bạn chưa có cửa hàng nào để thanh toán gói thuê.");
+        router.push("/system/shop-manager");
+        return;
+      }
+
+      const checkoutBody = {
+        subscriptionPlanId: plan.subscriptionPlanId,
+        billingCycle,
+        shopName: shop.shopName,
+        address: shop.address,
+        phone: shop.phone,
+        email: shop.email,
+        domain: shop.domain,
+        autoRenewal: true,
+      };
+
+      const res = await fetch("/api/subscriptions/checkout", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(checkoutBody),
+        credentials: "include",
+        cache: "no-store",
+      }).catch(() => null);
+
+      if (!res) {
+        toast.error("Không kết nối được máy chủ.");
+        return;
+      }
+
+      const payload = await parseJsonSafely<unknown>(res);
+
+      if (!res.ok) {
+        const message =
+          payload && typeof payload === "object" && "message" in payload
+            ? String((payload as Record<string, unknown>).message ?? "")
+            : "";
+        toast.error(message || `Thanh toán thất bại (${res.status}).`);
+        return;
+      }
+
+      const checkoutUrl = extractCheckoutUrl(payload);
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+        return;
+      }
+
+      toast.success("Tạo phiên thanh toán thành công!");
+    } catch (e) {
+      console.error(e);
+      toast.error("Không thể tạo phiên thanh toán. Vui lòng thử lại.");
+    } finally {
+      setCheckoutPlanId(null);
+    }
+  };
 
   const plansToRender = useMemo(() => {
     const filtered = plans.filter(
@@ -294,179 +475,26 @@ export default function Page() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0f0a07] text-white">
-      {/* Background (Spline) */}
-      <div className="spline-container absolute top-0 left-0 w-full h-full -z-10">
-        <iframe
-          src="https://my.spline.design/liquidring-PGc8zQXZyDUpVFvWNgohNZnv"
-          frameBorder={0}
-          width="100%"
-          height="100%"
-          id="aura-spline"
-          title="Background"
-        />
-      </div>
-
       <PortalHeader />
 
-      {/* Hero */}
-      <section className="relative w-full pt-10 pb-10">
-        <div className="absolute inset-0">
-          <div className="w-full h-[696px] max-h-[80vh]">
-            <div
-              data-us-project="98LbxUn5KV3Z8vHICb6u"
-              data-scene-id="id-alhsas7ri2bfzixa8mwwf"
-              className="w-full h-full"
-            />
-          </div>
-
-          <Script id="unicornstudio-loader" strategy="afterInteractive">{`
-            !function(){
-              if(!window.UnicornStudio){
-                window.UnicornStudio={isInitialized:!1};
-                var i=document.createElement("script");
-                i.src="https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v1.4.29/dist/unicornStudio.umd.js";
-                i.onload=function(){
-                  window.UnicornStudio.isInitialized||(window.UnicornStudio.init(),window.UnicornStudio.isInitialized=!0)
-                };
-                (document.head||document.body).appendChild(i)
-              }
-            }();
-          `}</Script>
-
-          <div className="absolute inset-0 bg-[radial-gradient(55%_65%_at_50%_18%,rgba(245,158,11,0.22),transparent_62%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(45%_55%_at_20%_30%,rgba(124,45,18,0.18),transparent_60%)]" />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#120b0a]/35 to-[#0f0a07]/95" />
-        </div>
-
-        <div className="relative max-w-7xl mx-auto sm:px-6 lg:px-8 sm:pt-24 px-4">
-          <div className="max-w-3xl text-center mx-auto">
-            <span className="uppercase text-xs text-amber-100/90 tracking-wider">
-              New: Ưu đãi hội viên cà phê
-            </span>
-            <h1
-              className="mt-3 text-4xl sm:text-5xl lg:text-6xl leading-tight tracking-tight"
-              style={{
-                fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
-                fontWeight: 600,
-              }}
-            >
-              FUTURE & BETTER
-            </h1>
-            <p className="mt-6 text-lg text-gray-300 max-w-xl mx-auto">
-              Chúng tôi cung cấp giải pháp thiết kế và cho thuê website hiện
-              đại, giúp cửa hàng dễ dàng xây dựng hình ảnh chuyên nghiệp và phát
-              triển kinh doanh online.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 mt-8 justify-center">
-              <button
-                type="button"
-                aria-label="Primary action"
-                className="group relative inline-flex items-center gap-2 rounded-3xl px-6 py-3 bg-gradient-to-b from-amber-500/20 to-orange-600/35 text-amber-50 font-medium tracking-tight cursor-pointer outline-none transition-all duration-300 ease-out ring-1 ring-orange-300/10 hover:ring-orange-300/30 hover:shadow-[0_0_0_3px_rgba(251,146,60,0.10)] focus-visible:ring-2 focus-visible:ring-orange-300/50 shadow-[inset_0_0_12px_rgba(255,210,160,0.38)] hover:shadow-[inset_0_0_14px_rgba(255,210,160,0.52)] hover:bg-gradient-to-b hover:from-amber-500/25 hover:to-orange-600/45"
-                onClick={() => {
-                  const target = document.getElementById("offers");
-                  target?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
-                  });
-                }}
-              >
-                <span
-                  className="absolute inset-0 rounded-3xl z-0"
-                  style={{
-                    background:
-                      "linear-gradient(180deg, rgba(120,53,15,0) 0%, rgba(120,53,15,0.50) 100%), rgba(245,158,11,0.20)",
-                    boxShadow: "inset 0 0 12px rgba(255,210,160,0.38)",
-                  }}
-                />
-                <span
-                  className="absolute inset-0 rounded-3xl z-0 opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100"
-                  style={{
-                    background:
-                      "linear-gradient(180deg, rgba(120,53,15,0) 0%, rgba(120,53,15,0.62) 100%), rgba(245,158,11,0.26)",
-                    boxShadow: "inset 0 0 14px rgba(255,210,160,0.52)",
-                  }}
-                />
-                <span
-                  className="pointer-events-none absolute inset-0 rounded-3xl z-10"
-                  style={{
-                    padding: "1px",
-                    background:
-                      "linear-gradient(180deg, rgba(255,237,213,0.22) 0%, rgba(255,237,213,0) 100%), linear-gradient(0deg, rgba(255,237,213,0.32), rgba(255,237,213,0.32))",
-                    WebkitMask:
-                      "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                    WebkitMaskComposite: "xor",
-                    maskComposite: "exclude",
-                    borderRadius: "1.5rem",
-                  }}
-                />
-                <span className="relative z-20 flex items-center gap-2">
-                  <span className="text-[15px] leading-none">Nhận ưu đãi</span>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-4 h-4 text-amber-100/90 transition-transform duration-300 ease-out group-hover:translate-x-0.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
-                    />
-                  </svg>
-                </span>
-              </button>
-
-              <Link
-                href="#menu"
-                className="inline-flex items-center gap-2 hover:bg-white/10 transition-all text-gray-100 bg-white/5 border-white/10 border rounded-full px-5 py-3 backdrop-blur-lg"
-              >
-                Xem menu
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="w-4 h-4"
-                >
-                  <path d="M8 3h8" />
-                  <path d="M7 7h10" />
-                  <path d="M8 21h8" />
-                  <path d="M12 7v14" />
-                </svg>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* PRICING */}
       <section
-        className="md:py-32 text-white bg-black mt-0 mb-0 pt-24 pb-24 relative"
+        className="md:py-22 text-white bg-black mt-0 mb-0 pb-24 relative"
         id="pricing"
       >
         <div className="lg:px-8 max-w-6xl mx-auto px-6">
-          <div className="text-center mb-12 md:mb-16 reveal">
+          <div className="text-center mb-12 md:mb-16">
             <p className="text-xs font-semibold tracking-[0.25em] uppercase text-orange-400 mb-3">
-              #GÓI THÀNH VIÊN
+              #GÓI THUÊ
             </p>
             <h2 className="text-3xl md:text-5xl font-semibold leading-tight text-neutral-50">
-              Gói thành viên phù hợp với cửa hàng bạn
+              Gói thuê phù hợp với quy mô cửa hàng
             </h2>
             <p className="mt-3 text-sm md:text-base text-neutral-400 max-w-2xl mx-auto">
-              Tham gia gói thành viên phù hợp để tận hưởng tích điểm và quà tặng
-              theo mùa.
+              Linh hoạt theo tháng hoặc năm, dễ nâng cấp khi cửa hàng phát
+              triển.
             </p>
           </div>
 
-          {/* Billing toggle */}
           <div className="flex justify-center mb-14">
             <div className="inline-flex items-center rounded-full bg-neutral-900/80 border border-neutral-700/70 px-1 py-1 text-sm shadow-[0_18px_60px_rgba(0,0,0,0.85)]">
               <button
@@ -483,7 +511,7 @@ export default function Page() {
               >
                 <span className="mr-2">Theo năm</span>
                 <span className="inline-flex items-center rounded-full bg-orange-500/10 px-2 py-0.5 text-[11px] font-semibold text-orange-400 border border-orange-500/30">
-                  Giảm 30%
+                  Tiết kiệm
                 </span>
               </button>
             </div>
@@ -495,7 +523,6 @@ export default function Page() {
             </p>
           ) : null}
 
-          {/* Cards */}
           <div className="grid gap-6 md:gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
             {plansLoading ? (
               <>
@@ -525,11 +552,14 @@ export default function Page() {
                   plan={plan}
                   billingMode={billingMode}
                   featured={idx === Math.min(1, plansToRender.length - 1)}
+                  onSelect={handleSelectPlan}
+                  disabled={checkoutPlanId != null}
+                  selecting={checkoutPlanId === plan.subscriptionPlanId}
                 />
               ))
             ) : (
               <div className="md:col-span-3 text-center text-sm text-neutral-400">
-                Chưa có gói thành viên.
+                Chưa có gói thuê.
               </div>
             )}
           </div>
