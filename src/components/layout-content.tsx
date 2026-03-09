@@ -24,6 +24,9 @@ export default function LayoutContent({
     pathname === "/forgot" ||
     pathname === "/register" ||
     pathname === "/portal" ||
+    pathname === "/about-us" ||
+    pathname === "/subscription" ||
+    pathname === "/support" ||
     pathname === "/verification";
 
   // useEffect(() => {

@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --experimental-build-mode compile",
+    "build:full": "next build",
     "start": "next start",
     "lint": "eslint"
   },
