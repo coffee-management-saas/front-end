@@ -32,13 +32,13 @@ services:
       - future_saas
 
   frontend:
-    image: hungtruong01/fron-end:latest
+    image: hungtruong01/front-end:latest
     container_name: saas-frontend
     restart: always
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://54.95.117.37:8081
+      NEXT_PUBLIC_API_ENDPOINT: http://54.95.117.37:8081
     depends_on:
       - backend
     networks:
