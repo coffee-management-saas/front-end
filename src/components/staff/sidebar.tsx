@@ -2,15 +2,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  Home,
-  Menu,
-  ShoppingBag,
-  Users,
-  LogOut,
-  BookOpen,
-  Gift,
-} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Menu, Users, LogOut, BookOpen, Gift } from "lucide-react";
 import { useState } from "react";
 import { logoutFromNextClientToNextServer } from "@/services/auth.service";
 import { useAppContext } from "@/app/AppProvider";
@@ -20,6 +13,13 @@ interface SidebarProps {
   isOpen?: boolean;
 }
 
+type MenuItem = {
+  icon: LucideIcon;
+  label: string;
+  href: string;
+  badge?: number;
+};
+
 export default function Sidebar({ isOpen = true }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -27,18 +27,9 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     { icon: Menu, label: "Menu", href: "/staff/menu" },
-    {
-      icon: ShoppingBag,
-      label: "Trạng thái đơn hàng",
-      href: "/staff/order",
-      badge: 0,
-    },
     { icon: BookOpen, label: "Công thức", href: "/staff/recipe" },
-  ];
-
-  const bottomItems = [
     { icon: Users, label: "Nhân viên", href: "/staff/employees" },
     { icon: Gift, label: "Khuyến mãi", href: "/staff/promotion" },
   ];
@@ -73,8 +64,8 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
       </div>
 
       {/* Main Navigation */}
-      <nav className="px-4 flex flex-col justify-between h-[calc(100vh-100px)]">
-        <div className="space-y-1">
+      <nav className="px-4">
+        <div className="space-y-1 pb-6">
           {menuItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
@@ -96,30 +87,6 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
                     {item.badge}
                   </span>
                 )}
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Bottom Navigation */}
-        <div className="space-y-1 pb-6">
-          <div className="border-t border-gray-200 pt-4 mb-4"></div>
-          {bottomItems.map((item) => {
-            const isActive = pathname === item.href;
-            const Icon = item.icon;
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  isActive
-                    ? "text-[#693916] bg-[#cec3bc]"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-[#876F60]"
-                }`}
-              >
-                <Icon size={20} />
-                <span className="text-sm font-medium">{item.label}</span>
               </Link>
             );
           })}

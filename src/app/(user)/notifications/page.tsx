@@ -1,19 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
   Gift,
   ShoppingBag,
   Star,
-  TrendingUp,
-  X,
   Check,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
+
+type BackendNotification = {
+  notificationId?: unknown;
+  recipientId?: unknown;
+  title?: unknown;
+  message?: unknown;
+  isRead?: unknown;
+  referenceLink?: unknown;
+  recipientType?: unknown;
+  type?: unknown;
+  shopId?: unknown;
+  createdAt?: unknown;
+};
+
+type NotificationsApiResponse = {
+  code?: unknown;
+  status?: unknown;
+  message?: unknown;
+  data?: unknown;
+  meta?: unknown;
+};
 
 interface Notification {
   id: number;
@@ -24,64 +43,48 @@ interface Notification {
   read: boolean;
   icon?: React.ReactNode;
   color?: string;
+  link?: string;
 }
 
-// Mock notifications
-const mockNotifications: Notification[] = [
-  {
-    id: 1,
-    type: "order",
-    title: "Đơn hàng đã được giao",
-    message:
-      "Đơn hàng #12345 của bạn đã được giao thành công. Cảm ơn bạn đã mua hàng!",
-    timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-    read: false,
-  },
-  {
-    id: 2,
-    type: "promotion",
-    title: "Khuyến mãi đặc biệt!",
-    message:
-      "Giảm 20% cho tất cả đồ uống size L. Áp dụng từ hôm nay đến hết tuần!",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-    read: false,
-  },
-  {
-    id: 3,
-    type: "rank",
-    title: "Chúc mừng! Bạn đã lên hạng Bạc",
-    message:
-      "Bạn đã tích đủ điểm để lên hạng Bạc. Hãy khám phá các ưu đãi mới dành cho bạn!",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5), // 5 hours ago
-    read: true,
-  },
-  {
-    id: 4,
-    type: "order",
-    title: "Đơn hàng đang được chuẩn bị",
-    message:
-      "Đơn hàng #12344 của bạn đang được chuẩn bị. Dự kiến giao trong 30 phút.",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-    read: true,
-  },
-  {
-    id: 5,
-    type: "promotion",
-    title: "Voucher 50k cho bạn!",
-    message: "Nhận ngay voucher giảm 50k cho đơn hàng từ 200k. Mã: WELCOME50",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
-    read: true,
-  },
-  {
-    id: 6,
-    type: "system",
-    title: "Cập nhật điều khoản sử dụng",
-    message:
-      "Chúng tôi đã cập nhật điều khoản sử dụng. Vui lòng xem lại để biết thêm chi tiết.",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3), // 3 days ago
-    read: true,
-  },
-];
+const safeNumber = (v: unknown) => {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const deriveUiType = (raw: string) => {
+  const t = raw.trim().toUpperCase();
+  if (t.includes("ORDER")) return "order" as const;
+  if (t.includes("PROMOTION") || t.includes("VOUCHER")) return "promotion" as const;
+  if (t.includes("RANK") || t.includes("MEMBER")) return "rank" as const;
+  return "system" as const;
+};
+
+const parseBackendRow = (row: unknown): Notification | null => {
+  if (!row || typeof row !== "object") return null;
+  const r = row as BackendNotification;
+
+  const id = Math.floor(safeNumber(r.notificationId));
+  const title = String(r.title ?? "").trim();
+  const message = String(r.message ?? "").trim();
+  const rawType = String(r.type ?? "").trim();
+  const createdAtRaw = String(r.createdAt ?? "").trim();
+  const timestamp = createdAtRaw ? new Date(createdAtRaw) : new Date();
+  const read = Boolean(r.isRead);
+  const link = typeof r.referenceLink === "string" ? r.referenceLink : undefined;
+
+  if (!id || !title) return null;
+
+  return {
+    id,
+    type: rawType ? deriveUiType(rawType) : "system",
+    title,
+    message,
+    timestamp: Number.isFinite(timestamp.getTime()) ? timestamp : new Date(),
+    read,
+    link,
+  };
+};
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
@@ -114,11 +117,64 @@ const getNotificationIcon = (type: string) => {
 };
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] =
-    useState<Notification[]>(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  useEffect(() => {
+    const controller = new AbortController();
+    let mounted = true;
+
+    (async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const res = await fetch("/api/notifications?page=0&size=100", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        const json = (await res
+          .json()
+          .catch(() => null)) as NotificationsApiResponse | null;
+
+        if (res.status === 401) {
+          throw new Error("Vui lòng đăng nhập để xem thông báo");
+        }
+
+        if (!res.ok || !json || Number(json.code) !== 200) {
+          throw new Error(
+            json?.message ? String(json.message) : "Load notifications failed",
+          );
+        }
+
+        const items = Array.isArray(json.data)
+          ? json.data.map(parseBackendRow).filter(Boolean)
+          : [];
+
+        if (!mounted) return;
+        setNotifications(items as Notification[]);
+      } catch (e) {
+        if (!mounted) return;
+        setLoadError(e instanceof Error ? e.message : "Load notifications failed");
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, []);
+
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications],
+  );
 
   const filteredNotifications =
     filter === "unread" ? notifications.filter((n) => !n.read) : notifications;
@@ -127,14 +183,29 @@ export default function NotificationsPage() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
+
+    void fetch(`/api/notifications/${id}`, {
+      method: "PUT",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      keepalive: true,
+    }).catch(() => null);
   };
 
   const handleMarkAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
 
-  const handleDelete = (id: number) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    const ids = notifications.filter((n) => !n.read).map((n) => n.id);
+    void Promise.allSettled(
+      ids.map((id) =>
+        fetch(`/api/notifications/${id}`, {
+          method: "PUT",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          keepalive: true,
+        }),
+      ),
+    );
   };
 
   const handleClearAll = () => {
@@ -226,7 +297,17 @@ export default function NotificationsPage() {
 
         {/* Notifications List */}
         <div className="space-y-3">
-          {filteredNotifications.length === 0 ? (
+          {isLoading ? (
+            <div className="bg-white rounded-xl p-12 text-center">
+              <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+              <p className="text-sm text-gray-500">Đang tải thông báo...</p>
+            </div>
+          ) : loadError ? (
+            <div className="bg-white rounded-xl p-6 text-center">
+              <Bell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-red-600">{loadError}</p>
+            </div>
+          ) : filteredNotifications.length === 0 ? (
             <div className="bg-white rounded-xl p-12 text-center">
               <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-700 mb-2">
@@ -241,7 +322,10 @@ export default function NotificationsPage() {
               </p>
             </div>
           ) : (
-            filteredNotifications.map((notification) => {
+            filteredNotifications
+              .slice()
+              .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+              .map((notification) => {
               const { icon, color } = getNotificationIcon(notification.type);
 
               return (
@@ -267,13 +351,6 @@ export default function NotificationsPage() {
                         >
                           {notification.title}
                         </h4>
-                        <button
-                          onClick={() => handleDelete(notification.id)}
-                          className="p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
-                          aria-label="Xóa thông báo"
-                        >
-                          <X className="w-4 h-4 text-gray-400" />
-                        </button>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
                         {notification.message}

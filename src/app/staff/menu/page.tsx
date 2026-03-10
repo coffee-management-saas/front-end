@@ -21,7 +21,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -308,14 +307,8 @@ const StaffPosPage = () => {
     categoryIdFromUrl,
   );
   const [search, setSearch] = useState("");
-  const [orderType, setOrderType] = useState<
-    "dine-in" | "take-away" | "delivery"
-  >("dine-in");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCartKey, setSelectedCartKey] = useState<string | null>(null);
-  const [note, setNote] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [placingOrder, setPlacingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
@@ -374,9 +367,6 @@ const StaffPosPage = () => {
       setCart([]);
       setAppliedVoucher(null);
       setVoucherCode("");
-      setNote("");
-      setCustomerName("");
-      setCustomerPhone("");
       try {
         sessionStorage.removeItem("staff-pos-checkout");
       } catch {}
@@ -408,10 +398,6 @@ const StaffPosPage = () => {
 
       const payload = JSON.parse(raw) as {
         cart?: unknown;
-        orderType?: unknown;
-        note?: unknown;
-        customerName?: unknown;
-        customerPhone?: unknown;
         paymentMethod?: unknown;
         voucherCode?: unknown;
         appliedVoucher?: unknown;
@@ -419,19 +405,6 @@ const StaffPosPage = () => {
 
       if (cart.length === 0 && Array.isArray(payload.cart)) {
         setCart(payload.cart as CartItem[]);
-      }
-      if (typeof payload.orderType === "string") {
-        const t = payload.orderType as string;
-        if (t === "dine-in" || t === "take-away" || t === "delivery") {
-          setOrderType(t);
-        }
-      }
-      if (typeof payload.note === "string" && !note) setNote(payload.note);
-      if (typeof payload.customerName === "string" && !customerName) {
-        setCustomerName(payload.customerName);
-      }
-      if (typeof payload.customerPhone === "string" && !customerPhone) {
-        setCustomerPhone(payload.customerPhone);
       }
       if (typeof payload.paymentMethod === "string") {
         const pm = payload.paymentMethod as string;
@@ -485,9 +458,6 @@ const StaffPosPage = () => {
     try {
       const hasData =
         cart.length > 0 ||
-        Boolean(note.trim()) ||
-        Boolean(customerName.trim()) ||
-        Boolean(customerPhone.trim()) ||
         Boolean(voucherCode.trim()) ||
         Boolean(appliedVoucher);
 
@@ -505,10 +475,6 @@ const StaffPosPage = () => {
 
       const payload = {
         cart,
-        orderType,
-        note,
-        customerName,
-        customerPhone,
         paymentMethod,
         voucherCode,
         appliedVoucher,
@@ -522,11 +488,7 @@ const StaffPosPage = () => {
   }, [
     appliedVoucher,
     cart,
-    customerName,
-    customerPhone,
     isSessionRestored,
-    note,
-    orderType,
     paymentMethod,
     voucherCode,
   ]);
@@ -1068,7 +1030,6 @@ const StaffPosPage = () => {
   };
 
   const subTotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const vat = Math.round(subTotal * 0.08);
 
   let voucherDiscount = 0;
   if (appliedVoucher) {
@@ -1091,9 +1052,9 @@ const StaffPosPage = () => {
       voucherDiscount = 0;
     }
   }
-  voucherDiscount = Math.max(0, Math.min(voucherDiscount, subTotal + vat));
+  voucherDiscount = Math.max(0, Math.min(voucherDiscount, subTotal));
 
-  const total = Math.max(subTotal + vat - voucherDiscount, 0);
+  const total = Math.max(subTotal - voucherDiscount, 0);
 
   useEffect(() => {
     if (!appliedVoucher) return;
@@ -1165,9 +1126,6 @@ const StaffPosPage = () => {
       setCart([]);
       setAppliedVoucher(null);
       setVoucherCode("");
-      setNote("");
-      setCustomerName("");
-      setCustomerPhone("");
       try {
         sessionStorage.removeItem("staff-pos-checkout");
       } catch {}
@@ -1520,7 +1478,7 @@ const StaffPosPage = () => {
                   placeholder="Nhập mã voucher"
                   value={voucherCode}
                   onChange={(e) => setVoucherCode(e.target.value)}
-                  className="bg-white h-8 text-xs"
+                  className="bg-white h-8 text-xs w-32 lg:w-40"
                 />
                 <Button
                   type="button"
@@ -1562,67 +1520,11 @@ const StaffPosPage = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-[#cec3bc]/60 bg-gray-50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-[#693916] flex items-center gap-2">
-                <TicketPercent className="w-4 h-4" />
-                Ghi chú & thông tin khách
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Input
-                placeholder="Tên khách"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="bg-white"
-              />
-              <Input
-                placeholder="SĐT / Mã thành viên"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                className="bg-white"
-              />
-              <Textarea
-                placeholder="Ghi chú cho barista (ít đá, không ống hút...)"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                className="bg-white"
-              />
-              {/* Order type */}
-              <div className="flex items-center bg-white rounded-full shadow-sm border border-gray-200 px-1 py-1">
-                {(["dine-in", "take-away", "delivery"] as const).map((type) => {
-                  const active = orderType === type;
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => setOrderType(type)}
-                      className={`px-4 py-2 text-xs font-semibold rounded-full transition-all ${
-                        active
-                          ? "bg-[#cec3bc] text-[#693916] shadow-sm"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-[#876F60]"
-                      }`}
-                    >
-                      {type === "dine-in" && "Tại chỗ"}
-                      {type === "take-away" && "Mang đi"}
-                      {type === "delivery" && "Giao tận nơi"}
-                    </button>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
           <div className="space-y-2 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
             <div className="flex justify-between text-sm text-gray-700">
               <span>Tạm tính</span>
               <span className="font-semibold text-stone-900">
                 {formatVnd(subTotal)}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm text-gray-700">
-              <span>VAT 8%</span>
-              <span className="font-semibold text-stone-900">
-                {formatVnd(vat)}
               </span>
             </div>
             <div className="flex justify-between text-sm text-gray-700">
@@ -1686,13 +1588,6 @@ const StaffPosPage = () => {
               : paymentMethod === "momo"
                 ? "Thanh toán MoMo"
                 : "Xác nhận tiền mặt"}
-          </Button>
-
-          <Button
-            variant="outline"
-            className="w-full h-11 text-sm hover:bg-gray-50 hover:text-[#876F60]"
-          >
-            Lưu nháp / gửi bếp
           </Button>
         </div>
       </div>
