@@ -46,11 +46,61 @@ import { useCart } from "@/contexts/CartContext";
 import type { Promotion } from "@/types/promotion";
 import { useAppContext } from "@/app/AppProvider";
 import { toast } from "sonner";
-import { createOrder, initiatePayment, confirmCashPayment } from "@/services/order.service";
+import {
+  createOrder,
+  initiatePayment,
+  confirmCashPayment,
+} from "@/services/order.service";
 import type { CreateOrderRequest } from "@/types/order";
 import Link from "next/link";
 
 type DeliveryMethod = "delivery" | "pickup";
+type AuthRole = "SHOP" | "EMPLOYEE" | "SYSTEM" | "USER";
+
+function getRoleFromAccessToken(token: string): AuthRole | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(
+      base64.length + ((4 - (base64.length % 4)) % 4),
+      "=",
+    );
+
+    const payload = JSON.parse(atob(padded)) as {
+      role?: unknown;
+      roles?: unknown;
+      authorities?: unknown;
+    };
+
+    const rawRole =
+      payload?.role ??
+      (Array.isArray(payload?.roles) ? payload.roles[0] : null) ??
+      (Array.isArray(payload?.authorities) ? payload.authorities[0] : null);
+
+    if (!rawRole) return null;
+
+    const normalized = String(rawRole).toUpperCase();
+    const role = normalized.startsWith("ROLE_")
+      ? normalized.slice(5)
+      : normalized;
+
+    if (
+      role === "SHOP" ||
+      role === "EMPLOYEE" ||
+      role === "SYSTEM" ||
+      role === "USER"
+    ) {
+      return role;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("vi-VN", {
@@ -71,6 +121,13 @@ const CheckoutContent = () => {
     useCart();
   const { accessToken } = useAppContext();
   const searchParams = useSearchParams();
+  const role = useMemo(
+    () => (accessToken ? getRoleFromAccessToken(accessToken) : null),
+    [accessToken],
+  );
+  const isStaffRole =
+    role === "EMPLOYEE" || role === "SHOP" || role === "SYSTEM";
+  const backHomePath = role === "EMPLOYEE" ? "/staff/menu" : "/";
 
   const [currentStep, setCurrentStep] = useState(0);
   const [deliveryMethod, setDeliveryMethod] =
@@ -106,7 +163,7 @@ const CheckoutContent = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
-    if (accessToken) {
+    if (accessToken && !isStaffRole) {
       const fetchProfile = async () => {
         setIsLoadingProfile(true);
         try {
@@ -133,7 +190,7 @@ const CheckoutContent = () => {
       };
       fetchProfile();
     }
-  }, [accessToken]);
+  }, [accessToken, isStaffRole]);
 
   useEffect(() => {
     const resultCode = searchParams.get("resultCode");
@@ -227,6 +284,7 @@ const CheckoutContent = () => {
 
   const handleUpdateAddress = async () => {
     if (!accessToken) return;
+    if (isStaffRole) return;
     if (!address.trim()) {
       toast.error("Vui lòng nhập địa chỉ");
       return;
@@ -398,8 +456,8 @@ const CheckoutContent = () => {
         voucherDiscount: Math.max(
           0,
           subtotal +
-          (deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0) -
-          total,
+            (deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0) -
+            total,
         ),
         total,
       };
@@ -690,7 +748,7 @@ const CheckoutContent = () => {
                             localItem?.productName ||
                             capturedItems[
                               fetchedItem?.productVariantId ||
-                              localItem?.variantId
+                                localItem?.variantId
                             ]?.name ||
                             "Sản phẩm";
                           const size =
@@ -774,20 +832,20 @@ const CheckoutContent = () => {
                                     fetchedItem?.toppingPerOrderItems ||
                                     localItem?.toppings
                                   )?.length > 0 && (
-                                      <div className="text-xs text-gray-600">
-                                        Topping:{" "}
-                                        {isFetchedItem
-                                          ? fetchedItem.toppingPerOrderItems
+                                    <div className="text-xs text-gray-600">
+                                      Topping:{" "}
+                                      {isFetchedItem
+                                        ? fetchedItem.toppingPerOrderItems
                                             .map((t: any) => t.toppingName)
                                             .join(", ")
-                                          : localItem.toppings
+                                        : localItem.toppings
                                             .map(
                                               (t: any) =>
                                                 `${t.name} x${t.quantity}`,
                                             )
                                             .join(", ")}
-                                      </div>
-                                    )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
@@ -1002,13 +1060,13 @@ const CheckoutContent = () => {
                           "font-medium flex items-center gap-2",
                           paymentMethod === "momo" ||
                             successOrder?.paymentGateway?.toLowerCase() ===
-                            "momo"
+                              "momo"
                             ? "text-pink-600"
                             : "text-amber-800",
                         )}
                       >
                         {paymentMethod === "momo" ||
-                          successOrder?.paymentGateway?.toLowerCase() ===
+                        successOrder?.paymentGateway?.toLowerCase() ===
                           "momo" ? (
                           <>
                             <Image
@@ -1045,7 +1103,7 @@ const CheckoutContent = () => {
                         // Resilient Fallback Logic
                         const fallbackList = JSON.parse(
                           sessionStorage.getItem("last_order_items_fallback") ||
-                          "[]",
+                            "[]",
                         );
                         const fallback = fallbackList[idx];
 
@@ -1133,7 +1191,7 @@ const CheckoutContent = () => {
                     Tiếp tục mua hàng
                   </Button>
                   <Button
-                    onClick={() => router.push("/")}
+                    onClick={() => router.push(backHomePath)}
                     variant="outline"
                     className="h-11 border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
                   >
@@ -1266,10 +1324,10 @@ const CheckoutContent = () => {
                                 </div>
                                 {tempSelectedVoucher?.promotionId ===
                                   promo.promotionId && (
-                                    <div className="self-center">
-                                      <CheckCircle2 className="w-5 h-5 text-amber-600" />
-                                    </div>
-                                  )}
+                                  <div className="self-center">
+                                    <CheckCircle2 className="w-5 h-5 text-amber-600" />
+                                  </div>
+                                )}
                               </div>
                             ))
                         )}

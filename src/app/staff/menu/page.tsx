@@ -1506,27 +1506,27 @@ const StaffPosPage = () => {
           </div>
         )}
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 space-y-3">
           <Card className="border border-[#cec3bc]/60 bg-white">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-[#693916] flex items-center gap-2">
-                <TicketPercent className="w-4 h-4" />
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-xs font-semibold text-[#693916] flex items-center gap-1.5">
+                <TicketPercent className="w-3.5 h-3.5" />
                 Voucher
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="px-4 pb-4 pt-0 space-y-2">
               <div className="flex items-center gap-2">
                 <Input
                   placeholder="Nhập mã voucher"
                   value={voucherCode}
                   onChange={(e) => setVoucherCode(e.target.value)}
-                  className="bg-white h-9"
+                  className="bg-white h-8 text-xs"
                 />
                 <Button
                   type="button"
                   onClick={handleApplyVoucher}
                   disabled={promoLoading}
-                  className="h-9 rounded-full bg-[#693916] hover:bg-[#876F60] text-white px-4 text-xs"
+                  className="h-8 rounded-full bg-[#693916] hover:bg-[#876F60] text-white px-3 text-[11px]"
                 >
                   Áp dụng
                 </Button>

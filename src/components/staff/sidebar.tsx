@@ -28,7 +28,6 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   const menuItems = [
-    { icon: Home, label: "Quản lý", href: "/staff" },
     { icon: Menu, label: "Menu", href: "/staff/menu" },
     {
       icon: ShoppingBag,
