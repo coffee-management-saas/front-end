@@ -1,7 +1,7 @@
 export async function refreshFromNextClientToNextServer(): Promise<{
   data: { accessToken: string; expiresAt: string };
 }> {
-  const res = await fetch("/api/auth/refresh", {
+  const res = await fetch("/api-session/refresh", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -15,7 +15,7 @@ export async function refreshFromNextClientToNextServer(): Promise<{
   return payload;
 }
 export async function logoutFromNextClientToNextServer() {
-  const res = await fetch("/api/auth/logout", { method: "POST" });
+  const res = await fetch("/api-session/logout", { method: "POST" });
   const payload = await res.json().catch(() => null);
 
   if (!res.ok) {
