@@ -5,7 +5,6 @@ import {
   User,
   ShoppingBag,
   Users,
-  Star,
   LogOut,
   ChevronRight,
   Coffee,
@@ -13,7 +12,7 @@ import {
   Mail,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,8 +34,9 @@ export default function PhucLongHeader() {
   const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<{
     type: "delivery" | "pickup" | null;
-    data?: any;
+    data?: unknown;
   }>({ type: null });
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
@@ -49,6 +49,127 @@ export default function PhucLongHeader() {
     () => Boolean(tokens?.accessToken),
     [tokens?.accessToken],
   );
+
+  const markAllReadRef = useRef(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUnreadNotifications(0);
+      return;
+    }
+
+    const controller = new AbortController();
+    let mounted = true;
+
+    const countUnread = (raw: unknown) => {
+      if (!raw || typeof raw !== "object") return 0;
+      const obj = raw as Record<string, unknown>;
+      if (Number(obj.code) !== 200 || !Array.isArray(obj.data)) return 0;
+      return obj.data.reduce((acc, item) => {
+        if (!item || typeof item !== "object") return acc;
+        const it = item as Record<string, unknown>;
+        return it.isRead === false ? acc + 1 : acc;
+      }, 0);
+    };
+
+    (async () => {
+      try {
+        const res = await fetch("/api/notifications?page=0&size=100", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const json = (await res.json().catch(() => null)) as unknown;
+        if (!mounted) return;
+        setUnreadNotifications(countUnread(json));
+      } catch {
+        if (mounted) setUnreadNotifications(0);
+      }
+    })();
+
+    const onUnread = (ev: Event) => {
+      const e = ev as CustomEvent<unknown>;
+      const n =
+        typeof e.detail === "number" && Number.isFinite(e.detail)
+          ? Math.max(0, Math.floor(e.detail))
+          : null;
+      if (n !== null) setUnreadNotifications(n);
+    };
+
+    window.addEventListener("notifications:unread", onUnread as EventListener);
+
+    return () => {
+      mounted = false;
+      controller.abort();
+      window.removeEventListener(
+        "notifications:unread",
+        onUnread as EventListener,
+      );
+    };
+  }, [isAuthenticated]);
+
+  const getUnreadIds = (raw: unknown): number[] => {
+    if (!raw || typeof raw !== "object") return [];
+    const obj = raw as Record<string, unknown>;
+    if (Number(obj.code) !== 200 || !Array.isArray(obj.data)) return [];
+
+    const ids: number[] = [];
+    for (const item of obj.data) {
+      if (!item || typeof item !== "object") continue;
+      const it = item as Record<string, unknown>;
+      if (it.isRead !== false) continue;
+      const id = Math.floor(Number(it.notificationId));
+      if (Number.isFinite(id) && id > 0) ids.push(id);
+    }
+    return ids;
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    if (!isAuthenticated || unreadNotifications <= 0) return;
+    if (markAllReadRef.current) return;
+    markAllReadRef.current = true;
+
+    try {
+      const res = await fetch("/api/notifications?page=0&size=100", {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      const json = (await res.json().catch(() => null)) as unknown;
+      const ids = getUnreadIds(json);
+      if (!ids.length) {
+        setUnreadNotifications(0);
+        window.dispatchEvent(
+          new CustomEvent("notifications:unread", { detail: 0 }),
+        );
+        return;
+      }
+
+      await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/notifications/${id}`, {
+            method: "PUT",
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+            keepalive: true,
+          }),
+        ),
+      );
+
+      setUnreadNotifications(0);
+      window.dispatchEvent(
+        new CustomEvent("notifications:unread", { detail: 0 }),
+      );
+      window.dispatchEvent(
+        new CustomEvent("notifications:mark-read", { detail: ids }),
+      );
+    } catch (e) {
+      console.error(e);
+    } finally {
+      markAllReadRef.current = false;
+    }
+  };
 
   useEffect(() => {
     const run = async () => {
@@ -100,14 +221,23 @@ export default function PhucLongHeader() {
 
   const handleSelectDeliveryMethod = (
     method: "delivery" | "pickup",
-    data?: any,
+    data?: unknown,
   ) => {
     setDeliveryMethod({ type: method, data });
 
+    const payload = data as
+      | { address?: string; store?: { name?: string } }
+      | null
+      | undefined;
+
     if (method === "delivery") {
-      toast.success(`Đã chọn giao hàng đến: ${data.address}`);
+      toast.success(
+        `Đã chọn giao hàng đến: ${payload?.address ? String(payload.address) : "—"}`,
+      );
     } else if (method === "pickup") {
-      toast.success(`Đã chọn nhận tại: ${data.store.name}`);
+      toast.success(
+        `Đã chọn nhận tại: ${payload?.store?.name ? String(payload.store.name) : "—"}`,
+      );
     }
 
     // Save to localStorage for persistence
@@ -158,10 +288,19 @@ export default function PhucLongHeader() {
           </button>
 
           {/* Mail/Notification Icon with Dropdown */}
-          <div className="relative group">
+          <div
+            className="relative group"
+            onMouseEnter={() => {
+              void markAllNotificationsAsRead();
+            }}
+          >
             <button className="relative p-2 rounded-full hover:bg-amber-50 transition-all">
               <Mail className="w-6 h-6 text-[#693916] group-hover:text-amber-600" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              {unreadNotifications > 0 ? (
+                <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-semibold flex items-center justify-center">
+                  {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                </span>
+              ) : null}
             </button>
 
             {/* Dropdown - appears on hover */}
