@@ -340,6 +340,24 @@ export async function initiatePayment(
   return parseJsonSafely<OrderResponse>(res);
 }
 
+export async function payWithMomo(
+  accessToken: string,
+  orderId: number,
+  returnUrl?: string,
+): Promise<OrderResponse> {
+  const resolvedReturnUrl =
+    returnUrl ||
+    (typeof window !== "undefined"
+      ? `${window.location.origin}/order?orderId=${orderId}`
+      : "");
+
+  if (!resolvedReturnUrl) {
+    throw new ApiError("Missing returnUrl", 400);
+  }
+
+  return initiatePayment(accessToken, orderId, resolvedReturnUrl);
+}
+
 export async function initiateEmployeePayment(
   accessToken: string,
   orderId: number,
