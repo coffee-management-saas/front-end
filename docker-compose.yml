@@ -1,0 +1,52 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: saas-db
+    restart: always
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: future_saas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+    volumes:
+      - pgvector-data:/var/lib/postgresql/data
+    networks:
+      - future_saas
+
+  backend:
+    image: hungtruong01/back-end:latest
+    container_name: saas-backend
+    restart: always
+    ports:
+      - "8081:8080"
+    env_file:
+      - .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/future_saas
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+    depends_on:
+      - db
+    networks:
+      - future_saas
+
+  frontend:
+    image: hungtruong01/fron-end:latest
+    container_name: saas-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://54.95.117.37:8081
+    depends_on:
+      - backend
+    networks:
+      - future_saas
+
+networks:
+  future_saas:
+    driver: bridge
+
+volumes:
+  pgvector-data:
