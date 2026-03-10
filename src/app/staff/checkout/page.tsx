@@ -6,11 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
+  Clock3,
   Minus,
   Plus,
   QrCode,
   Receipt,
   ShoppingCart,
+  ShieldCheck,
   TicketPercent,
   Trash2,
 } from "lucide-react";
@@ -18,22 +20,15 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { ApiError, canUseImage, FALLBACK_IMG } from "@/lib/utils";
 import {
   createEmployeeOrder,
+  getOrderById,
   initiateEmployeePayment,
 } from "@/services/order.service";
 import { useAppContext } from "@/app/AppProvider";
-import type { CreateOrderRequest } from "@/types/order";
+import type { CreateOrderRequest, OrderResponse } from "@/types/order";
 import type { Promotion } from "@/types/promotion";
 
 type LevelOption = "Ít" | "Bình thường" | "Nhiều";
@@ -62,14 +57,10 @@ type CartItem = {
 
 type StaffCheckoutPayload = {
   cart: CartItem[];
-  orderType: "dine-in" | "take-away" | "delivery";
   paymentMethod?: PaymentMethod;
-  note: string;
-  customerName: string;
-  customerPhone: string;
-  voucherCode: string;
-  appliedVoucher: Promotion | null;
-  createdAt: number;
+  voucherCode?: string;
+  appliedVoucher?: Promotion | null;
+  createdAt?: number;
 };
 
 const formatVnd = (val: number) =>
@@ -98,18 +89,13 @@ export default function StaffCheckoutPage() {
   const [step, setStep] = useState<0 | 1 | 2>(1);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
+  const [successOrder, setSuccessOrder] = useState<OrderResponse | null>(null);
+  const [lastPlacedCart, setLastPlacedCart] = useState<CartItem[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
   const [hydrateError, setHydrateError] = useState<string | null>(null);
-  const [isSuccessDetailOpen, setIsSuccessDetailOpen] = useState(false);
 
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [orderType, setOrderType] = useState<
-    "dine-in" | "take-away" | "delivery"
-  >("dine-in");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-  const [note, setNote] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
 
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<Promotion | null>(null);
@@ -125,6 +111,18 @@ export default function StaffCheckoutPage() {
     const orderIdParam = searchParams.get("orderId");
 
     if (resultCode === "0") {
+      try {
+        const raw = sessionStorage.getItem("staff-pos-checkout");
+        const payload = raw ? (JSON.parse(raw) as { cart?: unknown }) : null;
+        if (payload && Array.isArray(payload.cart)) {
+          setLastPlacedCart(payload.cart as CartItem[]);
+        } else {
+          setLastPlacedCart([]);
+        }
+      } catch {
+        setLastPlacedCart([]);
+      }
+
       let realOrderId = orderIdParam;
       if (realOrderId && realOrderId.includes("_")) {
         const parts = realOrderId.split("_");
@@ -132,11 +130,26 @@ export default function StaffCheckoutPage() {
       }
 
       const parsed = realOrderId ? Number(realOrderId) : NaN;
-      if (Number.isFinite(parsed)) setCreatedOrderId(parsed);
+      if (Number.isFinite(parsed)) {
+        setCreatedOrderId(parsed);
+        setPaymentMethod("momo");
+        if (tokens.accessToken) {
+          getOrderById(tokens.accessToken, parsed)
+            .then((order) => setSuccessOrder(order))
+            .catch(() => setSuccessOrder(null));
+        } else {
+          setSuccessOrder(null);
+        }
+      }
 
       toast.success("Thanh toán MoMo thành công!");
       setStep(2);
-      sessionStorage.removeItem("staff-pos-checkout");
+      setCart([]);
+      setAppliedVoucher(null);
+      setVoucherCode("");
+      try {
+        sessionStorage.removeItem("staff-pos-checkout");
+      } catch {}
     } else {
       toast.error(`Thanh toán thất bại: ${message || resultCode}`);
       setStep(1);
@@ -146,7 +159,7 @@ export default function StaffCheckoutPage() {
       const newUrl = window.location.pathname;
       window.history.replaceState({}, "", newUrl);
     } catch {}
-  }, [searchParams]);
+  }, [searchParams, tokens.accessToken]);
 
   useEffect(() => {
     try {
@@ -186,11 +199,7 @@ export default function StaffCheckoutPage() {
       }
 
       setCart(payload.cart);
-      setOrderType(payload.orderType ?? "dine-in");
       setPaymentMethod(payload.paymentMethod ?? "cash");
-      setNote(payload.note ?? "");
-      setCustomerName(payload.customerName ?? "");
-      setCustomerPhone(payload.customerPhone ?? "");
       setVoucherCode(payload.voucherCode ?? "");
       setAppliedVoucher(payload.appliedVoucher ?? null);
       setHydrateError(null);
@@ -232,7 +241,6 @@ export default function StaffCheckoutPage() {
     () => cart.reduce((sum, i) => sum + i.price * i.quantity, 0),
     [cart],
   );
-  const vat = useMemo(() => Math.round(subTotal * 0.08), [subTotal]);
 
   const voucherDiscount = useMemo(() => {
     if (!appliedVoucher) return 0;
@@ -260,13 +268,57 @@ export default function StaffCheckoutPage() {
       discount = 0;
     }
 
-    return Math.max(0, Math.min(discount, subTotal + vat));
-  }, [appliedVoucher, subTotal, vat]);
+    return Math.max(0, Math.min(discount, subTotal));
+  }, [appliedVoucher, subTotal]);
 
   const total = useMemo(
-    () => Math.max(subTotal + vat - voucherDiscount, 0),
-    [subTotal, vat, voucherDiscount],
+    () => Math.max(subTotal - voucherDiscount, 0),
+    [subTotal, voucherDiscount],
   );
+
+  const successPaymentGateway =
+    successOrder?.paymentGateway ?? (paymentMethod === "momo" ? "MOMO" : "CASH");
+
+  const successItems = useMemo(() => {
+    if (successOrder?.orderItems?.length) {
+      return successOrder.orderItems.map((item) => {
+        const toppings =
+          item.toppingPerOrderItems
+            ?.map((t) => t.toppingName)
+            .filter((t): t is string => Boolean(t && String(t).trim())) ?? [];
+        return {
+          name: item.productName || "Sản phẩm",
+          size: item.sizeName || "-",
+          quantity: item.quantity || 1,
+          unitPrice: item.unitPrice || 0,
+          toppings,
+        };
+      });
+    }
+
+    return lastPlacedCart.map((item) => {
+      const toppings = item.toppings
+        .filter((t) => t.quantity > 0)
+        .map((t) => t.name)
+        .filter((t): t is string => Boolean(t && String(t).trim()));
+      return {
+        name: item.name,
+        size: item.size,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        toppings,
+      };
+    });
+  }, [lastPlacedCart, successOrder?.orderItems]);
+
+  const successTotal = useMemo(() => {
+    if (typeof successOrder?.paidPrice === "number") return successOrder.paidPrice;
+    if (typeof successOrder?.basePrice === "number") return successOrder.basePrice;
+    return successItems.reduce(
+      (sum, item) => sum + (item.unitPrice || 0) * (item.quantity || 0),
+      0,
+    );
+  }, [successItems, successOrder?.basePrice, successOrder?.paidPrice]);
 
   useEffect(() => {
     if (!isHydrated || hydrateError) return;
@@ -277,11 +329,7 @@ export default function StaffCheckoutPage() {
         : {};
       const next: StaffCheckoutPayload = {
         cart,
-        orderType,
         paymentMethod,
-        note,
-        customerName,
-        customerPhone,
         voucherCode,
         appliedVoucher,
         createdAt: Number(prev.createdAt ?? Date.now()),
@@ -293,12 +341,8 @@ export default function StaffCheckoutPage() {
   }, [
     appliedVoucher,
     cart,
-    customerName,
-    customerPhone,
     hydrateError,
     isHydrated,
-    note,
-    orderType,
     paymentMethod,
     voucherCode,
   ]);
@@ -362,7 +406,9 @@ export default function StaffCheckoutPage() {
     setPlacingOrder(true);
     try {
       const returnUrl =
-        typeof window !== "undefined" ? window.location.href : "";
+        typeof window !== "undefined"
+          ? window.location.origin + window.location.pathname
+          : "";
       const payload: CreateOrderRequest = {
         orderType: "OFFLINE",
         promotionCode: appliedVoucher?.promotionCode,
@@ -401,13 +447,24 @@ export default function StaffCheckoutPage() {
 
         throw new Error("Không lấy được link thanh toán MoMo");
       }
+      setLastPlacedCart(cart);
       setCreatedOrderId(res.orderId);
+      const fullOrder = await getOrderById(
+        tokens.accessToken,
+        Number(res.orderId),
+      ).catch(() => res);
+      setSuccessOrder(fullOrder);
       setStep(2);
       toast.success("Thanh toán thành công!");
       try {
         window.scrollTo(0, 0);
       } catch {}
-      sessionStorage.removeItem("staff-pos-checkout");
+      setCart([]);
+      setAppliedVoucher(null);
+      setVoucherCode("");
+      try {
+        sessionStorage.removeItem("staff-pos-checkout");
+      } catch {}
     } catch (e) {
       console.error(e);
       if (e instanceof ApiError) {
@@ -501,163 +558,134 @@ export default function StaffCheckoutPage() {
         </header>
 
         {step === 2 ? (
-          <Card className="border border-gray-100 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-[#693916]">
-                <CheckCircle2 className="w-5 h-5" />
-                Thành công
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-gray-700">
-                Đã tạo đơn{" "}
-                <span className="font-semibold text-stone-900">
-                  #{createdOrderId ?? "-"}
-                </span>
-                .
-              </p>
-              <div className="rounded-xl border border-gray-100 bg-white p-3 text-sm text-gray-700 space-y-1">
-                <div className="flex justify-between gap-3">
-                  <span className="text-gray-600">Phương thức</span>
-                  <span className="font-semibold text-stone-900">
-                    {paymentMethod === "momo" ? "MoMo" : "Tiền mặt"}
-                  </span>
+          <div className="space-y-4">
+            <Card className="border-green-200 bg-green-50/60 shadow-md">
+              <CardContent className="p-6 flex items-start gap-4">
+                <div className="rounded-full bg-green-100 text-green-700 p-3">
+                  <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-gray-600">Khách</span>
-                  <span className="font-semibold text-stone-900">
-                    {customerName.trim() ? customerName.trim() : "Khách lẻ"}
-                  </span>
+                <div className="flex-1">
+                  <p className="text-lg font-semibold text-stone-900">
+                    Thanh toán thành công
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {createdOrderId ? `Mã đơn #${createdOrderId}` : "Đơn đã được ghi nhận."}
+                  </p>
                 </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-gray-600">SĐT</span>
-                  <span className="font-semibold text-stone-900">
-                    {customerPhone.trim() ? customerPhone.trim() : "-"}
-                  </span>
-                </div>
-                <div className="h-px bg-gray-100 my-1" />
-                <div className="flex justify-between gap-3 text-[#693916]">
-                  <span className="font-semibold">Tổng thanh toán</span>
-                  <span className="font-bold">{formatVnd(total)}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  className="bg-[#693916] hover:bg-[#876F60] text-white"
-                  onClick={() => router.push("/staff/menu")}
-                >
-                  Tạo đơn mới
-                </Button>
-                <Dialog
-                  open={isSuccessDetailOpen}
-                  onOpenChange={setIsSuccessDetailOpen}
-                >
-                  <DialogTrigger asChild>
-                    <Button variant="outline" type="button">
-                      Xem chi tiết
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Chi tiết thanh toán</DialogTitle>
-                    </DialogHeader>
+              </CardContent>
+            </Card>
 
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="rounded-lg border border-gray-100 bg-white p-2">
-                          <p className="text-[11px] text-gray-500">Khách</p>
-                          <p className="font-semibold text-stone-900">
-                            {customerName.trim()
-                              ? customerName.trim()
-                              : "Khách lẻ"}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border border-gray-100 bg-white p-2">
-                          <p className="text-[11px] text-gray-500">SĐT</p>
-                          <p className="font-semibold text-stone-900">
-                            {customerPhone.trim() ? customerPhone.trim() : "-"}
-                          </p>
-                        </div>
+            <Card className="border-gray-100 bg-white shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Thông tin đơn hàng</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  <div className="rounded-xl border border-gray-100 p-3 bg-gray-50/40">
+                    <p className="text-xs text-gray-500">Mã đơn</p>
+                    <p className="font-semibold text-stone-900 mt-1">
+                      {createdOrderId ? `#${createdOrderId}` : "-"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 p-3 bg-gray-50/40">
+                    <p className="text-xs text-gray-500">Thanh toán</p>
+                    <p className="font-semibold text-stone-900 mt-1">
+                      {successPaymentGateway}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 p-3 bg-gray-50/40">
+                    <p className="text-xs text-gray-500">Tổng tiền</p>
+                    <p className="font-semibold text-[#693916] mt-1">
+                      {formatVnd(successTotal)}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  className={`p-3 text-center border rounded-xl ${
+                    String(successOrder?.orderStatus || "").toUpperCase() === "PAID"
+                      ? "bg-green-50 border-green-100 text-green-700"
+                      : "bg-amber-50 border-amber-100 text-amber-700"
+                  }`}
+                >
+                  <p className="text-xs font-medium flex items-center justify-center gap-1">
+                    {String(successOrder?.orderStatus || "").toUpperCase() === "PAID" ? (
+                      <ShieldCheck className="w-3 h-3" />
+                    ) : (
+                      <Clock3 className="w-3 h-3" />
+                    )}
+                    {String(successOrder?.orderStatus || "").toUpperCase() === "PAID"
+                      ? "Đơn hàng đã được xác nhận thanh toán"
+                      : "Đơn hàng đang chờ xử lý thanh toán"}
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Chi tiết món đã đặt
+                  </p>
+                  <div className="space-y-3 mt-3">
+                    {successItems.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-sm text-gray-600">
+                        Không có chi tiết món để hiển thị.
                       </div>
-
-                      <div className="space-y-2">
-                        {cart.map((item, idx) => (
-                          <div
-                            key={`${item.id}-${item.variantId}-${idx}`}
-                            className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3"
-                          >
-                            <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-gray-50">
-                              <Image
-                                src={safeImageSrc(item.image)}
-                                alt={item.name}
-                                fill
-                                sizes="48px"
-                                className="object-cover"
-                              />
+                    ) : (
+                      successItems.map((item, idx) => (
+                        <div
+                          key={`${item.name}-${idx}`}
+                          className="flex justify-between items-start text-sm bg-gray-50/50 p-3 rounded-lg border border-gray-100/50"
+                        >
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-900">
+                              {item.name}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-bold uppercase">
+                                Size {item.size}
+                              </span>
+                              <span className="text-gray-500 font-medium">
+                                x{item.quantity}
+                              </span>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-stone-900 line-clamp-1">
-                                {item.name}
+                            {item.toppings.length > 0 && (
+                              <p className="text-[11px] text-gray-500 mt-1.5 italic">
+                                + Topping: {item.toppings.join(", ")}
                               </p>
-                              <p className="text-[11px] text-gray-600 line-clamp-1">
-                                Size {item.size} • Đá {item.ice}
-                                {item.toppings.length > 0 ? " • " : ""}
-                                {item.toppings.length > 0
-                                  ? `Topping: ${item.toppings
-                                      .map((t) => `${t.name} x${t.quantity}`)
-                                      .join(", ")}`
-                                  : ""}
-                              </p>
-                              <p className="text-[11px] text-gray-500">
-                                {formatVnd(item.price)} x {item.quantity}
-                              </p>
-                            </div>
-                            <div className="text-sm font-bold text-[#693916]">
-                              {formatVnd(item.price * item.quantity)}
-                            </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
+                          <div className="text-right ml-4">
+                            <span className="font-semibold text-gray-900">
+                              {formatVnd(
+                                (item.unitPrice || 0) * (item.quantity || 0),
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-                      <div className="rounded-xl border border-gray-100 bg-white p-3 space-y-1 text-sm">
-                        <div className="flex justify-between text-gray-700">
-                          <span>Tạm tính</span>
-                          <span className="font-semibold text-stone-900">
-                            {formatVnd(subTotal)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-gray-700">
-                          <span>VAT 8%</span>
-                          <span className="font-semibold text-stone-900">
-                            {formatVnd(vat)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-gray-700">
-                          <span>Voucher</span>
-                          <span className="font-semibold text-[#693916]">
-                            -{formatVnd(voucherDiscount)}
-                          </span>
-                        </div>
-                        <div className="h-px bg-gray-100 my-1" />
-                        <div className="flex justify-between font-bold text-[#693916]">
-                          <span>Tổng thanh toán</span>
-                          <span>{formatVnd(total)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-                <Button
-                  variant="outline"
-                  type="button"
-                  onClick={() => router.push("/staff/order")}
-                >
-                  Xem đơn
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <Button
+                onClick={() => router.push("/staff/menu")}
+                className="h-11 bg-[#7a4a2a] hover:bg-[#986d50] text-white shadow-md shadow-amber-900/10"
+                type="button"
+              >
+                Tiếp tục bán
+              </Button>
+              <Button
+                onClick={() => router.push("/staff/order")}
+                variant="outline"
+                className="h-11 border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                type="button"
+              >
+                Xem đơn
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             <div className="lg:col-span-7 space-y-3">
@@ -741,54 +769,7 @@ export default function StaffCheckoutPage() {
                 </CardContent>
               </Card>
 
-              {step === 1 && (
-                <Card className="border border-gray-100 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold text-stone-900 flex items-center gap-2">
-                      <Receipt className="w-4 h-4 text-[#693916]" />
-                      Ghi chú & thông tin khách (tuỳ chọn)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <Input
-                      placeholder="Tên khách (tuỳ chọn)"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      className="bg-white"
-                    />
-                    <Input
-                      placeholder="SĐT (tuỳ chọn)"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="bg-white"
-                    />
-                    <Textarea
-                      placeholder="Ghi chú cho barista (ít đá, không ống hút...)"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      className="bg-white"
-                    />
-                    <div className="flex items-center bg-white rounded-full shadow-sm border border-gray-200 px-1 py-1">
-                      {(["dine-in", "take-away", "delivery"] as const).map(
-                        (t) => (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => setOrderType(t)}
-                            className={`px-4 py-2 text-xs font-semibold rounded-full transition-all ${orderType === t ? "bg-[#cec3bc] text-[#693916] shadow-sm" : "text-gray-600 hover:bg-gray-50 hover:text-[#876F60]"}`}
-                          >
-                            {t === "dine-in"
-                              ? "Tại chỗ"
-                              : t === "take-away"
-                                ? "Mang đi"
-                                : "Giao tận nơi"}
-                          </button>
-                        ),
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+
             </div>
 
             <div className="lg:col-span-5 space-y-3">
@@ -852,12 +833,6 @@ export default function StaffCheckoutPage() {
                     <span>Tạm tính</span>
                     <span className="font-semibold text-stone-900">
                       {formatVnd(subTotal)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm text-gray-700">
-                    <span>VAT 8%</span>
-                    <span className="font-semibold text-stone-900">
-                      {formatVnd(vat)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm text-gray-700">

@@ -477,7 +477,9 @@ function BarChart({
 
   const avg = useMemo(() => {
     if (!safeValues.length) return 0;
-    return safeValues.reduce((a, b) => a + safeNumber(b), 0) / safeValues.length;
+    return (
+      safeValues.reduce((a, b) => a + safeNumber(b), 0) / safeValues.length
+    );
   }, [safeValues]);
 
   if (!safeValues.length) {
@@ -590,7 +592,13 @@ function BarChart({
             <stop offset="0%" stopColor="#f6d15c" stopOpacity="1" />
             <stop offset="100%" stopColor="#c58a45" stopOpacity="0.95" />
           </linearGradient>
-          <filter id="ordersShadow" x="-30%" y="-30%" width="160%" height="160%">
+          <filter
+            id="ordersShadow"
+            x="-30%"
+            y="-30%"
+            width="160%"
+            height="160%"
+          >
             <feDropShadow
               dx="0"
               dy="2"
@@ -918,7 +926,13 @@ const parseTopProducts = (raw: unknown): TopProductRow[] => {
     .filter((x): x is TopProductRow => Boolean(x));
 };
 
-const TOP_PRODUCT_COLORS = ["#60a5fa", "#34d399", "#a78bfa", "#fb923c", "#fbbf24"];
+const TOP_PRODUCT_COLORS = [
+  "#60a5fa",
+  "#34d399",
+  "#a78bfa",
+  "#fb923c",
+  "#fbbf24",
+];
 
 type TopProductsMonthlyModel = {
   products: { productId: number; name: string; color: string }[];
@@ -936,7 +950,10 @@ const buildTopProductsMonthlyModel = (
     if (current) {
       current.total += qty;
     } else {
-      totalsByProductId.set(row.productId, { name: row.productName, total: qty });
+      totalsByProductId.set(row.productId, {
+        name: row.productName,
+        total: qty,
+      });
     }
   }
 
@@ -957,7 +974,12 @@ const buildTopProductsMonthlyModel = (
   );
 
   for (const row of rows) {
-    const m = MONTH_ORDER[String(row.month ?? "").trim().toUpperCase()] ?? 0;
+    const m =
+      MONTH_ORDER[
+        String(row.month ?? "")
+          .trim()
+          .toUpperCase()
+      ] ?? 0;
     if (!m) continue;
     const idx = indexByProductId.get(row.productId);
     if (idx === undefined) continue;
@@ -1007,12 +1029,18 @@ function TopProductsMonthlyChart({
   const groupW = chartW / 12;
 
   const barGap = 3;
-  const barW = Math.max(2, Math.min(6, Math.floor((groupW - 10) / Math.max(1, model.products.length))));
+  const barW = Math.max(
+    2,
+    Math.min(6, Math.floor((groupW - 10) / Math.max(1, model.products.length))),
+  );
   const groupBarsW =
-    model.products.length * barW + Math.max(0, model.products.length - 1) * barGap;
+    model.products.length * barW +
+    Math.max(0, model.products.length - 1) * barGap;
 
   const hoveredValues =
-    hoverMonthIndex === null ? null : model.valuesByMonth[hoverMonthIndex] ?? null;
+    hoverMonthIndex === null
+      ? null
+      : (model.valuesByMonth[hoverMonthIndex] ?? null);
 
   const hoveredTotal = hoveredValues
     ? hoveredValues.reduce((acc, v) => acc + safeNumber(v), 0)
@@ -1027,7 +1055,8 @@ function TopProductsMonthlyChart({
           preserveAspectRatio="none"
         >
           {ticks.map((t) => {
-            const y = padTop + (1 - t / (ticks[ticks.length - 1] || 1)) * chartH;
+            const y =
+              padTop + (1 - t / (ticks[ticks.length - 1] || 1)) * chartH;
             return (
               <g key={t}>
                 <line
