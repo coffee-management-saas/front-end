@@ -1,13 +1,20 @@
-// chạy ở môi trường server không chạy ở môi trường client
 import z from "zod";
 
 const configSchema = z.object({
   NEXT_PUBLIC_API_ENDPOINT: z.string(),
 });
+
+const resolvedEndpoint =
+  typeof window === "undefined"
+    ? // Server-side: dùng BACKEND_INTERNAL_URL (runtime, không bake vào image)
+    `${process.env.BACKEND_INTERNAL_URL || "http://localhost:8080"}/api`
+    : // Client-side: chuỗi rỗng → services dùng relative path qua Route Handlers
+    "";
+
 const configProject = configSchema.safeParse({
-  // phải ghi như vậy thì ở server và client mới dùng được còn nếu chỉ ghi env.process thì client ko chạy được
-  NEXT_PUBLIC_API_ENDPOINT: process.env.NEXT_PUBLIC_API_ENDPOINT,
+  NEXT_PUBLIC_API_ENDPOINT: resolvedEndpoint,
 });
+
 if (!configProject.success) {
   console.error("Invalid environment variables:", configProject.error.issues);
   throw new Error("Các giá trị khai báo trong file .env không hợp lệ");
