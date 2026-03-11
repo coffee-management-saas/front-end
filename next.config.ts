@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 
+// URL backend nội bộ:
+// - Local: http://localhost:8080
+// - Production: http://futurebetter.online (Nginx xử lý routing /api/)
+const BACKEND_URL = process.env.BACKEND_INTERNAL_URL || "http://localhost:8080";
+
 const nextConfig: NextConfig = {
   async rewrites() {
     return [
@@ -15,15 +20,15 @@ const nextConfig: NextConfig = {
       // Proxy ONLY specific backend routes (not categories, not products)
       {
         source: "/api/auth/:path*",
-        destination: "http://localhost:8080/api/auth/:path*",
+        destination: `${BACKEND_URL}/api/auth/:path*`,
       },
       {
         source: "/api/profile/:path*",
-        destination: "http://localhost:8080/api/profile/:path*",
+        destination: `${BACKEND_URL}/api/profile/:path*`,
       },
       {
         source: "/api/orders/:path*",
-        destination: "http://localhost:8080/api/orders/:path*",
+        destination: `${BACKEND_URL}/api/orders/:path*`,
       },
       // Recipes are handled by NEXT.JS (forward Authorization from cookies)
       // /api/recipes → src/app/api/recipes/route.ts
@@ -36,7 +41,7 @@ const nextConfig: NextConfig = {
       // /api/sizes/:id → src/app/api/sizes/[id]/route.ts
       {
         source: "/api/stock/:path*",
-        destination: "http://localhost:8080/api/stock/:path*",
+        destination: `${BACKEND_URL}/api/stock/:path*`,
       },
       // Employees are handled by NEXT.JS (forward Authorization from cookies)
       // /api/employees → src/app/api/employees/route.ts
@@ -52,18 +57,19 @@ const nextConfig: NextConfig = {
       // /api/promotion/:id → src/app/api/promotion/[id]/route.ts
       {
         source: "/api/ai/:path*",
-        destination: "http://localhost:8080/api/ai/:path*",
+        destination: `${BACKEND_URL}/api/ai/:path*`,
       },
       {
         source: "/api/momo/:path*",
-        destination: "http://localhost:8080/api/momo/:path*",
+        destination: `${BACKEND_URL}/api/momo/:path*`,
       },
       {
         source: "/api/subscriptions/:path*",
-        destination: "http://localhost:8080/api/subscriptions/:path*",
+        destination: `${BACKEND_URL}/api/subscriptions/:path*`,
       },
     ];
   },
+
   /* config options here */
   images: {
     remotePatterns: [
