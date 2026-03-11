@@ -58,3 +58,4 @@ jobs:
             sudo docker compose pull frontend
             sudo docker compose up -d frontend
             sudo docker image prune -f
+            
