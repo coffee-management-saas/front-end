@@ -8,8 +8,11 @@ const resolvedEndpoint =
   typeof window === "undefined"
     ? // Server-side: dùng BACKEND_INTERNAL_URL (runtime, không bake vào image)
     `${process.env.BACKEND_INTERNAL_URL || "http://localhost:8080"}/api`
-    : // Client-side: chuỗi rỗng → services dùng relative path qua Route Handlers
-    "";
+    : // Client-side: dùng relative path /api
+    //   → services build URL như /api/auth/login, /api/product/categories
+    //   → Nginx route đến Next.js:3000 → rewrite hoặc Route Handler xử lý
+    "/api";
+
 
 const configProject = configSchema.safeParse({
   NEXT_PUBLIC_API_ENDPOINT: resolvedEndpoint,
