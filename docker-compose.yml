@@ -38,7 +38,11 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_ENDPOINT: http://54.95.117.37:8081
+      # API endpoint cho client-side calls (browser gọi trực tiếp)
+      NEXT_PUBLIC_API_ENDPOINT: http://futurebetter.online/api
+      # Backend URL cho server-side calls trong Next.js (rewrites, Route Handlers)
+      # Backend dùng network_mode: host → listen ở port 8080 trực tiếp trên EC2
+      BACKEND_INTERNAL_URL: http://54.95.117.37:8080
     depends_on:
       - backend
     networks:
