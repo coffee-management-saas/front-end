@@ -5,7 +5,7 @@ import { Coffee, Heart, Users, Award, Clock, MapPin } from "lucide-react";
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-[#F9F7F5] pt-20">
+    <div className="min-h-screen bg-[#F9F7F5] pt-10">
       {/* Hero Section */}
       <section className="relative h-[400px] md:h-[500px] overflow-hidden">
         <Image

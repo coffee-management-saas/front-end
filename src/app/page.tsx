@@ -127,7 +127,7 @@ const Homepage: React.FC = () => {
   // Banner auto-scroll
   const bannerImages = [
     "https://s3-hcmc02.higiocloud.vn/images/2026/01/ly_giay_tet_websitecover_2560x768-20260113032405.jpg",
-    "https://s3-hcmc02.higiocloud.vn/phuclong/2026/01/lcd_focussp_kv-ta%CC%81ch-2--20260112125129.jpg",
+    "https://phela.vn/wp-content/uploads/2025/08/Resize-Digital_Cover-Fb-scaled.jpg",
     "https://s3-hcmc02.higiocloud.vn/phuclong/2026/01/lcd_combo1-standard-20260112125155.jpg",
   ];
 
@@ -179,7 +179,7 @@ const Homepage: React.FC = () => {
       <main className="w-full pt-7">
         <div className="relative w-full">
           <div className="relative w-full overflow-hidden">
-            <div className="relative w-full h-45 sm:h-60 md:h-80 lg:h-100">
+            <div className="relative w-full h-60 sm:h-80 md:h-[420px] lg:h-[520px]">
               <Image
                 src={bannerImages[active] || FALLBACK_IMG}
                 alt="banner"

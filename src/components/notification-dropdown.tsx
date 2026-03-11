@@ -237,6 +237,7 @@ export default function NotificationDropdown() {
 
   const [activeTab, setActiveTab] = useState<"news" | "orders">("news");
   const [mounted, setMounted] = useState(false);
+  const [hasSynced, setHasSynced] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -245,17 +246,19 @@ export default function NotificationDropdown() {
 
   const stompRef = useRef<Client | null>(null);
 
-  const emitUnread = (list: UiNotification[]) => {
-    window.dispatchEvent(
-      new CustomEvent("notifications:unread", {
-        detail: list.filter((n) => !n.read).length,
-      }),
-    );
-  };
-
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (!hasSynced) return;
+    window.dispatchEvent(
+      new CustomEvent("notifications:unread", {
+        detail: notifications.filter((n) => !n.read).length,
+      }),
+    );
+  }, [hasSynced, mounted, notifications]);
 
   useEffect(() => {
     const onMarkRead = (ev: Event) => {
@@ -269,9 +272,7 @@ export default function NotificationDropdown() {
 
       setNotifications((prev) => {
         const set = new Set(ids);
-        const next = prev.map((n) => (set.has(n.id) ? { ...n, read: true } : n));
-        emitUnread(next);
-        return next;
+        return prev.map((n) => (set.has(n.id) ? { ...n, read: true } : n));
       });
     };
 
@@ -290,9 +291,11 @@ export default function NotificationDropdown() {
       setRecipientHint(null);
       setLoadError(null);
       setIsLoading(false);
+      setHasSynced(true);
       return;
     }
 
+    setHasSynced(false);
     const controller = new AbortController();
     let mountedLocal = true;
 
@@ -319,7 +322,7 @@ export default function NotificationDropdown() {
         if (!mountedLocal) return;
         setNotifications(parsed.items);
         setRecipientHint(parsed.hint);
-        emitUnread(parsed.items);
+        setHasSynced(true);
       } catch (e) {
         if (!mountedLocal) return;
         const msg = e instanceof Error ? e.message : "Load notifications failed";
@@ -380,7 +383,6 @@ export default function NotificationDropdown() {
           const byId = new Map<number, UiNotification>();
           for (const n of next) if (!byId.has(n.id)) byId.set(n.id, n);
           const list = Array.from(byId.values()).slice(0, 200);
-          emitUnread(list);
           return list;
         });
 
@@ -418,9 +420,7 @@ export default function NotificationDropdown() {
     if (!accessToken) return;
 
     setNotifications((prev) => {
-      const next = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
-      emitUnread(next);
-      return next;
+      return prev.map((n) => (n.id === id ? { ...n, read: true } : n));
     });
 
     const res = await fetch(`/api/notifications/${id}`, {

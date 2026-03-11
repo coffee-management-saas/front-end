@@ -39,6 +39,33 @@ const formatConfigKeyVi = (key: string) => {
   return CONFIG_LIMIT_LABELS_VI[normalized] ?? key.replace(/_/g, " ");
 };
 
+const CONFIG_LIMIT_VALUE_SUFFIX_VI: Record<string, string> = {
+  storage_gb: " GB",
+  max_projects: " dự án",
+  ai_queries_per_month: " lần",
+};
+
+const formatConfigValueVi = (key: string, value: string) => {
+  if (
+    String(value ?? "")
+      .trim()
+      .toUpperCase() === "UNLIMITED"
+  )
+    return "không giới hạn";
+
+  const normalizedKey = normalizeConfigKey(key);
+  const suffix = CONFIG_LIMIT_VALUE_SUFFIX_VI[normalizedKey] ?? "";
+  if (!suffix) return value;
+
+  const trimmed = String(value ?? "").trim();
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return value;
+
+  // Only append unit for plain numeric values to avoid doubling.
+  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return value;
+  return `${trimmed}${suffix}`;
+};
+
 const normalizeStatus = (value: unknown) =>
   String(value ?? "")
     .trim()
@@ -112,7 +139,7 @@ function PricingPlanCard({
   const features = Object.entries(plan.configLimit ?? {})
     .filter(([, v]) => String(v ?? "").trim())
     .slice(0, 5)
-    .map(([k, v]) => `${formatConfigKeyVi(k)}: ${v}`);
+    .map(([k, v]) => `${formatConfigKeyVi(k)}: ${formatConfigValueVi(k, v)}`);
 
   const hasPrices =
     Number.isFinite(plan.priceMonthly) && Number.isFinite(plan.priceYearly);
@@ -155,12 +182,14 @@ function PricingPlanCard({
                     </span>
                   </div>
                 </div>
-                <span className="text-sm text-neutral-400">/month</span>
+                <span className="text-sm text-neutral-400">
+                  {billingMode === "monthly" ? "/tháng" : "/năm"}
+                </span>
               </div>
               <p className="mt-1 text-xs text-neutral-500">
-                Billed{" "}
+                Thanh toán{" "}
                 <span className="">
-                  {billingMode === "monthly" ? "monthly" : "yearly"}
+                  {billingMode === "monthly" ? "theo tháng" : "theo năm"}
                 </span>
                 .
               </p>
@@ -180,7 +209,7 @@ function PricingPlanCard({
 
       <div className="space-y-6">
         <Link
-          href="/register"
+          href="/checkout/subscription"
           className={[
             "w-full inline-flex items-center justify-center rounded-full transition-colors px-6 py-3 text-sm",
             featured
@@ -423,7 +452,7 @@ export default function Page() {
                 href="#menu"
                 className="inline-flex items-center gap-2 hover:bg-white/10 transition-all text-gray-100 bg-white/5 border-white/10 border rounded-full px-5 py-3 backdrop-blur-lg"
               >
-                Xem menu
+                Tìm hiểu về chúng tôi
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="18"

@@ -485,13 +485,7 @@ const StaffPosPage = () => {
     } catch {
       // ignore
     }
-  }, [
-    appliedVoucher,
-    cart,
-    isSessionRestored,
-    paymentMethod,
-    voucherCode,
-  ]);
+  }, [appliedVoucher, cart, isSessionRestored, paymentMethod, voucherCode]);
 
   useEffect(() => {
     if (cart.length > 0 && createdOrderId !== null) {
@@ -1465,59 +1459,52 @@ const StaffPosPage = () => {
         )}
 
         <div className="mt-3 space-y-3">
-          <Card className="border border-[#cec3bc]/60 bg-white">
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-xs font-semibold text-[#693916] flex items-center gap-1.5">
-                <TicketPercent className="w-3.5 h-3.5" />
-                Voucher
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 pt-0 space-y-2">
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="Nhập mã voucher"
-                  value={voucherCode}
-                  onChange={(e) => setVoucherCode(e.target.value)}
-                  className="bg-white h-8 text-xs w-32 lg:w-40"
-                />
-                <Button
-                  type="button"
-                  onClick={handleApplyVoucher}
-                  disabled={promoLoading}
-                  className="h-8 rounded-full bg-[#693916] hover:bg-[#876F60] text-white px-3 text-[11px]"
-                >
-                  Áp dụng
-                </Button>
-              </div>
+          <Card className="space-y-2 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-base font-bold text-[#693916]">
+              <TicketPercent className="h-4 w-4" />
+              Voucher
+            </div>
 
-              {promoError && (
-                <p className="text-xs text-red-600">{promoError}</p>
-              )}
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Nhập mã voucher"
+                value={voucherCode}
+                onChange={(e) => setVoucherCode(e.target.value)}
+                className="h-8 flex-1 min-w-0 rounded-xl bg-white text-xs"
+              />
+              <Button
+                type="button"
+                onClick={handleApplyVoucher}
+                disabled={promoLoading}
+                className="h-8 shrink-0 rounded-full bg-[#693916] px-4 text-[11px] text-white hover:bg-[#876F60]"
+              >
+                Áp dụng
+              </Button>
+            </div>
 
-              {appliedVoucher ? (
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-[#693916] font-semibold">
-                    Đã áp dụng: {appliedVoucher.promotionCode}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVoucherCode("");
-                      setAppliedVoucher(null);
-                    }}
-                    className="text-[11px] font-semibold text-gray-600 hover:text-[#693916]"
-                  >
-                    Bỏ
-                  </button>
-                </div>
-              ) : (
-                <p className="text-[11px] text-gray-500">
-                  {promoLoading
-                    ? "Đang tải voucher..."
-                    : "Nhập mã để giảm giá."}
+            {promoError && <p className="text-xs text-red-600">{promoError}</p>}
+
+            {appliedVoucher ? (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-[#693916] font-semibold">
+                  Đã áp dụng: {appliedVoucher.promotionCode}
                 </p>
-              )}
-            </CardContent>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVoucherCode("");
+                    setAppliedVoucher(null);
+                  }}
+                  className="text-[11px] font-semibold text-gray-600 hover:text-[#693916]"
+                >
+                  Bỏ
+                </button>
+              </div>
+            ) : (
+              <p className="text-[11px] text-gray-500">
+                {promoLoading ? "Đang tải voucher..." : "Nhập mã để giảm giá."}
+              </p>
+            )}
           </Card>
 
           <div className="space-y-2 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">

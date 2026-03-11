@@ -14,6 +14,37 @@ import MemberTier from "./member-tier";
 
 import { ProfileData } from "@/types/profile";
 
+function toDobYmd(value: string): string {
+  const raw = value.trim();
+  if (!raw) return "";
+
+  if (raw.includes("T")) return raw.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw);
+  if (dmy) {
+    const day = dmy[1];
+    const month = dmy[2];
+    const year = dmy[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  return raw;
+}
+
+function toDobDmy(value: string): string {
+  const raw = value.trim();
+  if (!raw) return "";
+
+  const dateOnly = raw.includes("T") ? raw.slice(0, 10) : raw;
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOnly);
+  if (ymd) return `${ymd[3]}/${ymd[2]}/${ymd[1]}`;
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateOnly)) return dateOnly;
+
+  return dateOnly;
+}
+
 export default function ProfileForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -60,6 +91,7 @@ export default function ProfileForm() {
     updatedAt: "",
     status: "",
   });
+  const [dobInput, setDobInput] = useState("");
 
   const inputClasses =
     "w-full px-4 py-3 border border-gray-200 text-gray-900 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
@@ -125,6 +157,9 @@ export default function ProfileForm() {
 
         setProfile(payload);
         setOriginalProfile(payload);
+        setDobInput(
+          toDobDmy(String((payload as { dob?: unknown })?.dob ?? "")),
+        );
       } catch (err) {
         console.error("Fetch /api/profile failed:", err);
       }
@@ -135,11 +170,15 @@ export default function ProfileForm() {
 
   const handleStartEdit = () => {
     setOriginalProfile(profile);
+    setDobInput(toDobDmy(profile.dob));
     setIsEditing(true);
   };
 
   const handleCancel = () => {
-    if (originalProfile) setProfile(originalProfile);
+    if (originalProfile) {
+      setProfile(originalProfile);
+      setDobInput(toDobDmy(originalProfile.dob));
+    }
     setIsEditing(false);
   };
 
@@ -154,7 +193,7 @@ export default function ProfileForm() {
           fullname: profile.fullname,
           phone: profile.phone,
           address: profile.address,
-          dob: profile.dob,
+          dob: toDobYmd(dobInput),
           email: profile.email,
         }),
       });
@@ -164,6 +203,7 @@ export default function ProfileForm() {
 
       setProfile(data);
       setOriginalProfile(data);
+      setDobInput(toDobDmy(String((data as { dob?: unknown })?.dob ?? "")));
       setIsEditing(false);
     } catch (err) {
       console.error("Update profile failed:", err);
@@ -324,11 +364,13 @@ export default function ProfileForm() {
                   </div>
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-900">
-                      Ngày sinh (dob)
+                      Ngày sinh
                     </label>
                     <input
-                      value={profile.dob}
-                      onChange={(e) => handleInputChange("dob", e.target.value)}
+                      value={dobInput}
+                      onChange={(e) => setDobInput(e.target.value)}
+                      onBlur={() => setDobInput((v) => toDobDmy(v))}
+                      placeholder="dd/mm/yyyy"
                       className={inputClasses}
                       disabled={!isEditing}
                     />

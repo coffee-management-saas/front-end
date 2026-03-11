@@ -94,7 +94,19 @@ export default function PhucLongHeader() {
         typeof e.detail === "number" && Number.isFinite(e.detail)
           ? Math.max(0, Math.floor(e.detail))
           : null;
-      if (n !== null) setUnreadNotifications(n);
+      if (n === null) return;
+
+      const schedule =
+        typeof queueMicrotask === "function"
+          ? queueMicrotask
+          : (cb: () => void) => {
+              Promise.resolve().then(cb);
+            };
+
+      schedule(() => {
+        if (!mounted) return;
+        setUnreadNotifications((prev) => (prev === n ? prev : n));
+      });
     };
 
     window.addEventListener("notifications:unread", onUnread as EventListener);
