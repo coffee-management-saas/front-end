@@ -1,56 +1,29 @@
 services:
-  db:
-    image: pgvector/pgvector:pg16
-    container_name: saas-db
-    restart: always
-    ports:
-      - "5434:5432"
-    environment:
-      POSTGRES_DB: future_saas
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123456
-    volumes:
-      - pgvector-data:/var/lib/postgresql/data
-    networks:
-      - future_saas
-
-  backend:
-    image: hungtruong01/back-end:latest
-    container_name: saas-backend
-    restart: always
-    ports:
-      - "8081:8080"
-    env_file:
-      - .env
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/future_saas
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
-    depends_on:
-      - db
-    networks:
-      - future_saas
-
   frontend:
     image: hungtruong01/front-end:latest
     container_name: saas-frontend
-    restart: always
-    ports:
-      - "3000:3000"
+    restart: unless-stopped
+
+    # Dùng host network để frontend container có thể gọi backend
+    # tại localhost:8080 (backend đang chạy network_mode: host)
+    network_mode: host
+
     environment:
-      # API endpoint cho client-side calls (browser gọi trực tiếp)
-      NEXT_PUBLIC_API_ENDPOINT: http://futurebetter.online/api
-      # Backend URL cho server-side calls trong Next.js (rewrites, Route Handlers)
-      # Backend dùng network_mode: host → listen ở port 8080 trực tiếp trên EC2
-      BACKEND_INTERNAL_URL: http://54.95.117.37:8080
-    depends_on:
-      - backend
-    networks:
-      - future_saas
+      # Port Next.js server listen
+      PORT: 3000
 
-networks:
-  future_saas:
-    driver: bridge
+      # BACKEND_INTERNAL_URL: URL backend cho Next.js server-side calls (Route Handlers, rewrites)
+      # Đây là runtime env → có thể thay đổi mà KHÔNG cần rebuild Docker image
+      # Với network_mode: host → backend đang listen ở localhost:8080 trên EC2
+      BACKEND_INTERNAL_URL: http://localhost:8080
 
-volumes:
-  pgvector-data:
+      # NEXT_PUBLIC_API_ENDPOINT: KHÔNG cần set ở đây nữa
+      # config.ts tự tính từ BACKEND_INTERNAL_URL (server-side) hoặc '' (client-side)
+
+    mem_limit: 512m
+    cpus: 0.50
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
