@@ -119,13 +119,13 @@ const SubscriptionCards: React.FC = () => {
         </div>
 
         {/* Hero Banners */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-16">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 mb-16">
           {activePromotions.map((promo, index) => {
             const theme = getBannerTheme(index);
             return (
               <div
                 key={promo.promotionId}
-                className="group relative h-[240px] sm:h-[280px] lg:h-[320px] rounded-[2rem] overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-500 ring-1 ring-black/5"
+                className="group relative h-[240px] sm:h-[280px] lg:h-[300px] xl:h-[320px] rounded-[2rem] overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-500 ring-1 ring-black/5"
                 role="button"
                 tabIndex={0}
                 onClick={() =>
@@ -152,8 +152,8 @@ const SubscriptionCards: React.FC = () => {
                   alt={promo.promotionName ?? "Promotion"}
                   fill
                   className="object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-110"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  priority={index < 2}
+                  sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  priority={index < 3}
                 />
                 {/* Gradient Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
@@ -172,7 +172,7 @@ const SubscriptionCards: React.FC = () => {
 
                 {/* Content */}
                 <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 transform translate-y-3 group-hover:translate-y-0 transition-transform duration-500">
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <div
                         className={`h-1 w-12 ${theme.bar} rounded-full`}
@@ -183,10 +183,10 @@ const SubscriptionCards: React.FC = () => {
                         Khuyến Mãi Đặc Biệt
                       </span>
                     </div>
-                    <h3 className="text-3xl md:text-4xl font-bold text-white leading-tight">
+                    <h3 className="text-2xl md:text-3xl font-bold text-white leading-tight">
                       {promo.promotionName ?? promo.promotionCode}
                     </h3>
-                    <p className="text-white/90 text-sm md:text-base leading-relaxed max-w-md">
+                    <p className="text-white/90 text-sm leading-relaxed max-w-md">
                       Ưu đãi với mã{" "}
                       <span className={`font-bold ${theme.highlightText}`}>
                         {promo.promotionCode}

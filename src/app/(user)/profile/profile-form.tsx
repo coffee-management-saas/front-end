@@ -14,6 +14,40 @@ import MemberTier from "./member-tier";
 
 import { ProfileData } from "@/types/profile";
 
+const EMPTY_PROFILE: ProfileData = {
+  customerId: "",
+  username: "",
+  fullname: "",
+  rankId: "",
+  email: "",
+  phone: "",
+  address: "",
+  dob: "",
+  createdAt: "",
+  updatedAt: "",
+  status: "",
+};
+
+function normalizeProfileData(value: unknown): ProfileData {
+  if (!value || typeof value !== "object") return { ...EMPTY_PROFILE };
+
+  const record = value as Record<string, unknown>;
+  return {
+    customerId: String(record.customerId ?? ""),
+    username: String(record.username ?? ""),
+    fullname: String(record.fullname ?? ""),
+    rankId: String(record.rankId ?? ""),
+    email: String(record.email ?? ""),
+    phone: String(record.phone ?? ""),
+    address: String(record.address ?? ""),
+    dob: String(record.dob ?? ""),
+    createdAt: String(record.createdAt ?? ""),
+    updatedAt: String(record.updatedAt ?? ""),
+    status: String(record.status ?? ""),
+    ...(typeof record.points === "number" ? { points: record.points } : {}),
+  };
+}
+
 function toDobYmd(value: string): string {
   const raw = value.trim();
   if (!raw) return "";
@@ -78,19 +112,7 @@ export default function ProfileForm() {
   const [originalProfile, setOriginalProfile] = useState<ProfileData | null>(
     null,
   );
-  const [profile, setProfile] = useState<ProfileData>({
-    customerId: "",
-    username: "",
-    fullname: "",
-    rankId: "",
-    email: "",
-    phone: "",
-    address: "",
-    dob: "",
-    createdAt: "",
-    updatedAt: "",
-    status: "",
-  });
+  const [profile, setProfile] = useState<ProfileData>({ ...EMPTY_PROFILE });
   const [dobInput, setDobInput] = useState("");
 
   const inputClasses =
@@ -155,11 +177,10 @@ export default function ProfileForm() {
         const payload = await res.json();
         if (!res.ok) throw { status: res.status, payload };
 
-        setProfile(payload);
-        setOriginalProfile(payload);
-        setDobInput(
-          toDobDmy(String((payload as { dob?: unknown })?.dob ?? "")),
-        );
+        const normalized = normalizeProfileData(payload);
+        setProfile(normalized);
+        setOriginalProfile(normalized);
+        setDobInput(toDobDmy(normalized.dob));
       } catch (err) {
         console.error("Fetch /api/profile failed:", err);
       }
@@ -201,9 +222,10 @@ export default function ProfileForm() {
       const data = await res.json();
       if (!res.ok) throw { status: res.status, data };
 
-      setProfile(data);
-      setOriginalProfile(data);
-      setDobInput(toDobDmy(String((data as { dob?: unknown })?.dob ?? "")));
+      const normalized = normalizeProfileData(data);
+      setProfile(normalized);
+      setOriginalProfile(normalized);
+      setDobInput(toDobDmy(normalized.dob));
       setIsEditing(false);
     } catch (err) {
       console.error("Update profile failed:", err);
@@ -298,7 +320,7 @@ export default function ProfileForm() {
                     </label>
                     <input
                       type="text"
-                      value={profile.username}
+                      value={profile.username ?? ""}
                       onChange={(e) =>
                         handleInputChange("username", e.target.value)
                       }
@@ -312,7 +334,7 @@ export default function ProfileForm() {
                     </label>
                     <input
                       type="text"
-                      value={profile.fullname}
+                      value={profile.fullname ?? ""}
                       onChange={(e) =>
                         handleInputChange("fullname", e.target.value)
                       }
@@ -326,7 +348,7 @@ export default function ProfileForm() {
                     </label>
                     <input
                       type="email"
-                      value={profile.email}
+                      value={profile.email ?? ""}
                       onChange={(e) =>
                         handleInputChange("email", e.target.value)
                       }
@@ -340,7 +362,7 @@ export default function ProfileForm() {
                     </label>
                     <input
                       type="tel"
-                      value={profile.phone}
+                      value={profile.phone ?? ""}
                       onChange={(e) =>
                         handleInputChange("phone", e.target.value)
                       }
@@ -354,7 +376,7 @@ export default function ProfileForm() {
                     </label>
                     <input
                       type="text"
-                      value={profile.address}
+                      value={profile.address ?? ""}
                       onChange={(e) =>
                         handleInputChange("address", e.target.value)
                       }

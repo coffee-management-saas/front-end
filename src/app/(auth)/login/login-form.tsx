@@ -122,7 +122,7 @@ export default function LoginForm() {
 
       const expiresAt = getJwtExpiresAt(data.accessToken);
 
-      await fetch("/api/auth", {
+      await fetch("/api-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

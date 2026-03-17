@@ -1,135 +1,175 @@
-import Link from "next/link";
-import { PortalFooter } from "@/components/portal/PortalFooter";
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PortalHeader } from "@/components/portal/PortalHeader";
-import { formatCurrency } from "@/lib/utils";
+import { PortalFooter } from "@/components/portal/PortalFooter";
 
-export const dynamic = "force-dynamic";
+type PaymentStatus = "loading" | "success" | "failed";
 
-function first(value: string | string[] | undefined): string {
-  if (Array.isArray(value)) return value[0] ?? "";
-  return value ?? "";
-}
+export default function MomoCallbackPage() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const [status, setStatus] = useState<PaymentStatus>("loading");
+    const [orderId, setOrderId] = useState<string>("");
+    const [countdown, setCountdown] = useState(5);
 
-function parseAmountVnd(raw: string): number | null {
-  const n = Number(String(raw ?? "").trim());
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.floor(n);
-}
+    useEffect(() => {
+        const resultCode = searchParams.get("resultCode");
+        const orderIdParam = searchParams.get("orderId") ?? "";
+        setOrderId(orderIdParam);
 
-type Props = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-};
+        // resultCode = "0" nghĩa là thành công
+        if (resultCode === "0") {
+            setStatus("success");
+        } else {
+            setStatus("failed");
+        }
+    }, [searchParams]);
 
-export default async function SubscriptionMomoCallbackPage({
-  searchParams,
-}: Props) {
-  const params = (await searchParams) ?? {};
+    // Đếm ngược và tự redirect về trang chủ
+    useEffect(() => {
+        if (status === "loading") return;
 
-  const resultCode = first(params.resultCode).trim();
-  const orderId = first(params.orderId).trim();
-  const message = first(params.message).trim();
-  const amountRaw = first(params.amount).trim();
-  const amount = parseAmountVnd(amountRaw);
+        const timer = setInterval(() => {
+            setCountdown((prev) => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    router.push("/subscription");
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
 
-  const isSuccess = resultCode === "0";
+        return () => clearInterval(timer);
+    }, [status, router]);
 
-  return (
-    <main className="relative min-h-screen overflow-hidden bg-[#0f0a07] text-white">
-      <PortalHeader />
+    return (
+        <main className="relative min-h-screen overflow-hidden bg-[#0f0a07] text-white flex flex-col">
+            <PortalHeader />
 
-      <section className="px-6 py-16">
-        <div className="mx-auto max-w-xl rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_26px_80px_rgba(0,0,0,0.9)] backdrop-blur-md">
-          <div className="flex items-start gap-4">
-            <div
-              className={[
-                "mt-0.5 inline-flex h-12 w-12 items-center justify-center rounded-full border",
-                isSuccess
-                  ? "border-emerald-500/30 bg-emerald-500/10"
-                  : "border-orange-500/30 bg-orange-500/10",
-              ].join(" ")}
-              aria-hidden="true"
-            >
-              {isSuccess ? (
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-6 w-6 text-emerald-400"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              ) : (
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-6 w-6 text-orange-300"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 6 6 18" />
-                  <path d="M6 6l12 12" />
-                </svg>
-              )}
+            <div className="flex-1 flex items-center justify-center px-6 py-20">
+                {status === "loading" ? (
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="w-12 h-12 border-4 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
+                        <p className="text-neutral-400 text-sm">Đang xử lý kết quả thanh toán...</p>
+                    </div>
+                ) : status === "success" ? (
+                    <div className="flex flex-col items-center text-center max-w-md gap-6">
+                        {/* Icon thành công */}
+                        <div className="relative">
+                            <div className="absolute inset-0 rounded-full bg-emerald-500/20 blur-2xl scale-150" />
+                            <div className="relative w-24 h-24 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                                <svg
+                                    className="w-12 h-12 text-emerald-400"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M5 13l4 4L19 7"
+                                    />
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <h1 className="text-3xl font-semibold text-emerald-400">
+                                Thanh toán thành công!
+                            </h1>
+                            <p className="text-neutral-300">
+                                Gói đăng ký của bạn đã được kích hoạt. Cảm ơn bạn đã tin tưởng sử dụng dịch vụ.
+                            </p>
+                            {orderId && (
+                                <p className="text-xs text-neutral-500 font-mono mt-2">
+                                    Mã giao dịch: {orderId}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="w-full rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-6 py-4 space-y-1">
+                            <p className="text-sm text-emerald-300 font-medium">✓ Tài khoản đã được tạo</p>
+                            <p className="text-sm text-emerald-300 font-medium">✓ Gói dịch vụ đã được kích hoạt</p>
+                            <p className="text-sm text-emerald-300 font-medium">✓ Email xác nhận đã được gửi</p>
+                        </div>
+
+                        <div className="flex flex-col items-center gap-3 w-full">
+                            <button
+                                type="button"
+                                onClick={() => router.push("/subscription")}
+                                className="w-full rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-semibold py-3 px-6 transition-colors"
+                            >
+                                Quay về trang gói dịch vụ
+                            </button>
+                            <p className="text-xs text-neutral-500">
+                                Tự động chuyển hướng sau {countdown} giây...
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center text-center max-w-md gap-6">
+                        {/* Icon thất bại */}
+                        <div className="relative">
+                            <div className="absolute inset-0 rounded-full bg-red-500/20 blur-2xl scale-150" />
+                            <div className="relative w-24 h-24 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                                <svg
+                                    className="w-12 h-12 text-red-400"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <h1 className="text-3xl font-semibold text-red-400">
+                                Thanh toán thất bại
+                            </h1>
+                            <p className="text-neutral-300">
+                                Giao dịch không thể hoàn thành. Vui lòng kiểm tra lại thông tin thanh toán và thử lại.
+                            </p>
+                            {orderId && (
+                                <p className="text-xs text-neutral-500 font-mono mt-2">
+                                    Mã giao dịch: {orderId}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="w-full rounded-2xl border border-red-500/20 bg-red-500/5 px-6 py-4 space-y-1">
+                            <p className="text-sm text-red-300/90">Giao dịch có thể thất bại vì:</p>
+                            <p className="text-sm text-neutral-400">• Tài khoản MoMo không đủ số dư</p>
+                            <p className="text-sm text-neutral-400">• Giao dịch bị hủy bởi người dùng</p>
+                            <p className="text-sm text-neutral-400">• Lỗi kết nối mạng</p>
+                        </div>
+
+                        <div className="flex flex-col items-center gap-3 w-full">
+                            <button
+                                type="button"
+                                onClick={() => router.push("/subscription")}
+                                className="w-full rounded-full bg-orange-500 hover:bg-orange-400 text-black font-semibold py-3 px-6 transition-colors"
+                            >
+                                Thử lại
+                            </button>
+                            <p className="text-xs text-neutral-500">
+                                Tự động chuyển hướng sau {countdown} giây...
+                            </p>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            <div className="min-w-0">
-              <h1 className="text-xl font-semibold">
-                {isSuccess
-                  ? "Thanh toán thành công"
-                  : "Thanh toán không thành công"}
-              </h1>
-              <p className="mt-2 text-sm text-neutral-400">
-                {isSuccess
-                  ? "Cảm ơn bạn! Thanh toán đã được ghi nhận."
-                  : "Có lỗi xảy ra trong quá trình thanh toán. Bạn có thể thử lại."}
-              </p>
-            </div>
-          </div>
-
-          {isSuccess && amount !== null ? (
-            <p className="mt-6 text-3xl font-semibold tracking-tight text-emerald-100">
-              {formatCurrency(amount)}
-            </p>
-          ) : null}
-
-          {!isSuccess && (message || resultCode || orderId || amountRaw) ? (
-            <p className="mt-6 text-sm text-orange-100/90">
-              {message ? `Lý do: ${message}` : null}
-              {!message && resultCode ? `Mã lỗi: ${resultCode}` : null}
-            </p>
-          ) : null}
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              href="/subscription"
-              className="inline-flex items-center justify-center rounded-full bg-neutral-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700"
-            >
-              Về trang gói thành viên
-            </Link>
-            <Link
-              href="/portal"
-              className="inline-flex items-center justify-center rounded-full border border-neutral-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-900"
-            >
-              Về trang chủ
-            </Link>
-            {!isSuccess ? (
-              <Link
-                href="/subscription"
-                className="inline-flex items-center justify-center rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-black hover:bg-orange-400"
-              >
-                Thanh toán lại
-              </Link>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <PortalFooter />
-    </main>
-  );
+            <PortalFooter />
+        </main>
+    );
 }
