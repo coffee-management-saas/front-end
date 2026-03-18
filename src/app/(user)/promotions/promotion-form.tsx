@@ -125,7 +125,7 @@ const SubscriptionCards: React.FC = () => {
             return (
               <div
                 key={promo.promotionId}
-                className="group relative h-[240px] sm:h-[280px] lg:h-[300px] xl:h-[320px] rounded-[2rem] overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-500 ring-1 ring-black/5"
+                className="group relative h-[240px] sm:h-[280px] lg:h-[300px] xl:h-[320px] overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-500 ring-1 ring-black/5"
                 role="button"
                 tabIndex={0}
                 onClick={() =>

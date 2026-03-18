@@ -5,7 +5,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import Footer from "@/components/footer";
 import ChatbotWidget from "@/components/ChatbotWidget";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import { FloatingCartButton } from "@/components/floating-cart-button";
 
 export default function LayoutContent({
@@ -14,7 +13,7 @@ export default function LayoutContent({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const [mounted, setMounted] = useState(false);
+  const mounted = false;
   // ẩn header/footer với các route
   const hideShell =
     pathname.startsWith("/admin") ||
@@ -31,13 +30,9 @@ export default function LayoutContent({
     pathname === "/support" ||
     pathname === "/verification";
 
-  // useEffect(() => {
-  //   setMounted(true);
-  // }, []);
-
   if (!mounted) {
     return (
-      <div className={!hideShell ? "pt-16" : ""}>
+      <div>
         {!hideShell && <PhucLongHeader />}
         {children}
         {!hideShell && <Footer />}
@@ -53,7 +48,7 @@ export default function LayoutContent({
       disableTransitionOnChange
     >
       {!hideShell && <PhucLongHeader />}
-      <div className={!hideShell ? "pt-16" : ""}>{children}</div>
+      <div>{children}</div>
       {!hideShell && <Footer />}
       {!hideShell && <ChatbotWidget />}
       {!hideShell && <FloatingCartButton />}

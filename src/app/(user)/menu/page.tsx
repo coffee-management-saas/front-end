@@ -34,14 +34,14 @@ function BeverageCard({ beverage, index = 0 }: BeverageCardProps) {
   return (
     <div
       className={cn(
-        "group rounded-2xl overflow-hidden border border-[#EDE2D7] bg-white min-h-[360px] flex flex-col",
+        "group rounded-2xl overflow-hidden border border-[#EDE2D7] bg-white min-h-[392px] flex flex-col",
         "shadow-[0_18px_50px_-34px_rgba(0,0,0,0.45)] hover:shadow-[0_26px_70px_-40px_rgba(0,0,0,0.55)]",
         "hover:-translate-y-1 transition-all duration-300",
         "animate-scale-in",
       )}
       style={{ animationDelay: `${index * 80}ms` }}
     >
-      <div className="relative h-56 overflow-hidden bg-[#F7F1EA]">
+      <div className="relative h-64 overflow-hidden bg-[#F7F1EA] sm:h-72">
         <Link href={`/products/${slug}`} className="block h-full w-full">
           <img
             src={imgSrc}
