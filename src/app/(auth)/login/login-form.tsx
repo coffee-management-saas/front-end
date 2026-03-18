@@ -147,7 +147,7 @@ export default function LoginForm() {
       const destination = (() => {
         switch (role) {
           case "EMPLOYEE":
-            return "/staff";
+            return "/staff/menu";
           case "SHOP":
             return "/admin";
 

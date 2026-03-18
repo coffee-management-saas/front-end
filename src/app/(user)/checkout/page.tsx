@@ -13,6 +13,7 @@ import {
   Gift,
   Minus,
   Plus,
+  QrCode,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -55,7 +56,51 @@ import type { CreateOrderRequest } from "@/types/order";
 import Link from "next/link";
 
 type DeliveryMethod = "delivery" | "pickup";
+type PaymentMethod = "cash" | "momo" | "qr";
 type AuthRole = "SHOP" | "EMPLOYEE" | "SYSTEM" | "USER";
+const CHECKOUT_PAYMENT_METHOD_STORAGE_KEY = "checkout:selected-payment-method";
+
+function isPaymentMethod(value: unknown): value is PaymentMethod {
+  return value === "cash" || value === "momo" || value === "qr";
+}
+
+function readStoredPaymentMethod(): PaymentMethod | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const stored = sessionStorage.getItem(CHECKOUT_PAYMENT_METHOD_STORAGE_KEY);
+    return isPaymentMethod(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistPaymentMethod(method: PaymentMethod) {
+  if (typeof window === "undefined") return;
+
+  try {
+    sessionStorage.setItem(CHECKOUT_PAYMENT_METHOD_STORAGE_KEY, method);
+  } catch {
+    // Ignore storage failures during redirect checkout.
+  }
+}
+
+function clearPersistedPaymentMethod() {
+  if (typeof window === "undefined") return;
+
+  try {
+    sessionStorage.removeItem(CHECKOUT_PAYMENT_METHOD_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures during redirect checkout.
+  }
+}
+
+function mapGatewayToPaymentMethod(gateway?: string | null): PaymentMethod {
+  const normalized = gateway?.trim().toLowerCase();
+  if (normalized === "momo") return "momo";
+  if (normalized === "qr") return "qr";
+  return "cash";
+}
 
 function getRoleFromAccessToken(token: string): AuthRole | null {
   try {
@@ -132,7 +177,7 @@ const CheckoutContent = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [deliveryMethod, setDeliveryMethod] =
     useState<DeliveryMethod>("delivery");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "momo">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<Promotion | null>(null);
   const [note, setNote] = useState("");
@@ -196,8 +241,13 @@ const CheckoutContent = () => {
     const resultCode = searchParams.get("resultCode");
     const orderIdParam = searchParams.get("orderId");
     const message = searchParams.get("message");
+    const storedPaymentMethod = readStoredPaymentMethod();
 
     if (resultCode !== null && accessToken) {
+      if (storedPaymentMethod) {
+        setPaymentMethod(storedPaymentMethod);
+      }
+
       if (resultCode === "0") {
         setPaymentStatus("success");
         setCurrentStep(2);
@@ -216,12 +266,12 @@ const CheckoutContent = () => {
               .then((order) => {
                 setSuccessOrder(order);
                 setCreatedOrderId(order.orderId);
-                if (order.paymentGateway) {
-                  setPaymentMethod(
-                    order.paymentGateway.toLowerCase() as "cash" | "momo",
-                  );
-                }
+                setPaymentMethod(
+                  storedPaymentMethod ??
+                    mapGatewayToPaymentMethod(order.paymentGateway),
+                );
                 setShowSuccessModal(true);
+                clearPersistedPaymentMethod();
 
                 // Only clear URL after successful processing
                 const newUrl = window.location.pathname;
@@ -236,6 +286,9 @@ const CheckoutContent = () => {
 
         toast.success("Thanh toán MoMo thành công!");
         clearCart();
+        if (!orderIdParam) {
+          clearPersistedPaymentMethod();
+        }
       } else {
         setPaymentStatus("failed");
         toast.error(`Thanh toán thất bại: ${message}`);
@@ -281,6 +334,12 @@ const CheckoutContent = () => {
   }, [searchParams, accessToken, clearCart]);
 
   const [isUpdatingAddress, setIsUpdatingAddress] = useState(false);
+  const shouldUseRedirectPayment =
+    paymentMethod === "momo" || paymentMethod === "qr";
+  const successPaymentMethod =
+    paymentMethod !== "cash"
+      ? paymentMethod
+      : mapGatewayToPaymentMethod(successOrder?.paymentGateway);
 
   const handleUpdateAddress = async () => {
     if (!accessToken) return;
@@ -336,7 +395,7 @@ const CheckoutContent = () => {
 
       if (isChatbotFlow && createdOrderId) {
         // Reuse existing order — choose payment method
-        if (paymentMethod === "momo") {
+        if (shouldUseRedirectPayment) {
           res = await initiatePayment(
             accessToken,
             createdOrderId,
@@ -359,16 +418,24 @@ const CheckoutContent = () => {
             })),
           })),
           promotionCode: appliedVoucher?.promotionCode,
-          paymentGateway: paymentMethod.toUpperCase(),
+          paymentGateway: shouldUseRedirectPayment ? "MOMO" : "CASH",
           returnUrl: window.location.href,
         };
         res = await createOrder(accessToken, payload);
       }
 
-      // Handle MoMo redirect
-      if (paymentMethod === "momo" && res.payUrl) {
+      if (shouldUseRedirectPayment && res.payUrl) {
+        persistPaymentMethod(paymentMethod);
         window.location.href = res.payUrl;
         return;
+      }
+
+      if (shouldUseRedirectPayment) {
+        throw new Error(
+          paymentMethod === "qr"
+            ? "Không lấy được mã QR thanh toán"
+            : "Không lấy được link thanh toán MoMo",
+        );
       }
 
       // Finalize success state
@@ -1006,9 +1073,52 @@ const CheckoutContent = () => {
                         )}
                       </div>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("qr")}
+                      className={cn(
+                        "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
+                        paymentMethod === "qr"
+                          ? "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-100 shadow-sm"
+                          : "border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30",
+                      )}
+                    >
+                      <div className="h-12 w-12 rounded-lg bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                        <QrCode className="w-7 h-7" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-stone-900 text-lg">
+                          Mã QR
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Trang thanh toán sẽ hiển thị mã QR để bạn quét trên
+                          thiết bị khác.
+                        </p>
+                      </div>
+                      <div
+                        className={cn(
+                          "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                          paymentMethod === "qr"
+                            ? "border-emerald-600 bg-emerald-600"
+                            : "border-gray-300",
+                        )}
+                      >
+                        {paymentMethod === "qr" && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                    </button>
                   </div>
 
                   <div className="rounded-lg bg-gray-50 p-4 border border-gray-100 mt-6">
+                    {paymentMethod !== "cash" && (
+                      <p className="mb-2 text-sm font-medium text-stone-700">
+                        {paymentMethod === "qr"
+                          ? "Sau khi xác nhận đơn, trang thanh toán sẽ hiển thị mã QR để bạn quét và hoàn tất."
+                          : "Bạn sẽ được chuyển sang MoMo để hoàn tất thanh toán."}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-600 italic">
                       Lưu ý: Bạn có thể đổi hình thức thanh toán bất cứ lúc nào
                       trước khi xác nhận đơn hàng.
@@ -1058,16 +1168,14 @@ const CheckoutContent = () => {
                       <span
                         className={cn(
                           "font-medium flex items-center gap-2",
-                          paymentMethod === "momo" ||
-                            successOrder?.paymentGateway?.toLowerCase() ===
-                              "momo"
+                          successPaymentMethod === "momo"
                             ? "text-pink-600"
-                            : "text-amber-800",
+                            : successPaymentMethod === "qr"
+                              ? "text-emerald-600"
+                              : "text-amber-800",
                         )}
                       >
-                        {paymentMethod === "momo" ||
-                        successOrder?.paymentGateway?.toLowerCase() ===
-                          "momo" ? (
+                        {successPaymentMethod === "momo" ? (
                           <>
                             <Image
                               src="/images/momo.jpg"
@@ -1077,6 +1185,11 @@ const CheckoutContent = () => {
                               className="object-contain"
                             />
                             Ví MoMo
+                          </>
+                        ) : successPaymentMethod === "qr" ? (
+                          <>
+                            <QrCode className="w-4 h-4 text-emerald-600" />
+                            Mã QR
                           </>
                         ) : (
                           <>

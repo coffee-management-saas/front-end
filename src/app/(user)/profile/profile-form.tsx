@@ -14,6 +14,71 @@ import MemberTier from "./member-tier";
 
 import { ProfileData } from "@/types/profile";
 
+const EMPTY_PROFILE: ProfileData = {
+  customerId: "",
+  username: "",
+  fullname: "",
+  rankId: "",
+  email: "",
+  phone: "",
+  address: "",
+  dob: "",
+  createdAt: "",
+  updatedAt: "",
+  status: "",
+};
+
+function normalizeProfileData(value: unknown): ProfileData {
+  if (!value || typeof value !== "object") return { ...EMPTY_PROFILE };
+
+  const record = value as Record<string, unknown>;
+  return {
+    customerId: String(record.customerId ?? ""),
+    username: String(record.username ?? ""),
+    fullname: String(record.fullname ?? ""),
+    rankId: String(record.rankId ?? ""),
+    email: String(record.email ?? ""),
+    phone: String(record.phone ?? ""),
+    address: String(record.address ?? ""),
+    dob: String(record.dob ?? ""),
+    createdAt: String(record.createdAt ?? ""),
+    updatedAt: String(record.updatedAt ?? ""),
+    status: String(record.status ?? ""),
+    ...(typeof record.points === "number" ? { points: record.points } : {}),
+  };
+}
+
+function toDobYmd(value: string): string {
+  const raw = value.trim();
+  if (!raw) return "";
+
+  if (raw.includes("T")) return raw.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw);
+  if (dmy) {
+    const day = dmy[1];
+    const month = dmy[2];
+    const year = dmy[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  return raw;
+}
+
+function toDobDmy(value: string): string {
+  const raw = value.trim();
+  if (!raw) return "";
+
+  const dateOnly = raw.includes("T") ? raw.slice(0, 10) : raw;
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOnly);
+  if (ymd) return `${ymd[3]}/${ymd[2]}/${ymd[1]}`;
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateOnly)) return dateOnly;
+
+  return dateOnly;
+}
+
 export default function ProfileForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -47,19 +112,8 @@ export default function ProfileForm() {
   const [originalProfile, setOriginalProfile] = useState<ProfileData | null>(
     null,
   );
-  const [profile, setProfile] = useState<ProfileData>({
-    customerId: "",
-    username: "",
-    fullname: "",
-    rankId: "",
-    email: "",
-    phone: "",
-    address: "",
-    dob: "",
-    createdAt: "",
-    updatedAt: "",
-    status: "",
-  });
+  const [profile, setProfile] = useState<ProfileData>({ ...EMPTY_PROFILE });
+  const [dobInput, setDobInput] = useState("");
 
   const inputClasses =
     "w-full px-4 py-3 border border-gray-200 text-gray-900 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
@@ -123,8 +177,10 @@ export default function ProfileForm() {
         const payload = await res.json();
         if (!res.ok) throw { status: res.status, payload };
 
-        setProfile(payload);
-        setOriginalProfile(payload);
+        const normalized = normalizeProfileData(payload);
+        setProfile(normalized);
+        setOriginalProfile(normalized);
+        setDobInput(toDobDmy(normalized.dob));
       } catch (err) {
         console.error("Fetch /api/profile failed:", err);
       }
@@ -135,11 +191,15 @@ export default function ProfileForm() {
 
   const handleStartEdit = () => {
     setOriginalProfile(profile);
+    setDobInput(toDobDmy(profile.dob));
     setIsEditing(true);
   };
 
   const handleCancel = () => {
-    if (originalProfile) setProfile(originalProfile);
+    if (originalProfile) {
+      setProfile(originalProfile);
+      setDobInput(toDobDmy(originalProfile.dob));
+    }
     setIsEditing(false);
   };
 
@@ -154,7 +214,7 @@ export default function ProfileForm() {
           fullname: profile.fullname,
           phone: profile.phone,
           address: profile.address,
-          dob: profile.dob,
+          dob: toDobYmd(dobInput),
           email: profile.email,
         }),
       });
@@ -162,8 +222,10 @@ export default function ProfileForm() {
       const data = await res.json();
       if (!res.ok) throw { status: res.status, data };
 
-      setProfile(data);
-      setOriginalProfile(data);
+      const normalized = normalizeProfileData(data);
+      setProfile(normalized);
+      setOriginalProfile(normalized);
+      setDobInput(toDobDmy(normalized.dob));
       setIsEditing(false);
     } catch (err) {
       console.error("Update profile failed:", err);
@@ -258,7 +320,7 @@ export default function ProfileForm() {
                     </label>
                     <input
                       type="text"
-                      value={profile.username}
+                      value={profile.username ?? ""}
                       onChange={(e) =>
                         handleInputChange("username", e.target.value)
                       }
@@ -272,7 +334,7 @@ export default function ProfileForm() {
                     </label>
                     <input
                       type="text"
-                      value={profile.fullname}
+                      value={profile.fullname ?? ""}
                       onChange={(e) =>
                         handleInputChange("fullname", e.target.value)
                       }
@@ -286,7 +348,7 @@ export default function ProfileForm() {
                     </label>
                     <input
                       type="email"
-                      value={profile.email}
+                      value={profile.email ?? ""}
                       onChange={(e) =>
                         handleInputChange("email", e.target.value)
                       }
@@ -300,7 +362,7 @@ export default function ProfileForm() {
                     </label>
                     <input
                       type="tel"
-                      value={profile.phone}
+                      value={profile.phone ?? ""}
                       onChange={(e) =>
                         handleInputChange("phone", e.target.value)
                       }
@@ -314,7 +376,7 @@ export default function ProfileForm() {
                     </label>
                     <input
                       type="text"
-                      value={profile.address}
+                      value={profile.address ?? ""}
                       onChange={(e) =>
                         handleInputChange("address", e.target.value)
                       }
@@ -324,11 +386,13 @@ export default function ProfileForm() {
                   </div>
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-900">
-                      Ngày sinh (dob)
+                      Ngày sinh
                     </label>
                     <input
-                      value={profile.dob}
-                      onChange={(e) => handleInputChange("dob", e.target.value)}
+                      value={dobInput}
+                      onChange={(e) => setDobInput(e.target.value)}
+                      onBlur={() => setDobInput((v) => toDobDmy(v))}
+                      placeholder="dd/mm/yyyy"
                       className={inputClasses}
                       disabled={!isEditing}
                     />

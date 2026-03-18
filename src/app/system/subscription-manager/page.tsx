@@ -779,7 +779,7 @@ export default function SystemSubscriptionManagerPage() {
                       maxProjects: e.target.value,
                     }))
                   }
-                  placeholder="UNLIMITED"
+                  placeholder="2"
                 />
               </div>
               <div className="grid gap-2">
@@ -806,7 +806,7 @@ export default function SystemSubscriptionManagerPage() {
                       aiQueriesPerMonth: e.target.value,
                     }))
                   }
-                  placeholder="UNLIMITED"
+                  placeholder="2"
                 />
               </div>
             </div>

@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { PortalFooter } from "@/components/portal/PortalFooter";
 import { PortalHeader } from "@/components/portal/PortalHeader";
 import { formatCurrency } from "@/lib/utils";
@@ -17,18 +16,6 @@ type SubscriptionPlan = {
   priceYearly?: number;
   configLimit?: Record<string, string>;
   subscriptionPlanStatus?: SubscriptionPlanStatus;
-};
-
-type ShopStatus = "ACTIVE" | "INACTIVE" | "PENDING" | "BANNED" | "DELETED" | string;
-
-type Shop = {
-  id: number;
-  shopName: string;
-  address: string;
-  phone: string;
-  email: string;
-  domain: string;
-  status: ShopStatus;
 };
 
 const normalizeConfigKey = (key: string) =>
@@ -48,6 +35,32 @@ const CONFIG_LIMIT_LABELS_VI: Record<string, string> = {
 const formatConfigKeyVi = (key: string) => {
   const normalized = normalizeConfigKey(key);
   return CONFIG_LIMIT_LABELS_VI[normalized] ?? key.replace(/_/g, " ");
+};
+
+const CONFIG_LIMIT_VALUE_SUFFIX_VI: Record<string, string> = {
+  storage_gb: " GB",
+  max_projects: " dự án",
+  ai_queries_per_month: " lần",
+};
+
+const formatConfigValueVi = (key: string, value: string) => {
+  if (
+    String(value ?? "")
+      .trim()
+      .toUpperCase() === "UNLIMITED"
+  )
+    return "không giới hạn";
+
+  const normalizedKey = normalizeConfigKey(key);
+  const suffix = CONFIG_LIMIT_VALUE_SUFFIX_VI[normalizedKey] ?? "";
+  if (!suffix) return value;
+
+  const trimmed = String(value ?? "").trim();
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return value;
+
+  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return value;
+  return `${trimmed}${suffix}`;
 };
 
 const normalizeStatus = (value: unknown) =>
@@ -108,76 +121,7 @@ const coercePlans = (data: unknown): SubscriptionPlan[] => {
         subscriptionPlanStatus: subscriptionPlanStatus || undefined,
       } satisfies SubscriptionPlan;
     })
-    .filter(Boolean) as SubscriptionPlan[];
-};
-
-const coerceShops = (data: unknown): Shop[] => {
-  const payload =
-    data && typeof data === "object" && "data" in data
-      ? (data as Record<string, unknown>).data
-      : data;
-
-  if (!Array.isArray(payload)) return [];
-
-  return payload
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const obj = item as Record<string, unknown>;
-
-      const id = Number(obj.id);
-      const shopName = String(obj.shopName ?? "").trim();
-      const address = String(obj.address ?? "").trim();
-      const phone = String(obj.phone ?? "").trim();
-      const email = String(obj.email ?? "").trim();
-      const domain = String(obj.domain ?? "").trim();
-      const status = String(obj.status ?? "").trim();
-
-      if (!Number.isFinite(id) || !shopName) return null;
-
-      return {
-        id,
-        shopName,
-        address,
-        phone,
-        email,
-        domain,
-        status,
-      } satisfies Shop;
-    })
-    .filter(Boolean) as Shop[];
-};
-
-const pickShopForCheckout = (shops: Shop[]): Shop | null => {
-  if (!shops.length) return null;
-  const active = shops.find((s) => normalizeStatus(s.status) === "ACTIVE");
-  return active ?? shops[0] ?? null;
-};
-
-const extractCheckoutUrl = (payload: unknown): string | null => {
-  if (!payload || typeof payload !== "object") return null;
-
-  const obj = payload as Record<string, unknown>;
-
-  const direct = obj.payUrl;
-  if (typeof direct === "string" && direct.trim()) return direct.trim();
-
-  const data = obj.data;
-  if (data && typeof data === "object") {
-    const d = data as Record<string, unknown>;
-    const candidates = [d.payUrl, d.checkoutUrl, d.paymentUrl, d.redirectUrl];
-    for (const candidate of candidates) {
-      if (typeof candidate === "string" && candidate.trim()) {
-        return candidate.trim();
-      }
-    }
-  }
-
-  const candidates = [obj.checkoutUrl, obj.paymentUrl, obj.redirectUrl];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
-  }
-
-  return null;
+    .filter(Boolean) as SubscriptionPlan[]; 
 };
 
 function PricingPlanCard({
@@ -198,7 +142,7 @@ function PricingPlanCard({
   const features = Object.entries(plan.configLimit ?? {})
     .filter(([, v]) => String(v ?? "").trim())
     .slice(0, 5)
-    .map(([k, v]) => `${formatConfigKeyVi(k)}: ${v}`);
+    .map(([k, v]) => `${formatConfigKeyVi(k)}: ${formatConfigValueVi(k, v)}`);
 
   const hasPrices =
     Number.isFinite(plan.priceMonthly) && Number.isFinite(plan.priceYearly);
@@ -206,7 +150,7 @@ function PricingPlanCard({
   return (
     <div
       className={[
-        "rounded-[32px] border shadow-[0_26px_80px_rgba(0,0,0,0.9)] px-8 py-10 flex flex-col justify-between",
+        "rounded-[32px] border shadow-[0_26px_80px_rgba(0,0,0,0.9)] px-8 py-10 flex flex-col justify-between reveal",
         featured
           ? "bg-neutral-900/70 border-orange-500/40 ring-1 ring-orange-500/20"
           : "bg-neutral-950/70 border-neutral-800",
@@ -241,7 +185,9 @@ function PricingPlanCard({
                     </span>
                   </div>
                 </div>
-                <span className="text-sm text-neutral-400">/tháng</span>
+                <span className="text-sm text-neutral-400">
+                  {billingMode === "monthly" ? "/tháng" : "/năm"}
+                </span>
               </div>
               <p className="mt-1 text-xs text-neutral-500">
                 Thanh toán{" "}
@@ -366,89 +312,16 @@ export default function SubscriptionPage() {
     };
   }, []);
 
-  const handleSelectPlan = async (plan: SubscriptionPlan) => {
+  const handleSelectPlan = (plan: SubscriptionPlan) => {
     if (checkoutPlanId != null) return;
-
     const billingCycle = billingMode === "monthly" ? "MONTHLY" : "YEARLY";
-
     setCheckoutPlanId(plan.subscriptionPlanId);
-    try {
-      const shopsRes = await fetch("/api/shops?page=0&size=50", {
-        cache: "no-store",
-        credentials: "include",
-      }).catch(() => null);
 
-      if (!shopsRes) {
-        toast.error("Không kết nối được máy chủ.");
-        return;
-      }
-
-      if (shopsRes.status === 401 || shopsRes.status === 403) {
-        toast.error("Vui lòng đăng nhập để tiếp tục");
-        router.push("/system/login");
-        return;
-      }
-
-      const shopsPayload = await parseJsonSafely<unknown>(shopsRes);
-      const shops = coerceShops(shopsPayload);
-      const shop = pickShopForCheckout(shops);
-      if (!shop) {
-        toast.error("Bạn chưa có cửa hàng nào để thanh toán gói thuê.");
-        router.push("/system/shop-manager");
-        return;
-      }
-
-      const checkoutBody = {
-        subscriptionPlanId: plan.subscriptionPlanId,
-        billingCycle,
-        shopName: shop.shopName,
-        address: shop.address,
-        phone: shop.phone,
-        email: shop.email,
-        domain: shop.domain,
-        autoRenewal: true,
-      };
-
-      const res = await fetch("/api/subscriptions/checkout", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(checkoutBody),
-        credentials: "include",
-        cache: "no-store",
-      }).catch(() => null);
-
-      if (!res) {
-        toast.error("Không kết nối được máy chủ.");
-        return;
-      }
-
-      const payload = await parseJsonSafely<unknown>(res);
-
-      if (!res.ok) {
-        const message =
-          payload && typeof payload === "object" && "message" in payload
-            ? String((payload as Record<string, unknown>).message ?? "")
-            : "";
-        toast.error(message || `Thanh toán thất bại (${res.status}).`);
-        return;
-      }
-
-      const checkoutUrl = extractCheckoutUrl(payload);
-      if (checkoutUrl) {
-        window.location.href = checkoutUrl;
-        return;
-      }
-
-      toast.success("Tạo phiên thanh toán thành công!");
-    } catch (e) {
-      console.error(e);
-      toast.error("Không thể tạo phiên thanh toán. Vui lòng thử lại.");
-    } finally {
-      setCheckoutPlanId(null);
-    }
+    const qs = new URLSearchParams({
+      subscriptionPlanId: String(plan.subscriptionPlanId),
+      billingCycle,
+    });
+    router.push(`/checkout/subscription?${qs.toString()}`);
   };
 
   const plansToRender = useMemo(() => {
@@ -478,11 +351,11 @@ export default function SubscriptionPage() {
       <PortalHeader />
 
       <section
-        className="md:py-22 text-white bg-black mt-0 mb-0 pb-24 relative"
+        className="md:py-32 text-white bg-black mt-0 mb-0 pt-24 pb-24 relative"
         id="pricing"
       >
         <div className="lg:px-8 max-w-6xl mx-auto px-6">
-          <div className="text-center mb-12 md:mb-16">
+          <div className="text-center mb-12 md:mb-16 reveal">
             <p className="text-xs font-semibold tracking-[0.25em] uppercase text-orange-400 mb-3">
               #GÓI THUÊ
             </p>
@@ -511,7 +384,7 @@ export default function SubscriptionPage() {
               >
                 <span className="mr-2">Theo năm</span>
                 <span className="inline-flex items-center rounded-full bg-orange-500/10 px-2 py-0.5 text-[11px] font-semibold text-orange-400 border border-orange-500/30">
-                  Tiết kiệm
+                  Giảm 30%
                 </span>
               </button>
             </div>

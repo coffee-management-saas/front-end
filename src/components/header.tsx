@@ -12,6 +12,7 @@ import {
   Mail,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DropdownMenu,
@@ -94,7 +95,19 @@ export default function PhucLongHeader() {
         typeof e.detail === "number" && Number.isFinite(e.detail)
           ? Math.max(0, Math.floor(e.detail))
           : null;
-      if (n !== null) setUnreadNotifications(n);
+      if (n === null) return;
+
+      const schedule =
+        typeof queueMicrotask === "function"
+          ? queueMicrotask
+          : (cb: () => void) => {
+              Promise.resolve().then(cb);
+            };
+
+      schedule(() => {
+        if (!mounted) return;
+        setUnreadNotifications((prev) => (prev === n ? prev : n));
+      });
     };
 
     window.addEventListener("notifications:unread", onUnread as EventListener);
@@ -248,14 +261,22 @@ export default function PhucLongHeader() {
   };
 
   return (
-    <header className="bg-white shadow-sm fixed top-0 z-50 w-full">
+    <header className="relative z-40 w-full bg-white shadow-sm">
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center gap-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-12 h-12 bg-[#693916]  rounded-full flex items-center justify-center cursor-pointer">
-              <span className="text-white font-bold text-xs">F&B</span>
-            </div>
+          <Link
+            href="/"
+            className="flex h-16 shrink-0 items-center overflow-visible"
+          >
+            <Image
+              src="/images/logo-01.png"
+              alt="Coffee Management"
+              width={160}
+              height={90}
+              priority
+              className="h-20 w-auto max-w-none object-contain"
+            />
           </Link>
 
           {/* Search Bar */}

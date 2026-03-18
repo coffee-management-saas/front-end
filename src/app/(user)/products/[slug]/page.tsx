@@ -352,7 +352,7 @@ const DetailProduct: React.FC = () => {
           {/* Product Image - takes 5 cols */}
           <div className="lg:col-span-5 relative">
             <div className="sticky top-24">
-              <div className="relative h-[250px] md:h-[350px] lg:h-[380px] rounded-2xl overflow-hidden shadow-xl bg-gradient-to-br from-amber-50 to-orange-50">
+              <div className="relative h-[320px] md:h-[440px] lg:h-[560px] rounded-2xl overflow-hidden shadow-xl bg-gradient-to-br from-amber-50 to-orange-50">
                 <Image
                   src={item.image}
                   alt={item.name}

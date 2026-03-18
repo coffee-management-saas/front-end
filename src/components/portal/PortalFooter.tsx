@@ -98,32 +98,11 @@ export function PortalFooter() {
                     stroke="currentColor"
                     strokeWidth="2"
                   >
-                    <path d="m3 3 18 18" />
-                    <path d="M17.5 6.5 6 18" />
-                    <path d="M3 8h8" />
-                    <path d="M13 16h8" />
-                  </svg>
-                  Twitter (X)
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-4 h-4 text-white/50"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
                     <rect x="2" y="2" width="20" height="20" rx="5" />
                     <path d="M7 17c1.5-1 3.5-1 5 0s3.5 1 5 0" />
                     <path d="M8 7h.01M16 7h.01" />
                   </svg>
-                  Instagram
+                  Facebook
                 </a>
               </li>
               <li>
@@ -161,7 +140,7 @@ export function PortalFooter() {
                     <path d="M10 12.5 8 20l4-2 4 2-2-7.5" />
                     <path d="M12 12a5 5 0 1 0-5-5" />
                   </svg>
-                  Framer
+                  Tiktok
                 </a>
               </li>
             </ul>
@@ -169,54 +148,27 @@ export function PortalFooter() {
 
           <div>
             <h4 className="text-lg sm:text-xl font-semibold tracking-tight">
-              Subscribe
+              Tham gia ngay
             </h4>
-            <form
-              className="mt-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-              }}
-            >
-              <label htmlFor="newsletter-email" className="sr-only">
-                Email address
-              </label>
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <input
-                    id="newsletter-email"
-                    type="email"
-                    required
-                    placeholder="Enter your email..."
-                    className="w-full rounded-full bg-white/[0.04] text-white placeholder-white/50 ring-1 ring-white/15 focus:ring-2 focus:ring-amber-500/60 outline-none px-4 py-2.5 text-sm transition"
-                  />
-                  <span className="pointer-events-none absolute inset-0 rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]" />
-                </div>
-                <button
-                  type="submit"
-                  className="hidden sm:inline-flex items-center gap-2 hover:from-amber-500 hover:to-orange-700 transition-colors shadow-orange-500/20 text-sm font-medium text-white bg-gradient-to-l from-amber-600 to-orange-700 rounded-full py-2 px-4 shadow-md"
-                >
-                  Subscribe
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="w-4 h-4"
-                  >
-                    <path d="M5 12h14" />
-                    <path d="m12 5 7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-white/50">
-                No spam. Unsubscribe any time.
+            <div className="mt-4">
+              <p className="text-sm text-white/70">
+                Đăng ký để bắt đầu, hoặc đăng nhập để tiếp tục quản lý cửa hàng.
               </p>
-            </form>
+              <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                <Link
+                  href="/register"
+                  className="inline-flex items-center justify-center hover:from-amber-500 hover:to-orange-700 transition-colors shadow-orange-500/20 text-sm font-semibold text-white bg-gradient-to-l from-amber-600 to-orange-700 rounded-full py-2.5 px-5 shadow-md"
+                >
+                  Đăng ký
+                </Link>
+                <Link
+                  href="/system/login"
+                  className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/[0.08] transition-colors"
+                >
+                  Đăng nhập
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>
