@@ -73,7 +73,9 @@ const showcaseItemsRight: ShowcaseItem[] = [
   },
 ];
 
-const FEATURED_PRODUCT_NAME = "Sinh tố Lục Xuân";
+const FEATURED_PRODUCT_NAME = "Sinh t\u1ed1 L\u1ee5c Xu\u00e2n";
+const FEATURED_PRODUCT_DESCRIPTION =
+  "S\u1ea3n ph\u1ea9m m\u1edbi v\u1eeba ra m\u1eaft v\u1edbi h\u01b0\u01a1ng v\u1ecb t\u01b0\u01a1i s\u00e1ng, d\u1ec5 u\u1ed1ng v\u00e0 \u0111\u01b0\u1ee3c ho\u00e0n thi\u1ec7n \u0111\u1ec3 t\u1ea1o \u1ea5n t\u01b0\u1ee3ng ngay t\u1eeb l\u1ea7n th\u1eed \u0111\u1ea7u ti\u00ean.";
 const FEATURED_PRODUCT_KEY = normalizeProductLookup(FEATURED_PRODUCT_NAME);
 
 const Homepage: React.FC = () => {
@@ -287,9 +289,11 @@ const Homepage: React.FC = () => {
       code: p.promotionCode,
       image: p.imageUrl,
       status: p.status ?? p.promotionStatus,
+      startDate: p.startDate,
+      endDate: p.endDate,
     }));
   }, [promotions]);
-  const homepagePromotions = itemsForUI.slice(0, 3);
+  const homepagePromotions = itemsForUI.slice(0, 8);
 
   const productsForUI = Array.isArray(products) ? products : [];
   const featuredProduct =
@@ -297,13 +301,13 @@ const Homepage: React.FC = () => {
     productsForUI.find((product) =>
       normalizeProductLookup(product.name).includes(FEATURED_PRODUCT_KEY),
     ) ??
-    productsForUI[0];
+    null;
+  const featuredProductName = featuredProduct?.name ?? FEATURED_PRODUCT_NAME;
   const featuredProductHref = featuredProduct
     ? `/products/${toProductSlug(featuredProduct.name, featuredProduct.id)}`
     : "/menu";
   const featuredProductDescription =
-    featuredProduct?.description?.trim() ||
-    "Sản phẩm mới vừa ra mắt với hương vị tươi sáng, dễ uống và được hoàn thiện để tạo ấn tượng ngay từ lần thử đầu tiên.";
+    featuredProduct?.description?.trim() || FEATURED_PRODUCT_DESCRIPTION;
   const featuredProductPrice = featuredProduct?.price
     ? formatCurrency(featuredProduct.price)
     : "Pha chế tại quầy";
@@ -312,9 +316,9 @@ const Homepage: React.FC = () => {
       {
         key: "featured-default",
         imageSrc: "/images/export-02-cutout-preview3.png",
-        imageAlt: featuredProduct?.name ?? "Signature coffee",
+        imageAlt: featuredProductName,
         eyebrow: "Má»›i ra máº¯t",
-        title: featuredProduct?.name ?? "Signature Coffee",
+        title: featuredProductName,
         description: featuredProductDescription,
         badge: featuredProductPrice,
         href: featuredProductHref,
@@ -327,9 +331,9 @@ const Homepage: React.FC = () => {
       {
         key: "featured-hero",
         imageSrc: "/images/export-01-cutout.png",
-        imageAlt: featuredProduct?.name ?? "Hero coffee visual",
+        imageAlt: featuredProductName,
         eyebrow: "Hero spotlight",
-        title: featuredProduct?.name ?? "Signature Coffee",
+        title: featuredProductName,
         description: featuredProductDescription,
         badge: featuredProductPrice,
         href: featuredProductHref,
@@ -342,6 +346,7 @@ const Homepage: React.FC = () => {
     ],
     [
       featuredProduct,
+      featuredProductName,
       featuredProductDescription,
       featuredProductHref,
       featuredProductPrice,
@@ -383,7 +388,7 @@ const Homepage: React.FC = () => {
       <main className="w-full">
         <div className="relative w-full">
           <div className="relative w-full overflow-hidden">
-            <div className="relative w-full h-60 sm:h-80 md:h-[420px] lg:h-[520px]">
+            <div className="relative h-44 w-full sm:h-72 md:h-[420px] lg:h-[520px]">
               <Image
                 src={bannerImages[active] || FALLBACK_IMG}
                 alt="banner"
@@ -397,12 +402,12 @@ const Homepage: React.FC = () => {
           </div>
 
           {/* Dots */}
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
+          <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5 sm:bottom-3 sm:gap-2">
             {bannerImages.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setActive(i)}
-                className={`h-2.5 w-2.5 rounded-full transition ${
+                className={`h-2 w-2 rounded-full transition sm:h-2.5 sm:w-2.5 ${
                   i === active ? "bg-gray-800" : "bg-white/80"
                 }`}
                 aria-label={`Go to ${i + 1}`}
@@ -439,7 +444,7 @@ const Homepage: React.FC = () => {
       <section
         ref={showcaseRef}
         aria-label="Signature showcase"
-        className="relative overflow-hidden bg-[linear-gradient(180deg,#f8efe5_0%,#fff9f4_48%,#ffffff_100%)] py-16 sm:py-20 lg:py-24"
+        className="relative overflow-hidden bg-[linear-gradient(180deg,#f8efe5_0%,#fff9f4_48%,#ffffff_100%)] py-12 sm:py-16 lg:py-24"
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-[#ead8c6]/80 to-transparent" />
         <div className="pointer-events-none absolute -left-16 top-20 h-64 w-64 rounded-full bg-[#b87646]/15 blur-3xl" />
@@ -448,27 +453,27 @@ const Homepage: React.FC = () => {
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div
-            className="showcaseReveal showcaseRevealTop mx-auto mb-12 max-w-3xl text-center lg:mb-16"
+            className="showcaseReveal showcaseRevealTop mx-auto mb-10 max-w-3xl text-center sm:mb-12 lg:mb-16"
             data-showcase-reveal
             data-visible="false"
             style={{ transitionDelay: "80ms" }}
           >
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#dec7b3] bg-white/80 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8a5a39] shadow-[0_12px_28px_-20px_rgba(76,41,18,0.55)]">
-              <Coffee className="h-4 w-4" />
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#dec7b3] bg-white/80 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a5a39] shadow-[0_12px_28px_-20px_rgba(76,41,18,0.55)] sm:px-4 sm:text-[11px] sm:tracking-[0.28em]">
+              <Coffee className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Sản phẩm mới ra mắt
             </span>
-            <h2 className="mt-5 text-3xl font-bold tracking-tight text-[#4d2d19] sm:text-4xl lg:text-5xl">
+            <h2 className="mt-4 text-[1.85rem] font-bold tracking-tight text-[#4d2d19] sm:mt-5 sm:text-4xl lg:text-5xl">
               Khám phá hương vị mới vừa có mặt tại Tea Cafe
             </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#7b6554] sm:text-lg">
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-[#7b6554] sm:mt-4 sm:text-base sm:leading-7 lg:text-lg">
               Một sản phẩm mới ra mắt dành cho khách muốn thử trải nghiệm khác
               biệt, tươi mới và dễ chọn ngay từ lần đầu.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-center lg:gap-8">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-12 lg:items-center lg:gap-8">
             <div
-              className="showcaseReveal showcaseRevealLeft order-2 space-y-5 lg:order-1 lg:col-span-4"
+              className="showcaseReveal showcaseRevealLeft order-2 space-y-4 sm:space-y-5 lg:order-1 lg:col-span-4"
               data-showcase-reveal
               data-visible="false"
               style={{ transitionDelay: "140ms" }}
@@ -476,17 +481,17 @@ const Homepage: React.FC = () => {
               {showcaseItemsLeft.map(({ icon: Icon, title, description }) => (
                 <div
                   key={title}
-                  className="rounded-[28px] border border-white/80 bg-white/80 p-5 shadow-[0_24px_60px_-42px_rgba(70,35,12,0.6)] backdrop-blur-sm"
+                  className="rounded-[24px] border border-white/80 bg-white/80 p-4 shadow-[0_24px_60px_-42px_rgba(70,35,12,0.6)] backdrop-blur-sm sm:rounded-[28px] sm:p-5"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f5e3d5] text-[#8a5a39] shadow-inner">
-                      <Icon className="h-6 w-6" />
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f5e3d5] text-[#8a5a39] shadow-inner sm:h-14 sm:w-14">
+                      <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold tracking-tight text-[#442615]">
+                      <h3 className="text-base font-semibold tracking-tight text-[#442615] sm:text-lg">
                         {title}
                       </h3>
-                      <p className="mt-2 text-sm leading-7 text-[#7b6554] sm:text-[15px]">
+                      <p className="mt-1.5 text-sm leading-6 text-[#7b6554] sm:mt-2 sm:text-[15px] sm:leading-7">
                         {description}
                       </p>
                     </div>
@@ -502,11 +507,11 @@ const Homepage: React.FC = () => {
               style={{ transitionDelay: "220ms" }}
             >
               <div className="mx-auto flex w-full max-w-[540px] flex-col items-center">
-                <div className="w-full overflow-hidden rounded-[34px]">
-                  <div className="relative mx-auto mt-4 w-full max-w-[500px]">
+                <div className="w-full overflow-hidden rounded-[28px] sm:rounded-[34px]">
+                  <div className="relative mx-auto mt-2 w-full max-w-[300px] sm:mt-4 sm:max-w-[420px] lg:max-w-[500px]">
                     <Image
                       src="/images/export-02-cutout-preview3.png"
-                      alt={featuredProduct?.name ?? "Signature coffee"}
+                      alt={featuredProductName}
                       width={1314}
                       height={1847}
                       className="animate-float h-auto w-full object-contain"
@@ -514,24 +519,24 @@ const Homepage: React.FC = () => {
                     />
                   </div>
 
-                  <div className="mt-6 text-center">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#a17250]">
+                  <div className="mt-4 text-center sm:mt-6">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#a17250] sm:text-[11px] sm:tracking-[0.3em]">
                       Mới ra mắt
                     </p>
-                    <h3 className="mt-2 text-2xl font-bold tracking-tight text-[#442615] sm:text-[2rem]">
-                      {featuredProduct?.name ?? "Signature Coffee"}
+                    <h3 className="mt-2 text-[1.65rem] font-bold tracking-tight text-[#442615] sm:text-[2rem]">
+                      {featuredProductName}
                     </h3>
-                    <p className="mt-3 text-sm leading-7 text-[#7b6554] sm:text-[15px]">
+                    <p className="mt-2.5 text-sm leading-6 text-[#7b6554] sm:mt-3 sm:text-[15px] sm:leading-7">
                       {featuredProductDescription}
                     </p>
 
-                    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                      <span className="rounded-full border border-white/80 bg-white px-4 py-2 text-sm font-semibold text-[#6f3d20] shadow-[0_18px_36px_-26px_rgba(64,34,13,0.68)]">
+                    <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5 sm:mt-6 sm:gap-3">
+                      <span className="rounded-full border border-white/80 bg-white px-3.5 py-2 text-sm font-semibold text-[#6f3d20] shadow-[0_18px_36px_-26px_rgba(64,34,13,0.68)] sm:px-4">
                         {featuredProductPrice}
                       </span>
                       <Link
                         href={featuredProductHref}
-                        className="rounded-full bg-[#6f3d20] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_22px_40px_-28px_rgba(64,34,13,0.82)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-[#824928]"
+                        className="rounded-full bg-[#6f3d20] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_22px_40px_-28px_rgba(64,34,13,0.82)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-[#824928] sm:px-5"
                       >
                         {featuredProduct ? "Khám phá ngay" : "Xem menu mới"}
                       </Link>
@@ -542,7 +547,7 @@ const Homepage: React.FC = () => {
             </div>
 
             <div
-              className="showcaseReveal showcaseRevealRight order-3 space-y-5 lg:col-span-4"
+              className="showcaseReveal showcaseRevealRight order-3 space-y-4 sm:space-y-5 lg:col-span-4"
               data-showcase-reveal
               data-visible="false"
               style={{ transitionDelay: "300ms" }}
@@ -550,17 +555,17 @@ const Homepage: React.FC = () => {
               {showcaseItemsRight.map(({ icon: Icon, title, description }) => (
                 <div
                   key={title}
-                  className="rounded-[28px] border border-white/80 bg-white/80 p-5 shadow-[0_24px_60px_-42px_rgba(70,35,12,0.6)] backdrop-blur-sm"
+                  className="rounded-[24px] border border-white/80 bg-white/80 p-4 shadow-[0_24px_60px_-42px_rgba(70,35,12,0.6)] backdrop-blur-sm sm:rounded-[28px] sm:p-5"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f5e3d5] text-[#8a5a39] shadow-inner">
-                      <Icon className="h-6 w-6" />
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f5e3d5] text-[#8a5a39] shadow-inner sm:h-14 sm:w-14">
+                      <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold tracking-tight text-[#442615]">
+                      <h3 className="text-base font-semibold tracking-tight text-[#442615] sm:text-lg">
                         {title}
                       </h3>
-                      <p className="mt-2 text-sm leading-7 text-[#7b6554] sm:text-[15px]">
+                      <p className="mt-1.5 text-sm leading-6 text-[#7b6554] sm:mt-2 sm:text-[15px] sm:leading-7">
                         {description}
                       </p>
                     </div>
@@ -573,13 +578,13 @@ const Homepage: React.FC = () => {
       </section>
 
       {/* Products Section */}
-      <main className="container mx-auto px-2 py-4 pt-1">
-        <div className="text-center mb-8 mt-6">
+      <main className="mx-auto w-full max-w-7xl px-3 py-4 pt-1 sm:px-4 lg:px-6">
+        <div className="mb-7 mt-5 text-center sm:mb-8 sm:mt-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-xs font-semibold tracking-wide text-amber-800">
             <Crown className="h-4 w-4 " />
             ĐƯỢC YÊU THÍCH NHẤT
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-[0.12em] text-[#6a3715]">
+          <h1 className="mt-3 text-[1.55rem] font-bold tracking-[0.08em] text-[#6a3715] sm:text-2xl sm:tracking-[0.1em] md:text-3xl md:tracking-[0.12em]">
             BEST SELLERS - TRÀ SỮA ĐẬM VỊ
           </h1>
           {productsLoading && (
@@ -593,7 +598,7 @@ const Homepage: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => scrollLeft(bestSellerRef)}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 rounded-full p-2 transition-colors duration-300 text-gray-700 hover:text-[#7a4a2a] bg-white/70 hover:bg-white/90 backdrop-blur-sm"
+            className="absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white/70 p-2 text-gray-700 backdrop-blur-sm transition-colors duration-300 hover:bg-white/90 hover:text-[#7a4a2a] md:flex"
             disabled={productsLoading}
             aria-label="Previous"
           >
@@ -602,7 +607,7 @@ const Homepage: React.FC = () => {
 
           <div
             ref={bestSellerRef}
-            className="flex overflow-x-hidden gap-4 pb-4 mb-8"
+            className="hideScrollbar -mx-3 mb-8 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-4 sm:mx-0 sm:gap-4 sm:px-0 md:overflow-x-hidden"
           >
             {!productsLoading &&
               productsForUI.length === 0 &&
@@ -615,10 +620,10 @@ const Homepage: React.FC = () => {
               return (
                 <div
                   key={product.id}
-                  className="group shrink-0 w-[240px] sm:w-[250px] lg:w-[260px] overflow-hidden border border-[#EDE2D7] bg-white shadow-[0_18px_50px_-34px_rgba(0,0,0,0.45)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-40px_rgba(0,0,0,0.55)] flex flex-col"
+                  className="group flex w-[76vw] max-w-[220px] shrink-0 snap-start flex-col overflow-hidden border border-[#EDE2D7] bg-white shadow-[0_18px_50px_-34px_rgba(0,0,0,0.45)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-40px_rgba(0,0,0,0.55)] sm:w-[250px] sm:max-w-none lg:w-[260px]"
                 >
                   <Link href={`/products/${slug}`} className="block">
-                    <div className="relative h-56 bg-[#F7F1EA]">
+                    <div className="relative h-48 bg-[#F7F1EA] sm:h-56">
                       <Image
                         src={
                           canUseImage(product.image)
@@ -628,41 +633,41 @@ const Homepage: React.FC = () => {
                         alt={product.name}
                         fill
                         className="object-cover transition-transform duration-500 group-hover:scale-105"
-                        sizes="260px"
+                        sizes="(max-width: 640px) 76vw, (max-width: 1024px) 250px, 260px"
                       />
 
-                      <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#E23B2E] px-2.5 py-1 text-[11px] font-semibold text-white shadow-[0_10px_24px_-16px_rgba(0,0,0,0.65)]">
+                      <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#D7B46A] px-2.5 py-1 text-[10px] font-semibold text-[#4D2D19] shadow-[0_10px_24px_-16px_rgba(0,0,0,0.65)] sm:text-[11px]">
                         <Flame className="size-3" />
                         HOT
                       </div>
                     </div>
                   </Link>
 
-                  <div className="flex flex-1 flex-col px-5 pb-3 pt-3">
+                  <div className="flex flex-1 flex-col px-4 pb-3 pt-3 sm:px-5">
                     <div className="text-[11px] font-semibold tracking-[0.22em] text-[#B36A2E] uppercase">
                       BEST SELLER
                     </div>
 
-                    <h3 className="mt-1 line-clamp-2 text-base font-semibold text-[#3b2314]">
+                    <h3 className="mt-1 line-clamp-2 text-[15px] font-semibold text-[#3b2314] sm:text-base">
                       {product.name}
                     </h3>
 
-                    <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-[#9E8B7C]">
+                    <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-[#9E8B7C] sm:text-sm">
                       {product.description ?? ""}
                     </p>
 
                     <div className="mt-auto flex items-end justify-between pt-2">
-                      <span className="font-display text-lg font-bold text-[#7a4a2a]">
+                      <span className="font-display text-base font-bold text-[#7a4a2a] sm:text-lg">
                         {product.price
                           ? formatCurrency(product.price)
                           : "Giá cập nhật"}
                       </span>
                       <Link
                         href={`/products/${slug}`}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#7a4a2a] text-white shadow-[0_16px_34px_-18px_rgba(0,0,0,0.65)] transition-transform duration-200 hover:scale-110 active:scale-95"
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-[#7a4a2a] text-white shadow-[0_16px_34px_-18px_rgba(0,0,0,0.65)] transition-transform duration-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
                         aria-label={`Mua ${product.name}`}
                       >
-                        <Plus className="h-5 w-5" />
+                        <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
                       </Link>
                     </div>
                   </div>
@@ -673,7 +678,7 @@ const Homepage: React.FC = () => {
 
           <button
             onClick={() => scrollRight(bestSellerRef)}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 rounded-full p-2 transition-colors duration-300 text-gray-700 hover:text-[#7a4a2a] bg-white/70 hover:bg-white/90 backdrop-blur-sm"
+            className="absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white/70 p-2 text-gray-700 backdrop-blur-sm transition-colors duration-300 hover:bg-white/90 hover:text-[#7a4a2a] md:flex"
             disabled={productsLoading}
             aria-label="Next"
           >
@@ -683,11 +688,14 @@ const Homepage: React.FC = () => {
       </main>
 
       {/* Promotions Section */}
-      <main className="container mx-auto px-2 py-4 pt-1">
-        <div className="text-center mb-8 mt-6">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-[0.12em] text-[#6a3715]">
+      <main className="mx-auto w-full max-w-7xl px-3 py-4 pt-1 sm:px-4 lg:px-6">
+        <div className="mb-7 mt-5 text-center sm:mb-8 sm:mt-6">
+          <h1 className="text-[1.55rem] font-bold tracking-[0.08em] text-[#6a3715] sm:text-2xl sm:tracking-[0.1em] md:text-3xl md:tracking-[0.12em]">
             TIN TỨC & KHUYẾN MÃI
           </h1>
+          <p className="mt-2 text-[13px] text-[#6b7280] sm:text-sm md:text-[15px]">
+            Tin tức và khuyến mãi mới nhất của Tea Cafe
+          </p>
 
           {promoLoading && (
             <p className="text-gray-600 mt-2">Đang tải khuyến mãi...</p>
@@ -696,17 +704,19 @@ const Homepage: React.FC = () => {
         </div>
 
         <div>
-          <div className="grid grid-cols-1 gap-6 pb-4 mb-8 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mb-8 grid grid-cols-1 gap-4 pb-4 sm:grid-cols-2 sm:gap-5 md:grid-cols-4">
             {!promoLoading &&
               homepagePromotions.length === 0 &&
               !promoError && (
-                <div className="text-gray-600">Chưa có khuyến mãi.</div>
+                <div className="text-gray-600 md:col-span-4">
+                  Chưa có khuyến mãi.
+                </div>
               )}
 
             {homepagePromotions.map((item) => (
-              <div
+              <article
                 key={item.id}
-                className="group flex cursor-pointer flex-col"
+                className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-[6px] border border-[#d7d0c8] bg-white shadow-[0_12px_28px_-18px_rgba(0,0,0,0.34)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_38px_-24px_rgba(0,0,0,0.42)]"
                 role="button"
                 tabIndex={0}
                 onClick={() => handleViewPromotion(item.id, item.name)}
@@ -717,14 +727,14 @@ const Homepage: React.FC = () => {
                   }
                 }}
               >
-                <div className="relative aspect-[1/1.02] overflow-hidden bg-[#efe7df]">
+                <div className="relative aspect-[1.45/1] overflow-hidden bg-[#efe7df]">
                   {canUseImage(item.image) ? (
                     <Image
                       src={item.image as string}
                       alt={item.name}
                       fill
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-[11px] text-gray-500">
@@ -733,12 +743,22 @@ const Homepage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="px-2 pb-2 pt-4 text-center">
-                  <h3 className="line-clamp-2 text-lg font-black uppercase tracking-tight text-[#343434] transition-colors duration-300 group-hover:text-[#b62028] sm:text-xl">
+                <div className="flex items-center justify-between gap-2 border-t border-[#ece4db] px-3 py-2 text-[10px] text-[#8f857d] sm:text-[11px]">
+                  <span className="inline-flex min-w-0 items-center gap-1.5">
+                    <Clock3 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">
+                      {formatPromotionDateRange(item.startDate, item.endDate)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[#9f9489]">{item.code}</span>
+                </div>
+
+                <div className="flex flex-1 items-start px-3 pb-4 pt-3">
+                  <h3 className="line-clamp-2 text-left text-sm font-medium uppercase leading-6 text-[#343434] transition-colors duration-300 group-hover:text-[#0b7a4b] sm:text-[15px]">
                     {item.name}
                   </h3>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
 
@@ -746,7 +766,7 @@ const Homepage: React.FC = () => {
             <div className="mb-8 flex justify-center">
               <Link
                 href="/promotions"
-                className="inline-flex items-center justify-center border border-[#8b4f22] px-8 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-[#8b4f22] transition-colors duration-200 hover:bg-[#8b4f22] hover:text-white"
+                className="inline-flex w-full max-w-xs items-center justify-center border border-[#8b4f22] px-6 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#8b4f22] transition-colors duration-200 hover:bg-[#8b4f22] hover:text-white sm:w-auto sm:max-w-none sm:px-8 sm:tracking-[0.22em]"
               >
                 Xem thêm
               </Link>
@@ -769,6 +789,15 @@ const Homepage: React.FC = () => {
           width: max-content;
           will-change: transform;
           animation: homeMarqueeScroll 22s linear infinite;
+        }
+
+        .hideScrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+
+        .hideScrollbar::-webkit-scrollbar {
+          display: none;
         }
 
         .showcaseReveal {
@@ -816,6 +845,12 @@ const Homepage: React.FC = () => {
           .homeMarqueeInner {
             animation: none;
           }
+          .hideScrollbar {
+            scrollbar-width: auto;
+          }
+          .hideScrollbar::-webkit-scrollbar {
+            display: block;
+          }
           .showcaseReveal {
             opacity: 1;
             transform: none;
@@ -849,6 +884,31 @@ function toProductSlug(name: string, id: number) {
     .replace(/(^-|-$)+/g, "");
 
   return `${base || "san-pham"}-${id}`;
+}
+
+function formatPromotionDateRange(startDate?: string, endDate?: string) {
+  const start = formatPromotionDateToken(startDate, false);
+  const end = formatPromotionDateToken(endDate, true);
+
+  if (start && end) return `${start} - ${end}`;
+  return start || end || "Đang cập nhật";
+}
+
+function formatPromotionDateToken(value?: string, includeYear = false) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+
+  if (!includeYear) {
+    return `${day}.${month}`;
+  }
+
+  return `${day}.${month}.${date.getFullYear()}`;
 }
 
 function normalizeProductLookup(value: string) {

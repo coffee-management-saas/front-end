@@ -49,7 +49,6 @@ const footerLinkGroups: FooterLinkGroup[] = [
       { label: "Trang chủ", href: "/" },
       { label: "Giới thiệu", href: "/about" },
       { label: "Sản phẩm", href: "/menu" },
-      { label: "Cửa hàng", href: "/about" },
       { label: "Liên hệ", href: "/about" },
     ],
   },
@@ -67,7 +66,7 @@ const contactItems: ContactItem[] = [
   },
   {
     icon: Mail,
-    text: "hello@execoffee.vn",
+    text: "hello@teacoffee.vn",
     highlight: true,
   },
 ];
@@ -75,7 +74,7 @@ const contactItems: ContactItem[] = [
 const companyItems: ContactItem[] = [
   {
     icon: MapPin,
-    text: "Công ty Cổ phần EXE Coffee, 38 Trịnh Đình Trọng, Phú Trung, Tân Phú, TP. Hồ Chí Minh",
+    text: "Công ty Cổ phần Tea Coffee, 38 Trịnh Đình Trọng, Phú Trung, Tân Phú, TP. Hồ Chí Minh",
   },
   {
     icon: Phone,
@@ -84,7 +83,7 @@ const companyItems: ContactItem[] = [
   },
   {
     icon: Mail,
-    text: "business@execoffee.vn",
+    text: "business@teacoffee.vn",
     highlight: true,
   },
 ];
@@ -145,7 +144,7 @@ const Footer: React.FC = () => {
             >
               <Image
                 src="/images/logo-01.png"
-                alt="EXE Coffee"
+                alt="Tea Coffee"
                 width={380}
                 height={260}
                 className="h-auto w-[230px] object-contain sm:w-[280px] lg:w-[320px]"
