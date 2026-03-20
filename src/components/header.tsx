@@ -32,6 +32,10 @@ import NotificationDropdown from "@/components/notification-dropdown";
 
 export default function PhucLongHeader() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchHintIndex, setSearchHintIndex] = useState(0);
+  const [searchHintText, setSearchHintText] = useState("");
+  const [searchHintDeleting, setSearchHintDeleting] = useState(false);
   const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<{
     type: "delivery" | "pickup" | null;
@@ -52,6 +56,53 @@ export default function PhucLongHeader() {
   );
 
   const markAllReadRef = useRef(false);
+  const searchHints = useMemo(
+    () => [
+      "Xin chào, bạn cần gì hôm nay...",
+      "Tìm trà sữa yêu thích",
+      "Tìm cà phê đậm vị",
+      "Khám phá topping mới",
+    ],
+    [],
+  );
+
+  useEffect(() => {
+    if (searchHints.length === 0) return;
+
+    const activeHint = searchHints[searchHintIndex] ?? "";
+    const isFullyTyped = searchHintText === activeHint;
+    const isFullyDeleted = searchHintText.length === 0;
+
+    const delay = searchHintDeleting
+      ? isFullyDeleted
+        ? 220
+        : 45
+      : isFullyTyped
+        ? 1200
+        : 85;
+
+    const timer = window.setTimeout(() => {
+      if (!searchHintDeleting) {
+        if (!isFullyTyped) {
+          setSearchHintText(activeHint.slice(0, searchHintText.length + 1));
+          return;
+        }
+
+        setSearchHintDeleting(true);
+        return;
+      }
+
+      if (!isFullyDeleted) {
+        setSearchHintText(activeHint.slice(0, searchHintText.length - 1));
+        return;
+      }
+
+      setSearchHintDeleting(false);
+      setSearchHintIndex((prev) => (prev + 1) % searchHints.length);
+    }, delay);
+
+    return () => window.clearTimeout(timer);
+  }, [searchHintDeleting, searchHintIndex, searchHintText, searchHints]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -283,12 +334,19 @@ export default function PhucLongHeader() {
           <div className="flex-1 max-w-md">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              {!searchQuery && !searchFocused && (
+                <span className="pointer-events-none absolute left-10 right-4 top-1/2 block -translate-y-1/2 truncate text-sm text-gray-400">
+                  {searchHintText}
+                </span>
+              )}
               <input
                 type="text"
-                placeholder="Bạn muốn mua gì..."
+                placeholder=""
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-amber-700 text-sm"
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg text-black placeholder-transparent focus:outline-none focus:ring-2 focus:ring-amber-700 text-sm"
               />
             </div>
           </div>

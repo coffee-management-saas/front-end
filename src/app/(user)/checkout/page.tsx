@@ -573,7 +573,7 @@ const CheckoutContent = () => {
   const isEmpty = items.length === 0 && !successOrder;
 
   return (
-    <div className="min-h-screen bg-white pt-10">
+    <div className="min-h-screen bg-white ">
       <div className="container mx-auto px-4 lg:px-8 py-10 space-y-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>

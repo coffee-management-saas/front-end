@@ -6,14 +6,11 @@ import {
   Minus,
   Plus,
   Flame,
-  ShoppingCart,
   ChevronLeft,
   ChevronRight,
-  ArrowLeft,
 } from "lucide-react";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { Label } from "@/components/ui/label";
 import type {
   ApiEnvelope,
   Product,
@@ -87,7 +84,6 @@ const DetailProduct: React.FC = () => {
   const [quantity, setQuantity] = useState<number>(1);
   const [product, setProduct] = useState<Product | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
-  const [sizes, setSizes] = useState<Size[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [coffeeItems, setCoffeeItems] = useState<SuggestItem[]>([]);
@@ -182,7 +178,6 @@ const DetailProduct: React.FC = () => {
         const variantsData =
           (variantsRes as ApiEnvelope<ProductVariant[]>).data || [];
         const sizesData = (sizesRes as ApiEnvelope<Size[]>).data || [];
-        setSizes(sizesData);
 
         const sizeOrder: Record<string, number> = {};
         sizesData.forEach((s, idx) => {
@@ -255,8 +250,8 @@ const DetailProduct: React.FC = () => {
         }
 
         const mapped: SuggestItem[] = payload.data
-          .filter((p: any) => p.id !== product.id)
-          .map((p: any) => ({
+          .filter((p: Product) => p.id !== product.id)
+          .map((p: Product) => ({
             id: p.id,
             name: p.name,
             price: p.price ?? 0,
@@ -301,8 +296,8 @@ const DetailProduct: React.FC = () => {
     };
   }, [product, activeVariant]);
 
-  // Use price from variant; fallback to 0 if not found
-  const productPrice = activeVariant ? activeVariant.price : 0;
+  // Prefer variant price; fallback to product price when variants are unavailable.
+  const productPrice = activeVariant?.price ?? product?.price ?? 0;
 
   // No more manual size delta, the variant has the full price
 
@@ -320,6 +315,52 @@ const DetailProduct: React.FC = () => {
   );
 
   const totalPrice = (productPrice + toppingTotal) * quantity;
+  const selectedSizeLabel = activeVariant
+    ? getVariantName(activeVariant)
+    : null;
+  const selectedToppings = toppings.filter((t) => t.quantity > 0);
+  const availabilityLabel =
+    product?.status === "ACTIVE" ? "Còn hàng" : "Tạm hết";
+
+  const handleSubmitSelection = (options?: {
+    triggerEl?: HTMLElement | null;
+  }) => {
+    if (!product) return;
+
+    if (!activeVariant) {
+      toast.error("Vui lòng chọn kích cỡ");
+      return;
+    }
+
+    addItem({
+      productId: product.id,
+      productName: product.name,
+      productImage: canUseImage(product.image)
+        ? (product.image as string)
+        : FALLBACK_IMG,
+      variantId: activeVariant.id,
+      size: getVariantName(activeVariant),
+      basePrice: productPrice,
+      quantity,
+      toppings: selectedToppings.map((t) => ({
+        id: Number(t.id),
+        name: t.name,
+        price: t.price,
+        quantity: t.quantity,
+      })),
+      iceLevel: selectedIce,
+    });
+
+    if (options?.triggerEl) {
+      triggerFlyToCart(
+        canUseImage(product.image) ? (product.image as string) : FALLBACK_IMG,
+        options.triggerEl,
+      );
+    }
+
+    toast.success("Đã thêm vào giỏ hàng!");
+    setQuantity(1);
+  };
 
   if (loading) return null;
   if (error) return <div className="p-6 pt-24 text-red-600">{error}</div>;
@@ -333,9 +374,6 @@ const DetailProduct: React.FC = () => {
             onClick={() => router.back()}
             className="flex items-center gap-2 text-gray-600 hover:text-[#693916] transition-colors group"
           >
-            <div className="w-8 h-8 rounded-full bg-white shadow-sm group-hover:shadow-md flex items-center justify-center transition-all">
-              <ArrowLeft className="w-4 h-4" />
-            </div>
             <span className="text-sm font-medium">Quay lại</span>
           </button>
           <span className="text-gray-300">|</span>
@@ -351,7 +389,7 @@ const DetailProduct: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 py-4">
           {/* Product Image - takes 5 cols */}
           <div className="lg:col-span-5 relative">
-            <div className="sticky top-24">
+            <div>
               <div className="relative h-[320px] md:h-[440px] lg:h-[560px] rounded-2xl overflow-hidden shadow-xl bg-gradient-to-br from-amber-50 to-orange-50">
                 <Image
                   src={item.image}
@@ -368,230 +406,202 @@ const DetailProduct: React.FC = () => {
           </div>
 
           {/* Product Details - takes 7 cols */}
-          <div className="lg:col-span-7 space-y-3">
-            {/* Product Header */}
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-amber-100">
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="flex-1">
-                  <span className="inline-block px-2 py-0.5 bg-amber-100 text-[#693916] text-[10px] font-bold rounded-full mb-1">
-                    {item.categoryName || "Đồ uống"}
+          <div className="lg:col-span-7">
+            <div className="mx-auto max-w-[560px] space-y-4.5">
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[#9c836e]">
+                  {item.categoryName || "Đồ uống"}
+                </p>
+                <h1 className="text-[20px] font-medium leading-tight text-[#111111] md:text-[22px]">
+                  {item.name}
+                  {selectedSizeLabel ? ` - Size ${selectedSizeLabel}` : ""}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2 text-[12px] text-[#5f5851]">
+                  <span>
+                    Tình trạng:{" "}
+                    <span className="font-medium text-[#7a4a2a]">
+                      {availabilityLabel}
+                    </span>
                   </span>
-                  <h1 className="text-lg md:text-xl font-bold text-gray-900 mb-1 leading-tight">
-                    {item.name}
-                  </h1>
-                  <p className="text-xs text-gray-500">SKU: {item.sku}</p>
-                </div>
-
-                {/* Quantity Selector */}
-                <div className="flex items-center gap-2 bg-amber-50 rounded-lg p-1">
-                  <button
-                    className="w-7 h-7 rounded-md bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
-                    type="button"
-                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="text-sm font-bold text-[#693916] min-w-[20px] text-center">
-                    {quantity}
+                  <span className="text-[#d5c8bc]">|</span>
+                  <span>
+                    Mã SKU:{" "}
+                    <span className="font-medium text-[#7a4a2a]">
+                      {item.sku}
+                    </span>
                   </span>
-                  <button
-                    className="w-7 h-7 rounded-md bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
-                    type="button"
-                    onClick={() => setQuantity((q) => q + 1)}
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
                 </div>
               </div>
 
+              <div className="border-y border-[#e8ddd2] py-4.5">
+                <p className="text-[28px] font-semibold leading-none tracking-tight text-[#7a4a2a] md:text-[30px]">
+                  {formatCurrency(productPrice)}
+                </p>
+                {(quantity > 1 || toppingTotal > 0) && (
+                  <p className="mt-1.5 text-[11px] text-[#85786d]">
+                    Tạm tính: {formatCurrency(totalPrice)}
+                  </p>
+                )}
+              </div>
+
               {item.description && (
-                <p className="text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4">
+                <p className="text-[13px] leading-6 text-[#6d6258]">
                   {item.description}
                 </p>
               )}
 
-              {/* Price Display */}
-              {/* Total Price Removed as per feedback */}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Size Selection */}
-              <div className="bg-white rounded-xl p-3 shadow-sm border border-amber-100">
-                <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
-                  <div className="w-5 h-5 bg-[#693916] rounded-md flex items-center justify-center">
-                    <span className="text-white text-[10px] font-bold">S</span>
-                  </div>
-                  Chọn kích cỡ
-                </h3>
-                <div className="grid grid-cols-4 gap-2">
-                  {variants.length > 0 ? (
-                    variants.map((v) => (
+              {variants.length > 0 && (
+                <section className="space-y-1.5">
+                  <p className="text-[14px] font-medium text-[#5b4a3c]">
+                    Kích cỡ:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {variants.map((v) => (
                       <button
                         key={v.id}
                         type="button"
                         onClick={() => setSelectedVariantId(v.id)}
-                        className={[
-                          "h-9 rounded-lg font-bold text-xs transition-all duration-300 transform hover:scale-105",
+                        className={cn(
+                          "rounded-full border px-4 py-1.5 text-[12px] font-medium transition-all duration-200",
                           selectedVariantId === v.id
-                            ? "bg-[#7a4a2a] text-white shadow-md scale-105"
-                            : "bg-gray-50 text-gray-700 border border-gray-200 hover:border-amber-300",
-                        ].join(" ")}
+                            ? "border-[#7a4a2a] bg-[#fff8f1] text-[#7a4a2a] shadow-[0_10px_24px_-18px_rgba(122,74,42,0.75)]"
+                            : "border-[#d9cec2] bg-white text-[#1f1a16] hover:border-[#bda48f]",
+                        )}
                       >
                         {getVariantName(v)}
                       </button>
-                    ))
-                  ) : (
-                    <div className="col-span-4 text-xs text-gray-500 text-center py-2">
-                      Đang tải...
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Ice Level */}
-              <div className="bg-white rounded-xl p-3 shadow-sm border border-amber-100">
-                <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
-                  <div className="w-5 h-5 bg-[#7a4a2a] rounded-md flex items-center justify-center">
-                    <span className="text-white text-[10px]">❄️</span>
+                    ))}
                   </div>
-                  Đá
-                </h3>
-                <div className="grid grid-cols-3 gap-2">
+                </section>
+              )}
+
+              <section className="space-y-1.5">
+                <p className="text-[14px] font-medium text-[#5b4a3c]">Đá:</p>
+                <div className="flex flex-wrap gap-2">
                   {(["Ít", "Bình thường", "Nhiều"] as LevelOption[]).map(
                     (opt) => (
                       <button
                         key={opt}
+                        type="button"
                         onClick={() => setSelectedIce(opt)}
-                        className={`h-9 rounded-lg font-semibold text-[10px] transition-all duration-300 ${
+                        className={cn(
+                          "rounded-full border px-4 py-1.5 text-[12px] font-medium transition-all duration-200",
                           selectedIce === opt
-                            ? " bg-[#7a4a2a] text-white shadow-md scale-105"
-                            : "bg-gray-50 border border-gray-200 text-gray-700 hover:border-[#693916]"
-                        }`}
+                            ? "border-[#7a4a2a] bg-[#fff8f1] text-[#7a4a2a] shadow-[0_10px_24px_-18px_rgba(122,74,42,0.75)]"
+                            : "border-[#d9cec2] bg-white text-[#1f1a16] hover:border-[#bda48f]",
+                        )}
                       >
                         {opt}
                       </button>
                     ),
                   )}
                 </div>
-              </div>
-            </div>
+              </section>
 
-            {/* Toppings */}
-            <div className="bg-white rounded-xl p-3 shadow-sm border border-amber-100">
-              <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
-                <div className="w-5 h-5 bg-[#693916] rounded-md flex items-center justify-center">
-                  <Plus className="w-3 h-3 text-white" />
-                </div>
-                Topping
-              </h3>
+              <section className="space-y-1.5">
+                <p className="text-[14px] font-medium text-[#5b4a3c]">
+                  Topping:
+                </p>
 
-              {topLoading && (
-                <div className="text-xs text-gray-500 text-center py-2">
-                  Đang tải...
-                </div>
-              )}
-              {topError && (
-                <div className="text-xs text-red-600 bg-red-50 rounded-md p-2 mb-2">
-                  {topError}
-                </div>
-              )}
-
-              <div className="space-y-2 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-                {toppings.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between p-2 bg-gradient-to-r from-gray-50 to-amber-50 rounded-lg border border-gray-200 hover:border-amber-300 transition-all"
-                  >
-                    <div className="flex-1">
-                      <p className="text-xs font-semibold text-gray-900">
-                        {t.name}
-                      </p>
-                      <p className="text-[10px] text-amber-600 font-medium mt-0">
-                        +{formatCurrency(t.price)}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => updateToppingQuantity(t.id, -1)}
-                        disabled={t.quantity === 0}
-                        className={[
-                          "w-6 h-6 rounded-md flex items-center justify-center transition-all",
-                          t.quantity === 0
-                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                            : "bg-white shadow-sm hover:shadow-md text-[#693916] hover:scale-105",
-                        ].join(" ")}
-                        type="button"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-
-                      <span className="w-5 text-center text-xs font-bold text-gray-800">
-                        {t.quantity}
-                      </span>
-
-                      <button
-                        onClick={() => updateToppingQuantity(t.id, 1)}
-                        className="w-6 h-6 rounded-md bg-white shadow-sm hover:shadow-md text-[#693916] flex items-center justify-center transition-all hover:scale-105"
-                        type="button"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
+                {topLoading && (
+                  <div className="text-[12px] text-[#85786d]">Đang tải...</div>
+                )}
+                {topError && (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-[12px] text-red-600">
+                    {topError}
                   </div>
-                ))}
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  {toppings.map((t) => (
+                    <div
+                      key={t.id}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition-all",
+                        t.quantity > 0
+                          ? "border-[#7a4a2a] bg-[#fff8f1] text-[#7a4a2a]"
+                          : "border-[#d9cec2] bg-white text-[#1f1a16]",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => updateToppingQuantity(t.id, 1)}
+                        className="inline-flex items-center gap-1 text-[12px]"
+                      >
+                        <span className="font-medium">{t.name}</span>
+                        <span className="text-[10px] text-[#a68870]">
+                          +{formatCurrency(t.price)}
+                        </span>
+                      </button>
+
+                      {t.quantity > 0 && (
+                        <>
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-semibold text-[#7a4a2a]">
+                            x{t.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateToppingQuantity(t.id, -1)}
+                            className="flex h-4.5 w-4.5 items-center justify-center rounded-full border border-[#dac2af] bg-white text-[#7a4a2a] transition-colors hover:bg-[#faf2eb]"
+                            aria-label={`Giảm ${t.name}`}
+                          >
+                            <Minus className="h-2.5 w-2.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="flex flex-wrap items-center gap-3 pt-0.5">
+                <p className="text-[14px] font-medium text-[#5b4a3c]">
+                  Số lượng:
+                </p>
+                <div className="flex items-center gap-3.5">
+                  <button
+                    className="flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[#d3d5db] bg-white text-[#8b8f97] transition-colors hover:border-[#bbbfc8] hover:text-[#5f6670]"
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    aria-label="Giảm số lượng"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <span className="min-w-[18px] text-center text-[18px] font-medium text-[#1b1612]">
+                    {quantity}
+                  </span>
+                  <button
+                    className="flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[#d3d5db] bg-white text-[#8b8f97] transition-colors hover:border-[#bbbfc8] hover:text-[#5f6670]"
+                    type="button"
+                    onClick={() => setQuantity((q) => q + 1)}
+                    aria-label="Tăng số lượng"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                </div>
+              </section>
+
+              <div className="border-t border-[#e8ddd2] pt-4.5">
+                <div className="flex">
+                  <button
+                    id="add-to-cart-btn"
+                    type="button"
+                    onClick={(e) =>
+                      handleSubmitSelection({ triggerEl: e.currentTarget })
+                    }
+                    className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[#7a4a2a] px-5 text-[12px] font-bold uppercase tracking-[0.02em] text-white transition-colors hover:bg-[#693916]"
+                  >
+                    Thêm vào giỏ hàng
+                  </button>
+                </div>
+
+                {(selectedToppings.length > 0 || quantity > 1) && (
+                  <p className="mt-1.5 text-[11px] text-[#85786d]">
+                    Tổng thanh toán hiện tại: {formatCurrency(totalPrice)}
+                  </p>
+                )}
               </div>
             </div>
-
-            {/* Add to Cart Button */}
-            <button
-              id="add-to-cart-btn"
-              onClick={(e) => {
-                if (!product) return;
-
-                if (!activeVariant) {
-                  toast.error("Vui lòng chọn kích cỡ");
-                  return;
-                }
-
-                addItem({
-                  productId: product.id,
-                  productName: product.name,
-                  productImage: canUseImage(product.image)
-                    ? (product.image as string)
-                    : FALLBACK_IMG,
-                  variantId: activeVariant.id,
-                  size: getVariantName(activeVariant),
-                  basePrice: productPrice,
-                  quantity,
-                  toppings: toppings
-                    .filter((t) => t.quantity > 0)
-                    .map((t) => ({
-                      id: Number(t.id),
-                      name: t.name,
-                      price: t.price,
-                      quantity: t.quantity,
-                    })),
-                  iceLevel: selectedIce,
-                });
-
-                // Trigger flying animation
-                triggerFlyToCart(
-                  canUseImage(product.image)
-                    ? (product.image as string)
-                    : FALLBACK_IMG,
-                  e.currentTarget,
-                );
-
-                toast.success("Đã thêm vào giỏ hàng!");
-                setQuantity(1);
-              }}
-              className="w-full bg-[#7a4a2a]  hover:from-[#876F60] hover:to-[#693916] text-white py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
-              type="button"
-            >
-              <ShoppingCart className="w-6 h-6" />
-              Thêm vào giỏ hàng - {formatCurrency(totalPrice)}
-            </button>
           </div>
         </div>
 

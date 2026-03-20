@@ -4,7 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { canUseImage, FALLBACK_IMG } from "@/lib/utils";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { Clock, Calendar, Tag, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { Clock, Calendar, CheckCircle2 } from "lucide-react";
 import { Promotion } from "@/types/promotion";
 
 const moneyFormatter = new Intl.NumberFormat("vi-VN");
@@ -155,14 +156,30 @@ export default function PromotionDetailPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#F9F7F5] to-white">
       <main className="w-full">
-        <div className="px-4 md:px-8 py-6 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="text-sm font-semibold text-[#693916] hover:text-[#876F60]"
-          >
-            ← Quay lại
-          </button>
+        <div className="px-4 py-6 md:px-8">
+          <nav className="flex items-center gap-2 text-sm">
+            <Link
+              href="/"
+              className="font-medium text-[#693916] transition-colors hover:text-[#876F60]"
+            >
+              Trang chủ
+            </Link>
+            <span className="text-[#bdb4aa]">/</span>
+            <Link
+              href="/promotions"
+              className="font-medium text-[#693916] transition-colors hover:text-[#876F60]"
+            >
+              Khuyến mãi
+            </Link>
+            {promotion && (
+              <>
+                <span className="text-[#bdb4aa]">/</span>
+                <span className="truncate font-medium text-black">
+                  {promotion.promotionName ?? promotion.promotionCode}
+                </span>
+              </>
+            )}
+          </nav>
         </div>
 
         {loading && (
