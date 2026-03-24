@@ -23,6 +23,7 @@ export default function ChatbotWidget() {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([WELCOME_MSG]);
     const [input, setInput] = useState("");
+    const [conversationId, setConversationId] = useState<string | null>(null);
     const [isTyping, setIsTyping] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -65,7 +66,10 @@ export default function ChatbotWidget() {
         const res: ChatBotResponse = await sendChatMessage(
             text,
             accessToken || undefined,
+            conversationId || undefined
         ).finally(() => setIsTyping(false));
+
+        if (res.conversationId) setConversationId(res.conversationId);
 
         // Xóa loading message, thêm response
         setMessages((prev) =>
@@ -78,15 +82,13 @@ export default function ChatbotWidget() {
                 }),
         );
 
-        // Khi AI đã thu thập đủ thông tin → redirect sang trang thanh toán
-        if (res.action === "ORDER" && res.redirectToPayment && res.orderRequest) {
-            // Lưu orderRequest vào sessionStorage để trang checkout đọc (vẫn giữ để tham khảo)
-            sessionStorage.setItem("chatbot_order_request", JSON.stringify(res.orderRequest));
+        // Khi AI đã thu thập đủ thông tin & tạo đơn thành công → redirect sang trang checkout
+        if (res.action === "ORDER" && (res.orderId || res.redirectToPayment)) {
             setTimeout(() => {
                 setIsOpen(false);
                 const orderIdParam = res.orderId ? `&orderId=${res.orderId}` : "";
                 router.push(`/checkout?mode=chatbot${orderIdParam}`);
-            }, 1500);
+            }, 2000);
         }
     };
 
