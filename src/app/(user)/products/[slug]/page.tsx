@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { cn, formatCurrency, canUseImage, FALLBACK_IMG } from "@/lib/utils";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -255,7 +255,7 @@ const DetailProduct: React.FC = () => {
             id: p.id,
             name: p.name,
             price: p.price ?? 0,
-            image: canUseImage(p.image) ? p.image : FALLBACK_IMG,
+            image: canUseImage(p.image) ? (p.image as string) : FALLBACK_IMG,
             categoryName:
               typeof p.categoryName === "string" ? p.categoryName : "",
             description: typeof p.description === "string" ? p.description : "",
@@ -324,6 +324,7 @@ const DetailProduct: React.FC = () => {
 
   const handleSubmitSelection = (options?: {
     triggerEl?: HTMLElement | null;
+    buyNow?: boolean;
   }) => {
     if (!product) return;
 
@@ -360,6 +361,10 @@ const DetailProduct: React.FC = () => {
 
     toast.success("Đã thêm vào giỏ hàng!");
     setQuantity(1);
+
+    if (options?.buyNow) {
+      router.push("/checkout");
+    }
   };
 
   if (loading) return null;
@@ -582,14 +587,22 @@ const DetailProduct: React.FC = () => {
               </section>
 
               <div className="border-t border-[#e8ddd2] pt-4.5">
-                <div className="flex">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    id="buy-now-btn"
+                    type="button"
+                    onClick={() => handleSubmitSelection({ buyNow: true })}
+                    className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[#7a4a2a] px-5 text-[12px] font-bold uppercase tracking-[0.02em] text-white transition-colors hover:bg-[#693916]"
+                  >
+                    Mua ngay
+                  </button>
                   <button
                     id="add-to-cart-btn"
                     type="button"
                     onClick={(e) =>
                       handleSubmitSelection({ triggerEl: e.currentTarget })
                     }
-                    className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[#7a4a2a] px-5 text-[12px] font-bold uppercase tracking-[0.02em] text-white transition-colors hover:bg-[#693916]"
+                    className="inline-flex h-10 w-full items-center justify-center rounded-full border border-[#7a4a2a] bg-white px-5 text-[12px] font-bold uppercase tracking-[0.02em] text-[#7a4a2a] transition-colors hover:bg-[#fff8f1]"
                   >
                     Thêm vào giỏ hàng
                   </button>
