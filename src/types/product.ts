@@ -9,6 +9,9 @@ export interface Product {
   name: string;
   status: ProductStatus;
   price?: number;
+  isBestSeller?: boolean;
+  bestSeller?: boolean;
+  isPopular?: boolean;
 }
 
 export interface Size {
