@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { OrderResponse } from "@/types/order";
@@ -194,6 +194,116 @@ const CheckoutContent = () => {
     "success" | "failed" | null
   >(null);
 
+  // --- Google Maps state ---
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const addressInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const googleMapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markerRef = useRef<google.maps.Marker | null>(null);
+
+  // Load Google Maps script once
+  useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!apiKey || typeof window === "undefined") return;
+    if (document.getElementById("google-maps-script")) return;
+
+    const script = document.createElement("script");
+    script.id = "google-maps-script";
+    // Dùng bản stable 'weekly' và tiếng Việt
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=vi&v=weekly`;
+    script.async = true;
+    script.defer = true;
+
+    script.onerror = () => {
+      console.error("Lỗi: Không thể tải bản đồ Google Maps từ trang thanh toán.");
+    };
+
+    document.head.appendChild(script);
+  }, []);
+
+  // Initialize Autocomplete when delivery mode is selected
+  const initAutocomplete = useCallback(() => {
+    if (!addressInputRef.current) return;
+    if (typeof window === "undefined" || !window.google?.maps?.places) return;
+    if (autocompleteRef.current) return; // Already initialized
+
+    const ac = new window.google.maps.places.Autocomplete(
+      addressInputRef.current as unknown as HTMLInputElement,
+      {
+        componentRestrictions: { country: "vn" },
+        fields: ["formatted_address", "geometry", "name"],
+      }
+    );
+
+    ac.addListener("place_changed", () => {
+      const place = ac.getPlace();
+      if (!place.geometry?.location) return;
+
+      const newLat = place.geometry.location.lat();
+      const newLng = place.geometry.location.lng();
+      const formattedAddress = place.formatted_address || place.name || "";
+
+      setLat(newLat);
+      setLng(newLng);
+      setAddress(formattedAddress);
+
+      // Update map view
+      if (googleMapInstanceRef.current) {
+        googleMapInstanceRef.current.setCenter({ lat: newLat, lng: newLng });
+        googleMapInstanceRef.current.setZoom(16);
+        if (markerRef.current) {
+          markerRef.current.setPosition({ lat: newLat, lng: newLng });
+        } else {
+          markerRef.current = new window.google.maps.Marker({
+            position: { lat: newLat, lng: newLng },
+            map: googleMapInstanceRef.current,
+            animation: window.google.maps.Animation.DROP,
+          });
+        }
+      }
+    });
+
+    autocompleteRef.current = ac;
+  }, []);
+
+  // init map & autocomplete when mapRef is available
+  const initMap = useCallback((node: HTMLDivElement | null) => {
+    mapRef.current = node;
+    if (!node) return;
+
+    const tryInit = () => {
+      if (!window.google?.maps) {
+        setTimeout(tryInit, 300);
+        return;
+      }
+
+      if (!googleMapInstanceRef.current) {
+        googleMapInstanceRef.current = new window.google.maps.Map(node, {
+          center: { lat: 10.7725, lng: 106.6981 },
+          zoom: 13,
+          disableDefaultUI: false,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+        });
+      }
+
+      initAutocomplete();
+    };
+
+    tryInit();
+  }, [initAutocomplete]);
+
+  // When textarea ref changes, wire autocomplete
+  const addressTextareaRef = useCallback((node: HTMLTextAreaElement | null) => {
+    addressInputRef.current = node;
+    if (node && window.google?.maps?.places) {
+      initAutocomplete();
+    }
+  }, [initAutocomplete]);
+
   useEffect(() => {
     // Check session storage for recently placed order items (useful for MoMo redirect)
     const stored = sessionStorage.getItem("last_placed_items");
@@ -268,7 +378,7 @@ const CheckoutContent = () => {
                 setCreatedOrderId(order.orderId);
                 setPaymentMethod(
                   storedPaymentMethod ??
-                    mapGatewayToPaymentMethod(order.paymentGateway),
+                  mapGatewayToPaymentMethod(order.paymentGateway),
                 );
                 setShowSuccessModal(true);
                 clearPersistedPaymentMethod();
@@ -408,7 +518,7 @@ const CheckoutContent = () => {
       } else {
         // Create new order
         const payload: CreateOrderRequest = {
-          orderType: "ONLINE",
+          orderType: deliveryMethod === "delivery" ? "DELIVERY" : "ONLINE",
           orderItems: items.map((item) => ({
             productVariantId: item.variantId,
             quantity: item.quantity,
@@ -420,6 +530,11 @@ const CheckoutContent = () => {
           promotionCode: appliedVoucher?.promotionCode,
           paymentGateway: shouldUseRedirectPayment ? "MOMO" : "CASH",
           returnUrl: window.location.href,
+          ...(deliveryMethod === "delivery" && {
+            deliveryAddress: address,
+            latitude: lat ?? undefined,
+            longitude: lng ?? undefined,
+          }),
         };
         res = await createOrder(accessToken, payload);
       }
@@ -514,18 +629,13 @@ const CheckoutContent = () => {
       (searchParams.get("mode") === "chatbot" || searchParams.get("resultCode"))
     ) {
       const subtotal = successOrder.basePrice || 0;
+      const shippingFee = typeof successOrder.shippingFee === "number" ? successOrder.shippingFee : 0;
+      const discountAmount = successOrder.discountAmount || 0;
       const total = successOrder.paidPrice || 0;
-      // We don't have explicit shipping/discount fields in OrderResponse yet,
-      // but we can infer or just show the main ones.
       return {
         subtotal,
-        shipping: deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0,
-        voucherDiscount: Math.max(
-          0,
-          subtotal +
-            (deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0) -
-            total,
-        ),
+        shipping: shippingFee,
+        voucherDiscount: discountAmount,
         total,
       };
     }
@@ -726,34 +836,47 @@ const CheckoutContent = () => {
                         <label className="text-sm font-semibold text-stone-900">
                           Địa chỉ giao hàng
                         </label>
-                        <Textarea
+                        <textarea
+                          ref={addressTextareaRef}
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
                           placeholder={
                             isLoadingProfile
                               ? "Đang tải địa chỉ..."
-                              : "Số nhà, tên đường, phường/xã, quận/huyện..."
+                              : "Nhập địa chỉ để tìm kiếm tự động..."
                           }
-                          className="bg-white border-amber-100 focus-visible:ring-amber-200 min-h-[80px]"
+                          className="flex w-full rounded-md border border-amber-100 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 min-h-[80px] resize-none"
+                          rows={3}
                         />
+                        {/* Google Map preview */}
+                        <div
+                          ref={initMap}
+                          className="w-full h-52 rounded-xl overflow-hidden border border-amber-100 mt-2 shadow-sm"
+                          style={{ minHeight: "200px" }}
+                        />
+                        {lat && lng && (
+                          <p className="text-xs text-green-700 font-medium flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            Đã xác định vị trí: {lat.toFixed(6)}, {lng.toFixed(6)}
+                          </p>
+                        )}
                         <div className="flex justify-end pt-1">
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={handleUpdateAddress}
-                            // Stop propagation to prevent form defaults if inside form
                             type="button"
                             disabled={isUpdatingAddress || isLoadingProfile}
                             className="text-xs border-amber-200 hover:bg-amber-50 text-amber-800 h-8"
                           >
                             {isUpdatingAddress
                               ? "Đang lưu..."
-                              : "Xác nhận địa chỉ"}
+                              : "Lưu địa chỉ"}
                           </Button>
                         </div>
                         <p className="text-xs text-gray-500 italic">
-                          * Phí giao hàng sẽ được tính toán dựa trên khoảng
-                          cách.
+                          * Phí giao hàng được tính tự động theo khoảng cách từ{" "}
+                          cửa hàng đến địa chỉ của bạn.
                         </p>
                       </div>
                     )}
@@ -815,7 +938,7 @@ const CheckoutContent = () => {
                             localItem?.productName ||
                             capturedItems[
                               fetchedItem?.productVariantId ||
-                                localItem?.variantId
+                              localItem?.variantId
                             ]?.name ||
                             "Sản phẩm";
                           const size =
@@ -899,20 +1022,20 @@ const CheckoutContent = () => {
                                     fetchedItem?.toppingPerOrderItems ||
                                     localItem?.toppings
                                   )?.length > 0 && (
-                                    <div className="text-xs text-gray-600">
-                                      Topping:{" "}
-                                      {isFetchedItem
-                                        ? fetchedItem.toppingPerOrderItems
+                                      <div className="text-xs text-gray-600">
+                                        Topping:{" "}
+                                        {isFetchedItem
+                                          ? fetchedItem.toppingPerOrderItems
                                             .map((t: any) => t.toppingName)
                                             .join(", ")
-                                        : localItem.toppings
+                                          : localItem.toppings
                                             .map(
                                               (t: any) =>
                                                 `${t.name} x${t.quantity}`,
                                             )
                                             .join(", ")}
-                                    </div>
-                                  )}
+                                      </div>
+                                    )}
                                 </div>
                               </div>
 
@@ -1216,7 +1339,7 @@ const CheckoutContent = () => {
                         // Resilient Fallback Logic
                         const fallbackList = JSON.parse(
                           sessionStorage.getItem("last_order_items_fallback") ||
-                            "[]",
+                          "[]",
                         );
                         const fallback = fallbackList[idx];
 
@@ -1437,10 +1560,10 @@ const CheckoutContent = () => {
                                 </div>
                                 {tempSelectedVoucher?.promotionId ===
                                   promo.promotionId && (
-                                  <div className="self-center">
-                                    <CheckCircle2 className="w-5 h-5 text-amber-600" />
-                                  </div>
-                                )}
+                                    <div className="self-center">
+                                      <CheckCircle2 className="w-5 h-5 text-amber-600" />
+                                    </div>
+                                  )}
                               </div>
                             ))
                         )}

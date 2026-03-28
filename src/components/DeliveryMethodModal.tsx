@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { X, Truck, Store, MapPin, Clock, Phone, ChevronRight } from "lucide-react";
 import {
     Dialog,
@@ -60,10 +60,162 @@ export function DeliveryMethodModal({
     const [selectedStore, setSelectedStore] = useState<Store | null>(null);
     const [deliveryAddress, setDeliveryAddress] = useState("");
 
+    // --- Google Maps state ---
+    const [lat, setLat] = useState<number | null>(null);
+    const [lng, setLng] = useState<number | null>(null);
+    const addressInputRef = useRef<HTMLInputElement | null>(null);
+    const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+    const mapRef = useRef<HTMLDivElement | null>(null);
+    const googleMapInstanceRef = useRef<google.maps.Map | null>(null);
+    const markerRef = useRef<google.maps.Marker | null>(null);
+
+    // Load Google Maps script once
+    useEffect(() => {
+        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+        if (!apiKey || typeof window === "undefined") return;
+        if (document.getElementById("google-maps-script")) return;
+
+        const script = document.createElement("script");
+        script.id = "google-maps-script";
+        // Dùng bản stable 'weekly' và tiếng Việt
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=vi&v=weekly`;
+        script.async = true;
+        script.defer = true;
+
+        script.onerror = () => {
+            console.error("Lỗi: Không thể tải bản đồ Google Maps. Hãy kiểm tra lại API Key hoặc Billing.");
+        };
+
+        document.head.appendChild(script);
+    }, []);
+
+    // Initialize Autocomplete
+    const initAutocomplete = useCallback(() => {
+        if (!addressInputRef.current) return;
+        if (typeof window === "undefined" || !window.google?.maps?.places) return;
+        if (autocompleteRef.current) return; // Already initialized
+
+        const ac = new window.google.maps.places.Autocomplete(
+            addressInputRef.current,
+            {
+                componentRestrictions: { country: "vn" },
+                fields: ["formatted_address", "geometry", "name"],
+            }
+        );
+
+        ac.addListener("place_changed", () => {
+            const place = ac.getPlace();
+            if (!place.geometry?.location) return;
+
+            const newLat = place.geometry.location.lat();
+            const newLng = place.geometry.location.lng();
+            const formattedAddress = place.formatted_address || place.name || "";
+
+            setLat(newLat);
+            setLng(newLng);
+            setDeliveryAddress(formattedAddress);
+
+            // Update map view
+            if (googleMapInstanceRef.current) {
+                googleMapInstanceRef.current.setCenter({ lat: newLat, lng: newLng });
+                googleMapInstanceRef.current.setZoom(16);
+                if (markerRef.current) {
+                    markerRef.current.setPosition({ lat: newLat, lng: newLng });
+                } else {
+                    markerRef.current = new window.google.maps.Marker({
+                        position: { lat: newLat, lng: newLng },
+                        map: googleMapInstanceRef.current,
+                        animation: window.google.maps.Animation.DROP,
+                    });
+                }
+            }
+        });
+
+        autocompleteRef.current = ac;
+    }, []);
+
+    // init map & autocomplete when mapRef is available
+    const initMap = useCallback((node: HTMLDivElement | null) => {
+        mapRef.current = node;
+        if (!node) return;
+
+        const tryInit = () => {
+            if (!window.google?.maps) {
+                setTimeout(tryInit, 300);
+                return;
+            }
+
+            if (!googleMapInstanceRef.current) {
+                googleMapInstanceRef.current = new window.google.maps.Map(node, {
+                    center: { lat: 10.7725, lng: 106.6981 },
+                    zoom: 13,
+                    disableDefaultUI: false,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
+                });
+
+                // Add click listener to map
+                googleMapInstanceRef.current.addListener("click", (e: google.maps.MapMouseEvent) => {
+                    if (!e.latLng) return;
+                    const clickedLat = e.latLng.lat();
+                    const clickedLng = e.latLng.lng();
+
+                    setLat(clickedLat);
+                    setLng(clickedLng);
+
+                    // Update marker
+                    if (markerRef.current) {
+                        markerRef.current.setPosition(e.latLng);
+                    } else {
+                        markerRef.current = new window.google.maps.Marker({
+                            position: e.latLng,
+                            map: googleMapInstanceRef.current!,
+                        });
+                    }
+
+                    // Reverse Geocoding to get address
+                    const geocoder = new window.google.maps.Geocoder();
+                    geocoder.geocode({ location: e.latLng }, (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
+                        if (status === window.google.maps.GeocoderStatus.OK && results?.[0]) {
+                            setDeliveryAddress(results[0].formatted_address);
+                        }
+                    });
+                });
+            }
+
+            initAutocomplete();
+        };
+
+        tryInit();
+    }, [initAutocomplete]);
+
+    // When input ref changes, wire autocomplete
+    const addressInputElemRef = useCallback((node: HTMLInputElement | null) => {
+        addressInputRef.current = node;
+        if (node && window.google?.maps?.places) {
+            initAutocomplete();
+        }
+    }, [initAutocomplete]);
+
+    useEffect(() => {
+        if (step === "delivery" && window.google?.maps?.places) {
+            // Give a small delay for DOM to render
+            setTimeout(() => {
+                initAutocomplete();
+            }, 100);
+        }
+    }, [step, initAutocomplete]);
+
     const handleReset = () => {
         setStep("select");
         setSelectedStore(null);
         setDeliveryAddress("");
+        setLat(null);
+        setLng(null);
+        autocompleteRef.current = null;
+        googleMapInstanceRef.current = null;
+        markerRef.current = null;
     };
 
     const handleClose = () => {
@@ -84,7 +236,11 @@ export function DeliveryMethodModal({
             alert("Vui lòng nhập địa chỉ giao hàng");
             return;
         }
-        onSelectMethod("delivery", { address: deliveryAddress });
+        onSelectMethod("delivery", {
+            address: deliveryAddress,
+            latitude: lat,
+            longitude: lng
+        });
         handleClose();
     };
 
@@ -195,6 +351,7 @@ export function DeliveryMethodModal({
                             <div className="relative">
                                 <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                 <input
+                                    ref={addressInputElemRef}
                                     type="text"
                                     placeholder="Nhập địa chỉ của bạn..."
                                     value={deliveryAddress}
@@ -207,18 +364,18 @@ export function DeliveryMethodModal({
                             </p>
                         </div>
 
-                        {/* Google Maps Placeholder */}
-                        <div className="w-full h-64 bg-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center">
-                            <div className="text-center">
-                                <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                                <p className="text-sm text-gray-500">
-                                    Google Maps sẽ được tích hợp tại đây
-                                </p>
-                                <p className="text-xs text-gray-400 mt-1">
-                                    (Cần API key để hiển thị bản đồ)
-                                </p>
-                            </div>
-                        </div>
+                        {/* Google Maps View */}
+                        <div
+                            ref={initMap}
+                            className="w-full h-64 bg-gray-100 rounded-xl overflow-hidden border-2 border-dashed border-gray-300 shadow-inner"
+                        />
+
+                        {lat && lng && (
+                            <p className="text-xs text-green-700 font-medium flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                Đã xác định vị trí: {lat.toFixed(6)}, {lng.toFixed(6)}
+                            </p>
+                        )}
 
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                             <h4 className="font-semibold text-sm text-gray-900 mb-2">
@@ -266,21 +423,21 @@ export function DeliveryMethodModal({
                                     key={store.id}
                                     onClick={() => setSelectedStore(store)}
                                     className={`w-full p-5 border-2 rounded-xl text-left transition-all ${selectedStore?.id === store.id
-                                            ? "border-green-500 bg-green-50"
-                                            : "border-gray-200 hover:border-green-300 hover:bg-green-50/50"
+                                        ? "border-green-500 bg-green-50"
+                                        : "border-gray-200 hover:border-green-300 hover:bg-green-50/50"
                                         }`}
                                 >
                                     <div className="flex items-start gap-4">
                                         <div
                                             className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedStore?.id === store.id
-                                                    ? "bg-green-500"
-                                                    : "bg-gray-200"
+                                                ? "bg-green-500"
+                                                : "bg-gray-200"
                                                 }`}
                                         >
                                             <Store
                                                 className={`w-5 h-5 ${selectedStore?.id === store.id
-                                                        ? "text-white"
-                                                        : "text-gray-600"
+                                                    ? "text-white"
+                                                    : "text-gray-600"
                                                     }`}
                                             />
                                         </div>
@@ -367,8 +524,8 @@ export function DeliveryMethodModal({
                             onClick={handleConfirmPickup}
                             disabled={!selectedStore}
                             className={`w-full py-4 rounded-xl font-bold transition-all ${selectedStore
-                                    ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-lg"
-                                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                                ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-lg"
+                                : "bg-gray-200 text-gray-400 cursor-not-allowed"
                                 }`}
                         >
                             {selectedStore
