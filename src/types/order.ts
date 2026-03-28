@@ -1,4 +1,4 @@
-export type OrderType = "ONLINE" | "OFFLINE";
+export type OrderType = "ONLINE" | "OFFLINE" | "DELIVERY";
 
 // ---- Request types ----
 export interface ToppingItemRequest {
@@ -20,6 +20,9 @@ export interface CreateOrderRequest {
     promotionCode?: string;
     paymentGateway?: string;
     returnUrl?: string;
+    deliveryAddress?: string;
+    latitude?: number;
+    longitude?: number;
 }
 
 // ---- Response types ----
@@ -52,4 +55,7 @@ export interface OrderResponse {
     payUrl?: string;
     message?: string;
     orderItems?: OrderItemResponse[];
+    shippingFee?: number;
+    discountAmount?: number;
+    deliveryAddress?: string;
 }
