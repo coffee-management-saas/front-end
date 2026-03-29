@@ -6,21 +6,23 @@ export interface ChatBotResponse {
     orderRequest?: CreateOrderRequest;
     redirectToPayment?: boolean;
     orderId?: number;
+    conversationId?: string;
 }
 
 export async function sendChatMessage(
     message: string,
     accessToken?: string,
+    conversationId?: string,
 ): Promise<ChatBotResponse> {
     let res: Response;
     try {
-        res = await fetch("/api/ai/chat", {
+        res = await fetch("/api/ai/prompt", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
             },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({ message, conversationId }),
             cache: "no-store",
         });
     } catch (networkErr) {
