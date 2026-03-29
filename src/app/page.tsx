@@ -219,9 +219,10 @@ const Homepage: React.FC = () => {
 
   // Banner auto-scroll
   const bannerImages = [
+    "/images/banner3.png",
     "https://s3-hcmc02.higiocloud.vn/images/2026/01/ly_giay_tet_websitecover_2560x768-20260113032405.jpg",
     "https://phela.vn/wp-content/uploads/2025/08/Resize-Digital_Cover-Fb-scaled.jpg",
-    "https://s3-hcmc02.higiocloud.vn/phuclong/2026/01/lcd_combo1-standard-20260112125155.jpg",
+    "https://katinat.vn/wp-content/uploads/2026/01/KATINAT_TCDTN-1-scaled.jpg",
   ];
 
   useEffect(() => {
