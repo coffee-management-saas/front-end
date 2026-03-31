@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   Search,
@@ -12,6 +12,7 @@ import {
   Mail,
 } from "lucide-react";
 import Link from "next/link";
+import Script from "next/script";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -594,6 +595,10 @@ export default function PhucLongHeader() {
           </ul>
         </div>
       </nav>
+
+      {/* Goong Scripts global */}
+      <link href="https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.css" rel="stylesheet" />
+      <Script src="https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.js" strategy="afterInteractive" />
 
       {/* Delivery Method Modal */}
       <DeliveryMethodModal

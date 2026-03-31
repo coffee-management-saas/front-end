@@ -42,7 +42,7 @@ import {
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { cn, canUseImage, FALLBACK_IMG } from "@/lib/utils";
+import { cn, canUseImage, FALLBACK_IMG, debounce } from "@/lib/utils";
 import { useCart } from "@/contexts/CartContext";
 import type { Promotion } from "@/types/promotion";
 import { useAppContext } from "@/app/AppProvider";
@@ -194,115 +194,106 @@ const CheckoutContent = () => {
     "success" | "failed" | null
   >(null);
 
-  // --- Google Maps state ---
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
-  const addressInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const mapRef = useRef<HTMLDivElement | null>(null);
-  const googleMapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markerRef = useRef<google.maps.Marker | null>(null);
+  // --- Goong Maps state ---
+  const [lat, setLat] = useState<number>(10.7725);
+  const [lng, setLng] = useState<number>(106.6981);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const goongMapInstanceRef = useRef<any | null>(null);
+  const markerRef = useRef<any | null>(null);
+  const initializingRef = useRef(false);
 
-  // Load Google Maps script once
-  useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey || typeof window === "undefined") return;
-    if (document.getElementById("google-maps-script")) return;
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
-    const script = document.createElement("script");
-    script.id = "google-maps-script";
-    // Dùng bản stable 'weekly' và tiếng Việt
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=vi&v=weekly`;
-    script.async = true;
-    script.defer = true;
+  // Initialize Goong Map
+  const initMap = useCallback(() => {
+    const maptilesKey = process.env.NEXT_PUBLIC_GOONG_MAP_KEY;
+    const goongjs = (window as any).goongjs;
+    if (!maptilesKey || !goongjs || !mapContainerRef.current || goongMapInstanceRef.current || initializingRef.current) return;
 
-    script.onerror = () => {
-      console.error("Lỗi: Không thể tải bản đồ Google Maps từ trang thanh toán.");
-    };
+    initializingRef.current = true;
+    try {
+      goongjs.accessToken = maptilesKey;
+      const map = new goongjs.Map({
+        container: mapContainerRef.current,
+        style: 'https://tiles.goong.io/assets/goong_map_web.json',
+        center: [lng, lat],
+        zoom: 15
+      });
 
-    document.head.appendChild(script);
-  }, []);
+      goongMapInstanceRef.current = map;
+      map.on('load', () => {
+        initializingRef.current = false;
+        map.resize();
+        const marker = new goongjs.Marker({ draggable: true, anchor: 'bottom' })
+          .setLngLat([lng, lat])
+          .addTo(map);
 
-  // Initialize Autocomplete when delivery mode is selected
-  const initAutocomplete = useCallback(() => {
-    if (!addressInputRef.current) return;
-    if (typeof window === "undefined" || !window.google?.maps?.places) return;
-    if (autocompleteRef.current) return; // Already initialized
-
-    const ac = new window.google.maps.places.Autocomplete(
-      addressInputRef.current as unknown as HTMLInputElement,
-      {
-        componentRestrictions: { country: "vn" },
-        fields: ["formatted_address", "geometry", "name"],
-      }
-    );
-
-    ac.addListener("place_changed", () => {
-      const place = ac.getPlace();
-      if (!place.geometry?.location) return;
-
-      const newLat = place.geometry.location.lat();
-      const newLng = place.geometry.location.lng();
-      const formattedAddress = place.formatted_address || place.name || "";
-
-      setLat(newLat);
-      setLng(newLng);
-      setAddress(formattedAddress);
-
-      // Update map view
-      if (googleMapInstanceRef.current) {
-        googleMapInstanceRef.current.setCenter({ lat: newLat, lng: newLng });
-        googleMapInstanceRef.current.setZoom(16);
-        if (markerRef.current) {
-          markerRef.current.setPosition({ lat: newLat, lng: newLng });
-        } else {
-          markerRef.current = new window.google.maps.Marker({
-            position: { lat: newLat, lng: newLng },
-            map: googleMapInstanceRef.current,
-            animation: window.google.maps.Animation.DROP,
-          });
-        }
-      }
-    });
-
-    autocompleteRef.current = ac;
-  }, []);
-
-  // init map & autocomplete when mapRef is available
-  const initMap = useCallback((node: HTMLDivElement | null) => {
-    mapRef.current = node;
-    if (!node) return;
-
-    const tryInit = () => {
-      if (!window.google?.maps) {
-        setTimeout(tryInit, 300);
-        return;
-      }
-
-      if (!googleMapInstanceRef.current) {
-        googleMapInstanceRef.current = new window.google.maps.Map(node, {
-          center: { lat: 10.7725, lng: 106.6981 },
-          zoom: 13,
-          disableDefaultUI: false,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
+        marker.on('dragend', async () => {
+          const pos = marker.getLngLat();
+          setLat(pos.lat); setLng(pos.lng);
+          try {
+            const res = await fetch(`/api/map/geocode?latlng=${pos.lat},${pos.lng}`);
+            const data = await res.json();
+            if (data.status === "OK" && data.results?.[0]) {
+              setAddress(data.results[0].formatted_address);
+            }
+          } catch (e) {}
         });
-      }
+        markerRef.current = marker;
+      });
 
-      initAutocomplete();
-    };
-
-    tryInit();
-  }, [initAutocomplete]);
-
-  // When textarea ref changes, wire autocomplete
-  const addressTextareaRef = useCallback((node: HTMLTextAreaElement | null) => {
-    addressInputRef.current = node;
-    if (node && window.google?.maps?.places) {
-      initAutocomplete();
+      map.on('error', (e: any) => {
+        console.error("Goong Map error (Checkout):", e);
+        initializingRef.current = false;
+      });
+    } catch (err) {
+      console.error(err);
+      initializingRef.current = false;
     }
-  }, [initAutocomplete]);
+  }, [lat, lng]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if ((window as any).goongjs && mapContainerRef.current) {
+        initMap();
+        clearInterval(timer);
+      }
+    }, 500);
+    return () => {
+      clearInterval(timer);
+      if (goongMapInstanceRef.current) {
+        goongMapInstanceRef.current.remove();
+        goongMapInstanceRef.current = null;
+        markerRef.current = null;
+        initializingRef.current = false;
+      }
+    };
+  }, [initMap]);
+
+  const fetchSuggestions = useMemo(() => debounce(async (input: string) => {
+    if (input.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
+    try {
+      const res = await fetch(`/api/map/autocomplete?input=${encodeURIComponent(input)}`);
+      const data = await res.json();
+      setSuggestions(data.predictions || []); setShowSuggestions(true);
+    } catch (e) {}
+  }, 500), []);
+
+  const handleSelectSuggestion = async (s: any) => {
+    setAddress(s.description); setShowSuggestions(false);
+    try {
+      const res = await fetch(`/api/map/place-detail?placeId=${s.place_id}`);
+      const data = await res.json();
+      if (data.status === "OK") {
+        const { lat: nl, lng: ng } = data.result.geometry.location;
+        setLat(nl); setLng(ng);
+        if (goongMapInstanceRef.current) goongMapInstanceRef.current.flyTo({ center: [ng, nl], zoom: 16 });
+        if (markerRef.current) markerRef.current.setLngLat([ng, nl]);
+      }
+    } catch (e) {}
+  };
 
   useEffect(() => {
     // Check session storage for recently placed order items (useful for MoMo redirect)
@@ -832,32 +823,51 @@ const CheckoutContent = () => {
                     </div>
 
                     {deliveryMethod === "delivery" && (
-                      <div className="space-y-2 mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="space-y-4 mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
                         <label className="text-sm font-semibold text-stone-900">
                           Địa chỉ giao hàng
                         </label>
-                        <textarea
-                          ref={addressTextareaRef}
-                          value={address}
-                          onChange={(e) => setAddress(e.target.value)}
-                          placeholder={
-                            isLoadingProfile
-                              ? "Đang tải địa chỉ..."
-                              : "Nhập địa chỉ để tìm kiếm tự động..."
-                          }
-                          className="flex w-full rounded-md border border-amber-100 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 min-h-[80px] resize-none"
-                          rows={3}
-                        />
-                        {/* Google Map preview */}
+                        <div className="relative">
+                          <textarea
+                            value={address}
+                            onChange={(e) => {
+                              setAddress(e.target.value);
+                              fetchSuggestions(e.target.value);
+                            }}
+                            placeholder={
+                              isLoadingProfile
+                                ? "Đang tải địa chỉ..."
+                                : "Nhập địa chỉ giao hàng..."
+                            }
+                            className="flex w-full rounded-xl border border-amber-100 bg-white px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 min-h-[100px] resize-none shadow-sm transition-all"
+                            rows={3}
+                          />
+                          {showSuggestions && suggestions.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 z-50 bg-white border border-stone-100 rounded-xl mt-2 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                              {suggestions.map((s, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => handleSelectSuggestion(s)}
+                                  className="w-full p-4 text-left hover:bg-amber-50 border-b border-stone-50 last:border-0 text-sm transition-colors flex items-center gap-3"
+                                >
+                                  <MapPin size={14} className="text-stone-400 shrink-0" />
+                                  <span className="truncate">{s.description}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Goong Map preview */}
                         <div
-                          ref={initMap}
-                          className="w-full h-52 rounded-xl overflow-hidden border border-amber-100 mt-2 shadow-sm"
-                          style={{ minHeight: "200px" }}
+                          ref={mapContainerRef}
+                          className="w-full h-64 rounded-xl overflow-hidden border border-amber-100 mt-2 shadow-inner bg-stone-100"
                         />
+                        
                         {lat && lng && (
-                          <p className="text-xs text-green-700 font-medium flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            Đã xác định vị trí: {lat.toFixed(6)}, {lng.toFixed(6)}
+                          <p className="text-xs text-amber-700 font-bold flex items-center gap-1.5 bg-amber-50 w-fit px-3 py-1.5 rounded-full">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Đã xác định vị trí trên bản đồ
                           </p>
                         )}
                         <div className="flex justify-end pt-1">
@@ -867,17 +877,13 @@ const CheckoutContent = () => {
                             onClick={handleUpdateAddress}
                             type="button"
                             disabled={isUpdatingAddress || isLoadingProfile}
-                            className="text-xs border-amber-200 hover:bg-amber-50 text-amber-800 h-8"
+                            className="text-xs border-amber-200 hover:bg-amber-50 text-amber-800 h-9 px-4 font-bold rounded-full"
                           >
                             {isUpdatingAddress
                               ? "Đang lưu..."
-                              : "Lưu địa chỉ"}
+                              : "Cập nhật vào hồ sơ"}
                           </Button>
                         </div>
-                        <p className="text-xs text-gray-500 italic">
-                          * Phí giao hàng được tính tự động theo khoảng cách từ{" "}
-                          cửa hàng đến địa chỉ của bạn.
-                        </p>
                       </div>
                     )}
 

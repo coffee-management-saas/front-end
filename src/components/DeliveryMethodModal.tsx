@@ -1,539 +1,313 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { X, Truck, Store, MapPin, Clock, Phone, ChevronRight } from "lucide-react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { Truck, Store, MapPin, ChevronRight, ArrowLeft } from "lucide-react";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { cn, debounce } from "@/lib/utils";
+import { useAppContext } from "@/app/AppProvider";
+import { toast } from "sonner";
 
-interface Store {
-    id: number;
-    name: string;
-    address: string;
-    phone: string;
-    hours: string;
-    distance?: string;
-}
+interface Store { id: number; name: string; address: string; phone: string; }
 
 const STORES: Store[] = [
-    {
-        id: 1,
-        name: "F&B Coffee - Chi nhánh Quận 1",
-        address: "123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP.HCM",
-        phone: "028 1234 5678",
-        hours: "7:00 - 22:00",
-        distance: "1.2 km",
-    },
-    {
-        id: 2,
-        name: "F&B Coffee - Chi nhánh Quận 3",
-        address: "456 Võ Văn Tần, Phường 5, Quận 3, TP.HCM",
-        phone: "028 8765 4321",
-        hours: "7:00 - 22:00",
-        distance: "2.5 km",
-    },
-    {
-        id: 3,
-        name: "F&B Coffee - Chi nhánh Bình Thạnh",
-        address: "789 Điện Biên Phủ, Phường 15, Bình Thạnh, TP.HCM",
-        phone: "028 9999 8888",
-        hours: "6:30 - 23:00",
-        distance: "3.8 km",
-    },
+    { id: 1, name: "F&B Coffee - Quận 1", address: "123 Nguyễn Huệ, Quận 1, TP.HCM", phone: "028 1234 5678" },
+    { id: 2, name: "F&B Coffee - Quận 3", address: "456 Võ Văn Tần, Quận 3, TP.HCM", phone: "028 8765 4321" },
+    { id: 3, name: "F&B Coffee - Bình Thạnh", address: "789 Điện Biên Phủ, Bình Thạnh, TP.HCM", phone: "028 9999 8888" },
 ];
 
-interface DeliveryMethodModalProps {
-    open: boolean;
-    onClose: () => void;
-    onSelectMethod: (method: "delivery" | "pickup", data?: any) => void;
-}
-
-export function DeliveryMethodModal({
-    open,
-    onClose,
-    onSelectMethod,
-}: DeliveryMethodModalProps) {
+export function DeliveryMethodModal({ open, onClose, onSelectMethod }: { open: boolean; onClose: () => void; onSelectMethod: (method: "delivery" | "pickup", data?: any) => void; }) {
+    const { accessToken } = useAppContext();
     const [step, setStep] = useState<"select" | "delivery" | "pickup">("select");
     const [selectedStore, setSelectedStore] = useState<Store | null>(null);
     const [deliveryAddress, setDeliveryAddress] = useState("");
-
-    // --- Google Maps state ---
-    const [lat, setLat] = useState<number | null>(null);
-    const [lng, setLng] = useState<number | null>(null);
-    const addressInputRef = useRef<HTMLInputElement | null>(null);
-    const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-    const mapRef = useRef<HTMLDivElement | null>(null);
-    const googleMapInstanceRef = useRef<google.maps.Map | null>(null);
-    const markerRef = useRef<google.maps.Marker | null>(null);
-
-    // Load Google Maps script once
-    useEffect(() => {
-        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-        if (!apiKey || typeof window === "undefined") return;
-        if (document.getElementById("google-maps-script")) return;
-
-        const script = document.createElement("script");
-        script.id = "google-maps-script";
-        // Dùng bản stable 'weekly' và tiếng Việt
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=vi&v=weekly`;
-        script.async = true;
-        script.defer = true;
-
-        script.onerror = () => {
-            console.error("Lỗi: Không thể tải bản đồ Google Maps. Hãy kiểm tra lại API Key hoặc Billing.");
-        };
-
-        document.head.appendChild(script);
-    }, []);
-
-    // Initialize Autocomplete
-    const initAutocomplete = useCallback(() => {
-        if (!addressInputRef.current) return;
-        if (typeof window === "undefined" || !window.google?.maps?.places) return;
-        if (autocompleteRef.current) return; // Already initialized
-
-        const ac = new window.google.maps.places.Autocomplete(
-            addressInputRef.current,
-            {
-                componentRestrictions: { country: "vn" },
-                fields: ["formatted_address", "geometry", "name"],
-            }
-        );
-
-        ac.addListener("place_changed", () => {
-            const place = ac.getPlace();
-            if (!place.geometry?.location) return;
-
-            const newLat = place.geometry.location.lat();
-            const newLng = place.geometry.location.lng();
-            const formattedAddress = place.formatted_address || place.name || "";
-
-            setLat(newLat);
-            setLng(newLng);
-            setDeliveryAddress(formattedAddress);
-
-            // Update map view
-            if (googleMapInstanceRef.current) {
-                googleMapInstanceRef.current.setCenter({ lat: newLat, lng: newLng });
-                googleMapInstanceRef.current.setZoom(16);
-                if (markerRef.current) {
-                    markerRef.current.setPosition({ lat: newLat, lng: newLng });
-                } else {
-                    markerRef.current = new window.google.maps.Marker({
-                        position: { lat: newLat, lng: newLng },
-                        map: googleMapInstanceRef.current,
-                        animation: window.google.maps.Animation.DROP,
-                    });
-                }
-            }
-        });
-
-        autocompleteRef.current = ac;
-    }, []);
-
-    // init map & autocomplete when mapRef is available
-    const initMap = useCallback((node: HTMLDivElement | null) => {
-        mapRef.current = node;
-        if (!node) return;
-
-        const tryInit = () => {
-            if (!window.google?.maps) {
-                setTimeout(tryInit, 300);
-                return;
-            }
-
-            if (!googleMapInstanceRef.current) {
-                googleMapInstanceRef.current = new window.google.maps.Map(node, {
-                    center: { lat: 10.7725, lng: 106.6981 },
-                    zoom: 13,
-                    disableDefaultUI: false,
-                    mapTypeControl: false,
-                    streetViewControl: false,
-                    fullscreenControl: false,
-                });
-
-                // Add click listener to map
-                googleMapInstanceRef.current.addListener("click", (e: google.maps.MapMouseEvent) => {
-                    if (!e.latLng) return;
-                    const clickedLat = e.latLng.lat();
-                    const clickedLng = e.latLng.lng();
-
-                    setLat(clickedLat);
-                    setLng(clickedLng);
-
-                    // Update marker
-                    if (markerRef.current) {
-                        markerRef.current.setPosition(e.latLng);
-                    } else {
-                        markerRef.current = new window.google.maps.Marker({
-                            position: e.latLng,
-                            map: googleMapInstanceRef.current!,
-                        });
-                    }
-
-                    // Reverse Geocoding to get address
-                    const geocoder = new window.google.maps.Geocoder();
-                    geocoder.geocode({ location: e.latLng }, (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
-                        if (status === window.google.maps.GeocoderStatus.OK && results?.[0]) {
-                            setDeliveryAddress(results[0].formatted_address);
-                        }
-                    });
-                });
-            }
-
-            initAutocomplete();
-        };
-
-        tryInit();
-    }, [initAutocomplete]);
-
-    // When input ref changes, wire autocomplete
-    const addressInputElemRef = useCallback((node: HTMLInputElement | null) => {
-        addressInputRef.current = node;
-        if (node && window.google?.maps?.places) {
-            initAutocomplete();
-        }
-    }, [initAutocomplete]);
+    const [lat, setLat] = useState<number>(10.7725);
+    const [lng, setLng] = useState<number>(106.6981);
+    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    
+    const mapContainerRef = useRef<HTMLDivElement | null>(null);
+    const goongMapInstanceRef = useRef<any | null>(null);
+    const markerRef = useRef<any | null>(null);
+    const initializingRef = useRef(false);
 
     useEffect(() => {
-        if (step === "delivery" && window.google?.maps?.places) {
-            // Give a small delay for DOM to render
-            setTimeout(() => {
-                initAutocomplete();
-            }, 100);
-        }
-    }, [step, initAutocomplete]);
-
-    const handleReset = () => {
+        if (!open) return;
         setStep("select");
-        setSelectedStore(null);
-        setDeliveryAddress("");
-        setLat(null);
-        setLng(null);
-        autocompleteRef.current = null;
-        googleMapInstanceRef.current = null;
-        markerRef.current = null;
-    };
+        const loadInitData = async () => {
+            if (accessToken) {
+                try {
+                    const res = await fetch("/api/profile", { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                    if (res.ok) {
+                        const profile = await res.json();
+                        if (profile.address) setDeliveryAddress(profile.address);
+                    }
+                } catch (e) {}
+            }
+            const saved = localStorage.getItem("deliveryMethod");
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.type === "delivery" && parsed.data) {
+                        setDeliveryAddress(parsed.data.address || "");
+                        if (parsed.data.latitude) setLat(parsed.data.latitude);
+                        if (parsed.data.longitude) setLng(parsed.data.longitude);
+                    }
+                } catch (e) {}
+            }
+        };
+        loadInitData();
+    }, [open, accessToken]);
 
-    const handleClose = () => {
-        handleReset();
-        onClose();
-    };
+    const initMap = useCallback(() => {
+        const maptilesKey = process.env.NEXT_PUBLIC_GOONG_MAP_KEY;
+        const goongjs = (window as any).goongjs;
+        if (!maptilesKey || !goongjs || !mapContainerRef.current || goongMapInstanceRef.current || initializingRef.current) return;
 
-    const handleSelectDelivery = () => {
-        setStep("delivery");
-    };
+        initializingRef.current = true;
+        try {
+            goongjs.accessToken = maptilesKey;
+            const map = new goongjs.Map({
+                container: mapContainerRef.current,
+                style: 'https://tiles.goong.io/assets/goong_map_web.json',
+                center: [lng, lat],
+                zoom: 15
+            });
 
-    const handleSelectPickup = () => {
-        setStep("pickup");
-    };
+            goongMapInstanceRef.current = map;
+            map.on('load', () => {
+                initializingRef.current = false;
+                map.resize(); // Ensure map fits container
+                const marker = new goongjs.Marker({ draggable: true, anchor: 'bottom' })
+                    .setLngLat([lng, lat])
+                    .addTo(map);
 
-    const handleConfirmDelivery = () => {
-        if (!deliveryAddress.trim()) {
-            alert("Vui lòng nhập địa chỉ giao hàng");
-            return;
+                marker.on('dragend', async () => {
+                    const pos = marker.getLngLat();
+                    setLat(pos.lat); setLng(pos.lng);
+                    try {
+                        const res = await fetch(`/api/map/geocode?latlng=${pos.lat},${pos.lng}`);
+                        const data = await res.json();
+                        if (data.status === "OK" && data.results?.[0]) {
+                            setDeliveryAddress(data.results[0].formatted_address);
+                        }
+                    } catch (e) {}
+                });
+                markerRef.current = marker;
+            });
+            // Also handle initialization errors
+            map.on('error', (e: any) => {
+                console.error("Goong Map error:", e);
+                initializingRef.current = false;
+            });
+        } catch (err) { 
+            console.error("Map initialization failed:", err);
+            initializingRef.current = false; 
         }
-        onSelectMethod("delivery", {
-            address: deliveryAddress,
-            latitude: lat,
-            longitude: lng
-        });
-        handleClose();
+    }, [lat, lng]);
+
+    useEffect(() => {
+        if (open && step === "delivery") {
+            const timer = setInterval(() => {
+                if ((window as any).goongjs && mapContainerRef.current) {
+                    initMap(); 
+                    clearInterval(timer);
+                }
+            }, 300);
+            return () => clearInterval(timer);
+        } else {
+            // Clean up when not on delivery step or modal closed
+            if (goongMapInstanceRef.current) {
+                goongMapInstanceRef.current.remove();
+                goongMapInstanceRef.current = null;
+                markerRef.current = null;
+                initializingRef.current = false;
+            }
+        }
+    }, [open, step, initMap]);
+
+    const fetchSuggestions = useMemo(() => debounce(async (input: string) => {
+        if (input.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
+        try {
+            const res = await fetch(`/api/map/autocomplete?input=${encodeURIComponent(input)}`);
+            const data = await res.json();
+            setSuggestions(data.predictions || []); setShowSuggestions(true);
+        } catch (e) {}
+    }, 500), []);
+
+    const handleSelectSuggestion = async (s: any) => {
+        setDeliveryAddress(s.description); setShowSuggestions(false);
+        try {
+            const res = await fetch(`/api/map/place-detail?placeId=${s.place_id}`);
+            const data = await res.json();
+            if (data.status === "OK") {
+                const { lat: nl, lng: ng } = data.result.geometry.location;
+                setLat(nl); setLng(ng);
+                if (goongMapInstanceRef.current) goongMapInstanceRef.current.flyTo({ center: [ng, nl], zoom: 16 });
+                if (markerRef.current) markerRef.current.setLngLat([ng, nl]);
+            }
+        } catch (e) {}
     };
 
-    const handleConfirmPickup = () => {
-        if (!selectedStore) {
-            alert("Vui lòng chọn cửa hàng");
-            return;
+    const handleConfirmDelivery = async () => {
+        if (!deliveryAddress.trim()) { toast.error("Vui lòng nhập địa chỉ"); return; }
+        if (accessToken) {
+            try {
+                await fetch("/api/profile", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${accessToken}` },
+                    body: JSON.stringify({ address: deliveryAddress }),
+                });
+            } catch (e) {}
         }
-        onSelectMethod("pickup", { store: selectedStore });
-        handleClose();
+        const data = { address: deliveryAddress, latitude: lat, longitude: lng };
+        onSelectMethod("delivery", data); onClose();
     };
 
     return (
-        <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle className="text-2xl font-bold text-[#693916] flex items-center gap-2">
-                        <Truck className="w-6 h-6" />
-                        Chọn Phương Thức Nhận Hàng
-                    </DialogTitle>
-                </DialogHeader>
-
-                {/* Step 1: Select Method */}
-                {step === "select" && (
-                    <div className="space-y-4 py-4">
-                        <p className="text-sm text-gray-600 mb-6">
-                            Vui lòng chọn phương thức nhận hàng phù hợp với bạn
-                        </p>
-
-                        {/* Delivery Option */}
-                        <button
-                            onClick={handleSelectDelivery}
-                            className="w-full p-6 border-2 border-gray-200 rounded-2xl hover:border-amber-500 hover:bg-amber-50 transition-all group text-left"
-                        >
-                            <div className="flex items-start gap-4">
-                                <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                                    <Truck className="w-7 h-7 text-white" />
+        <Dialog open={open} onOpenChange={onClose}>
+            <DialogContent className="max-w-4xl w-[95vw] max-h-[95vh] overflow-hidden flex flex-col p-0 rounded-[2rem] border-none shadow-2xl">
+                <div className="p-4 border-b bg-stone-50">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-extrabold flex items-center gap-2 text-[#693916]">
+                            <div className="p-1.5 bg-amber-100 rounded-lg"><Truck size={20} className="text-amber-700" /></div>
+                            Phương thức nhận hàng
+                        </DialogTitle>
+                    </DialogHeader>
+                </div>
+                <div className="flex-1 overflow-y-auto p-5 scrollbar-hide bg-white">
+                    {step === "select" && (
+                        <div className="grid grid-cols-1 gap-4">
+                            <button 
+                                onClick={() => setStep("delivery")} 
+                                className="relative overflow-hidden group w-full p-5 border-2 border-stone-100 rounded-3xl flex items-center gap-6 hover:border-amber-500 hover:bg-amber-50/50 text-left transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+                            >
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <Truck size={100} />
                                 </div>
-                                <div className="flex-1">
-                                    <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-[#693916]">
-                                        Giao Hàng Tận Nơi
-                                    </h3>
-                                    <p className="text-sm text-gray-600 mb-3">
-                                        Chúng tôi sẽ giao hàng đến địa chỉ của bạn
-                                    </p>
-                                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                                        <span className="flex items-center gap-1">
-                                            <Clock className="w-4 h-4" />
-                                            30-45 phút
-                                        </span>
-                                        <span className="flex items-center gap-1">
-                                            <MapPin className="w-4 h-4" />
-                                            Trong bán kính 5km
-                                        </span>
-                                    </div>
+                                <div className="p-4 bg-amber-500 rounded-2xl text-white shadow-lg shadow-amber-200 group-hover:rotate-6 transition-transform shrink-0">
+                                    <Truck size={32} />
                                 </div>
-                                <ChevronRight className="w-6 h-6 text-gray-400 group-hover:text-[#693916] group-hover:translate-x-1 transition-all" />
-                            </div>
-                        </button>
-
-                        {/* Pickup Option */}
-                        <button
-                            onClick={handleSelectPickup}
-                            className="w-full p-6 border-2 border-gray-200 rounded-2xl hover:border-green-500 hover:bg-green-50 transition-all group text-left"
-                        >
-                            <div className="flex items-start gap-4">
-                                <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                                    <Store className="w-7 h-7 text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-green-700">
-                                        Nhận Tại Cửa Hàng
-                                    </h3>
-                                    <p className="text-sm text-gray-600 mb-3">
-                                        Đến cửa hàng để nhận hàng và tiết kiệm phí ship
-                                    </p>
-                                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                                        <span className="flex items-center gap-1">
-                                            <Clock className="w-4 h-4" />
-                                            15-20 phút
-                                        </span>
-                                        <span className="flex items-center gap-1">
-                                            <Store className="w-4 h-4" />
-                                            3 chi nhánh
-                                        </span>
-                                    </div>
-                                </div>
-                                <ChevronRight className="w-6 h-6 text-gray-400 group-hover:text-green-700 group-hover:translate-x-1 transition-all" />
-                            </div>
-                        </button>
-                    </div>
-                )}
-
-                {/* Step 2: Delivery Address */}
-                {step === "delivery" && (
-                    <div className="space-y-6 py-4">
-                        <button
-                            onClick={handleReset}
-                            className="text-sm text-gray-600 hover:text-[#693916] flex items-center gap-1"
-                        >
-                            ← Quay lại
-                        </button>
-
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-900 mb-3">
-                                Địa chỉ giao hàng
-                            </label>
-                            <div className="relative">
-                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                <input
-                                    ref={addressInputElemRef}
-                                    type="text"
-                                    placeholder="Nhập địa chỉ của bạn..."
-                                    value={deliveryAddress}
-                                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
-                                />
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2">
-                                💡 Tip: Bạn có thể chọn vị trí trên bản đồ hoặc nhập địa chỉ chi tiết
-                            </p>
-                        </div>
-
-                        {/* Google Maps View */}
-                        <div
-                            ref={initMap}
-                            className="w-full h-64 bg-gray-100 rounded-xl overflow-hidden border-2 border-dashed border-gray-300 shadow-inner"
-                        />
-
-                        {lat && lng && (
-                            <p className="text-xs text-green-700 font-medium flex items-center gap-1">
-                                <MapPin className="w-3 h-3" />
-                                Đã xác định vị trí: {lat.toFixed(6)}, {lng.toFixed(6)}
-                            </p>
-                        )}
-
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                            <h4 className="font-semibold text-sm text-gray-900 mb-2">
-                                Thông tin giao hàng:
-                            </h4>
-                            <ul className="space-y-1 text-xs text-gray-600">
-                                <li>• Phí ship: 15.000đ - 25.000đ (tùy khoảng cách)</li>
-                                <li>• Thời gian giao: 30-45 phút</li>
-                                <li>• Miễn phí ship cho đơn hàng từ 200.000đ</li>
-                            </ul>
-                        </div>
-
-                        <button
-                            onClick={handleConfirmDelivery}
-                            className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-xl font-bold hover:shadow-lg transition-all"
-                        >
-                            Xác Nhận Địa Chỉ Giao Hàng
-                        </button>
-                    </div>
-                )}
-
-                {/* Step 3: Select Store for Pickup */}
-                {step === "pickup" && (
-                    <div className="space-y-6 py-4">
-                        <button
-                            onClick={handleReset}
-                            className="text-sm text-gray-600 hover:text-[#693916] flex items-center gap-1"
-                        >
-                            ← Quay lại
-                        </button>
-
-                        <div>
-                            <h3 className="text-lg font-bold text-gray-900 mb-2">
-                                Chọn cửa hàng để nhận hàng
-                            </h3>
-                            <p className="text-sm text-gray-600">
-                                Đơn hàng sẽ được chuẩn bị trong 15-20 phút
-                            </p>
-                        </div>
-
-                        {/* Store List */}
-                        <div className="space-y-3">
-                            {STORES.map((store) => (
-                                <button
-                                    key={store.id}
-                                    onClick={() => setSelectedStore(store)}
-                                    className={`w-full p-5 border-2 rounded-xl text-left transition-all ${selectedStore?.id === store.id
-                                        ? "border-green-500 bg-green-50"
-                                        : "border-gray-200 hover:border-green-300 hover:bg-green-50/50"
-                                        }`}
-                                >
-                                    <div className="flex items-start gap-4">
-                                        <div
-                                            className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedStore?.id === store.id
-                                                ? "bg-green-500"
-                                                : "bg-gray-200"
-                                                }`}
-                                        >
-                                            <Store
-                                                className={`w-5 h-5 ${selectedStore?.id === store.id
-                                                    ? "text-white"
-                                                    : "text-gray-600"
-                                                    }`}
-                                            />
-                                        </div>
-                                        <div className="flex-1">
-                                            <h4 className="font-bold text-gray-900 mb-1">
-                                                {store.name}
-                                            </h4>
-                                            <div className="space-y-1 text-xs text-gray-600">
-                                                <p className="flex items-start gap-2">
-                                                    <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                                    <span>{store.address}</span>
-                                                </p>
-                                                <p className="flex items-center gap-2">
-                                                    <Phone className="w-4 h-4" />
-                                                    {store.phone}
-                                                </p>
-                                                <p className="flex items-center gap-2">
-                                                    <Clock className="w-4 h-4" />
-                                                    {store.hours}
-                                                </p>
-                                            </div>
-                                            {store.distance && (
-                                                <span className="inline-block mt-2 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
-                                                    📍 Cách bạn {store.distance}
-                                                </span>
-                                            )}
+                                <div className="flex-1 space-y-1 relative z-10">
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="text-xl font-black text-stone-800">Giao hàng tận nơi</h4>
+                                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-amber-700 uppercase tracking-tight bg-amber-100 px-2.5 py-0.5 rounded-full">
+                                            <span>Freeship từ 100k</span>
                                         </div>
                                     </div>
+                                    <p className="text-sm text-stone-500 leading-normal max-w-sm">Cà phê sẽ được mang đến tận nơi trong 15-30 phút.</p>
+                                    <div className="flex items-center gap-1.5 text-amber-600 font-bold group-hover:translate-x-1.5 transition-transform text-xs pt-0.5">
+                                        Chọn ngay <ChevronRight size={14} />
+                                    </div>
+                                </div>
+                            </button>
+
+                            <button 
+                                onClick={() => setStep("pickup")} 
+                                className="relative overflow-hidden group w-full p-5 border-2 border-stone-100 rounded-3xl flex items-center gap-6 hover:border-emerald-500 hover:bg-emerald-50/50 text-left transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+                            >
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <Store size={100} />
+                                </div>
+                                <div className="p-4 bg-emerald-500 rounded-2xl text-white shadow-lg shadow-emerald-200 group-hover:rotate-6 transition-transform shrink-0">
+                                    <Store size={32} />
+                                </div>
+                                <div className="flex-1 space-y-1 relative z-10">
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="text-xl font-black text-stone-800">Nhận tại cửa hàng</h4>
+                                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-emerald-700 uppercase tracking-tight bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                                            <span>Tiết kiệm thời gian</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-stone-500 leading-normal max-w-sm">Chuẩn bị sẵn món lấy ngay khi ghé qua cửa hàng.</p>
+                                    <div className="flex items-center gap-1.5 text-emerald-600 font-bold group-hover:translate-x-1.5 transition-transform text-xs pt-0.5">
+                                        Chọn ngay <ChevronRight size={14} />
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                    )}
+                    {step === "delivery" && (
+                        <div className="space-y-3 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <button onClick={() => setStep("select")} className="group text-xs flex items-center gap-1.5 text-stone-400 hover:text-stone-800 transition-colors font-bold">
+                                <ArrowLeft size={14} /> Quay lại
+                            </button>
+                            <div className="space-y-1.5 relative">
+                                <label className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
+                                    <MapPin size={16} className="text-amber-600" /> Địa chỉ giao hàng
+                                </label>
+                                <div className="relative">
+                                    <input 
+                                        type="text" value={deliveryAddress}
+                                        onChange={(e) => { setDeliveryAddress(e.target.value); fetchSuggestions(e.target.value); }}
+                                        placeholder="Nhập địa chỉ giao hàng..."
+                                        className="w-full px-4 py-3 border-2 border-stone-100 rounded-xl focus:border-amber-500 bg-stone-50 outline-none transition-all focus:bg-white text-sm"
+                                    />
+                                    {showSuggestions && suggestions.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 z-50 bg-white border border-stone-100 rounded-xl mt-1 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                                            {suggestions.map((s, idx) => (
+                                                <button key={idx} onClick={() => handleSelectSuggestion(s)} className="w-full p-3 text-left hover:bg-amber-50 border-b border-stone-50 last:border-0 text-sm transition-colors flex items-center gap-2.5">
+                                                    <MapPin size={12} className="text-stone-400 shrink-0" />
+                                                    <span className="truncate">{s.description}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div ref={mapContainerRef} className="w-full h-80 bg-stone-100 rounded-2xl border-2 border-stone-100 overflow-hidden shadow-inner" />
+                            <div className="pt-1">
+                                <button onClick={handleConfirmDelivery} className="w-full py-4 bg-[#693916] text-white rounded-xl font-black text-lg hover:bg-amber-900 shadow-xl shadow-amber-900/20 active:scale-[0.98] transition-all">
+                                    Xác nhận & Đặt hàng
                                 </button>
-                            ))}
+                            </div>
                         </div>
-
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                            <h4 className="font-semibold text-sm text-gray-900 mb-2">
-                                Quy trình nhận hàng tại cửa hàng:
-                            </h4>
-                            <ol className="space-y-2 text-xs text-gray-600">
-                                <li className="flex items-start gap-2">
-                                    <span className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">
-                                        1
-                                    </span>
-                                    <span>Đặt hàng và chọn cửa hàng muốn nhận</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <span className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">
-                                        2
-                                    </span>
-                                    <span>
-                                        Nhận thông báo khi đơn hàng đã sẵn sàng (qua SMS/Email)
-                                    </span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <span className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">
-                                        3
-                                    </span>
-                                    <span>
-                                        Đến cửa hàng, xuất trình mã đơn hàng và nhận sản phẩm
-                                    </span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <span className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">
-                                        4
-                                    </span>
-                                    <span>
-                                        Thanh toán tại quầy (nếu chưa thanh toán online)
-                                    </span>
-                                </li>
-                            </ol>
+                    )}
+                    {step === "pickup" && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <button onClick={() => setStep("select")} className="group text-sm flex items-center gap-2 text-stone-400 hover:text-stone-800 transition-colors font-bold">
+                                <div className="p-1 rounded-full border border-stone-200 group-hover:border-stone-800 transition-colors"><ArrowLeft size={16} /></div> 
+                                Quay lại lựa chọn
+                            </button>
+                            <div className="grid grid-cols-1 gap-4">
+                                {STORES.map(s => (
+                                    <button 
+                                        key={s.id} 
+                                        onClick={() => setSelectedStore(s)} 
+                                        className={cn(
+                                            "w-full p-6 border-2 rounded-2xl text-left transition-all flex items-center justify-between group", 
+                                            selectedStore?.id === s.id 
+                                                ? "border-emerald-500 bg-emerald-50 shadow-md" 
+                                                : "border-stone-100 hover:border-stone-200 hover:bg-stone-50"
+                                        )}
+                                    >
+                                        <div className="space-y-1">
+                                            <h5 className={cn("text-lg font-bold transition-colors", selectedStore?.id === s.id ? "text-emerald-700" : "text-stone-800")}>{s.name}</h5>
+                                            <p className="text-sm text-stone-500 flex items-center gap-1"><MapPin size={14} /> {s.address}</p>
+                                        </div>
+                                        <div className={cn(
+                                            "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                                            selectedStore?.id === s.id ? "border-emerald-500 bg-emerald-500 text-white" : "border-stone-200"
+                                        )}>
+                                            {selectedStore?.id === s.id && <div className="w-2 h-2 bg-white rounded-full" />}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                            <button 
+                                onClick={() => { if (selectedStore) { onSelectMethod("pickup", { store: selectedStore }); onClose(); } }} 
+                                disabled={!selectedStore} 
+                                className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black text-lg disabled:bg-stone-200 disabled:shadow-none hover:bg-emerald-700 shadow-xl shadow-emerald-900/20 active:scale-[0.98] transition-all"
+                            >
+                                Xác nhận nhận tại: {selectedStore?.name || "..."}
+                            </button>
                         </div>
-
-                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                            <h4 className="font-semibold text-sm text-gray-900 mb-2">
-                                ✨ Ưu điểm khi nhận tại cửa hàng:
-                            </h4>
-                            <ul className="space-y-1 text-xs text-gray-600">
-                                <li>• Miễn phí hoàn toàn (không phí ship)</li>
-                                <li>• Nhận hàng nhanh chóng (15-20 phút)</li>
-                                <li>• Kiểm tra sản phẩm trực tiếp trước khi nhận</li>
-                                <li>• Tích điểm thành viên khi nhận tại cửa hàng</li>
-                            </ul>
-                        </div>
-
-                        <button
-                            onClick={handleConfirmPickup}
-                            disabled={!selectedStore}
-                            className={`w-full py-4 rounded-xl font-bold transition-all ${selectedStore
-                                ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-lg"
-                                : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                                }`}
-                        >
-                            {selectedStore
-                                ? `Xác Nhận Nhận Tại ${selectedStore.name}`
-                                : "Vui lòng chọn cửa hàng"}
-                        </button>
-                    </div>
-                )}
+                    )}
+                </div>
             </DialogContent>
         </Dialog>
     );
