@@ -10,6 +10,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@goongmaps/goong-js": "^1.0.9",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
