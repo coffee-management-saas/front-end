@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   Search,
@@ -12,6 +12,8 @@ import {
   Mail,
 } from "lucide-react";
 import Link from "next/link";
+import Script from "next/script";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DropdownMenu,
@@ -31,6 +33,10 @@ import NotificationDropdown from "@/components/notification-dropdown";
 
 export default function PhucLongHeader() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchHintIndex, setSearchHintIndex] = useState(0);
+  const [searchHintText, setSearchHintText] = useState("");
+  const [searchHintDeleting, setSearchHintDeleting] = useState(false);
   const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<{
     type: "delivery" | "pickup" | null;
@@ -51,6 +57,53 @@ export default function PhucLongHeader() {
   );
 
   const markAllReadRef = useRef(false);
+  const searchHints = useMemo(
+    () => [
+      "Xin chào, bạn cần gì hôm nay...",
+      "Tìm trà sữa yêu thích",
+      "Tìm cà phê đậm vị",
+      "Khám phá topping mới",
+    ],
+    [],
+  );
+
+  useEffect(() => {
+    if (searchHints.length === 0) return;
+
+    const activeHint = searchHints[searchHintIndex] ?? "";
+    const isFullyTyped = searchHintText === activeHint;
+    const isFullyDeleted = searchHintText.length === 0;
+
+    const delay = searchHintDeleting
+      ? isFullyDeleted
+        ? 220
+        : 45
+      : isFullyTyped
+        ? 1200
+        : 85;
+
+    const timer = window.setTimeout(() => {
+      if (!searchHintDeleting) {
+        if (!isFullyTyped) {
+          setSearchHintText(activeHint.slice(0, searchHintText.length + 1));
+          return;
+        }
+
+        setSearchHintDeleting(true);
+        return;
+      }
+
+      if (!isFullyDeleted) {
+        setSearchHintText(activeHint.slice(0, searchHintText.length - 1));
+        return;
+      }
+
+      setSearchHintDeleting(false);
+      setSearchHintIndex((prev) => (prev + 1) % searchHints.length);
+    }, delay);
+
+    return () => window.clearTimeout(timer);
+  }, [searchHintDeleting, searchHintIndex, searchHintText, searchHints]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -94,7 +147,19 @@ export default function PhucLongHeader() {
         typeof e.detail === "number" && Number.isFinite(e.detail)
           ? Math.max(0, Math.floor(e.detail))
           : null;
-      if (n !== null) setUnreadNotifications(n);
+      if (n === null) return;
+
+      const schedule =
+        typeof queueMicrotask === "function"
+          ? queueMicrotask
+          : (cb: () => void) => {
+              Promise.resolve().then(cb);
+            };
+
+      schedule(() => {
+        if (!mounted) return;
+        setUnreadNotifications((prev) => (prev === n ? prev : n));
+      });
     };
 
     window.addEventListener("notifications:unread", onUnread as EventListener);
@@ -248,26 +313,41 @@ export default function PhucLongHeader() {
   };
 
   return (
-    <header className="bg-white shadow-sm fixed top-0 z-50 w-full">
+    <header className="relative z-40 w-full bg-white shadow-sm">
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center gap-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-12 h-12 bg-[#693916]  rounded-full flex items-center justify-center cursor-pointer">
-              <span className="text-white font-bold text-xs">F&B</span>
-            </div>
+          <Link
+            href="/"
+            className="flex h-16 shrink-0 items-center overflow-visible"
+          >
+            <Image
+              src="/images/logo-01.png"
+              alt="Coffee Management"
+              width={160}
+              height={90}
+              priority
+              className="h-20 w-auto max-w-none object-contain"
+            />
           </Link>
 
           {/* Search Bar */}
           <div className="flex-1 max-w-md">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              {!searchQuery && !searchFocused && (
+                <span className="pointer-events-none absolute left-10 right-4 top-1/2 block -translate-y-1/2 truncate text-sm text-gray-400">
+                  {searchHintText}
+                </span>
+              )}
               <input
                 type="text"
-                placeholder="Bạn muốn mua gì..."
+                placeholder=""
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-amber-700 text-sm"
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg text-black placeholder-transparent focus:outline-none focus:ring-2 focus:ring-amber-700 text-sm"
               />
             </div>
           </div>
@@ -515,6 +595,10 @@ export default function PhucLongHeader() {
           </ul>
         </div>
       </nav>
+
+      {/* Goong Scripts global */}
+      <link href="https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.css" rel="stylesheet" />
+      <Script src="https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.js" strategy="afterInteractive" />
 
       {/* Delivery Method Modal */}
       <DeliveryMethodModal

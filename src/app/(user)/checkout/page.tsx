@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { OrderResponse } from "@/types/order";
@@ -13,6 +13,7 @@ import {
   Gift,
   Minus,
   Plus,
+  QrCode,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -41,13 +42,14 @@ import {
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { cn, canUseImage, FALLBACK_IMG } from "@/lib/utils";
+import { cn, canUseImage, FALLBACK_IMG, debounce } from "@/lib/utils";
 import { useCart } from "@/contexts/CartContext";
 import type { Promotion } from "@/types/promotion";
 import { useAppContext } from "@/app/AppProvider";
 import { toast } from "sonner";
 import {
-  createOrder,
+  createOrderV2,
+  getMyOrders,
   initiatePayment,
   confirmCashPayment,
 } from "@/services/order.service";
@@ -55,7 +57,217 @@ import type { CreateOrderRequest } from "@/types/order";
 import Link from "next/link";
 
 type DeliveryMethod = "delivery" | "pickup";
+type PaymentMethod = "cash" | "momo" | "qr";
+type SuccessPaymentMethod = PaymentMethod | "payos";
 type AuthRole = "SHOP" | "EMPLOYEE" | "SYSTEM" | "USER";
+const CHECKOUT_PAYMENT_METHOD_STORAGE_KEY = "checkout:selected-payment-method";
+const CHECKOUT_PENDING_PAYMENT_STORAGE_KEY = "checkout:pending-payment";
+
+type PendingCheckoutPayment = {
+  method: PaymentMethod;
+  orderId: number | null;
+  orderCode?: string;
+  paymentLinkId?: string;
+  createdAt?: string;
+};
+
+const FINAL_ORDER_STATUSES = new Set([
+  "PAID",
+  "CANCELLED",
+  "CANCELED",
+  "FAILED",
+  "EXPIRED",
+  "DONE",
+]);
+
+function isPaymentMethod(value: unknown): value is PaymentMethod {
+  return value === "cash" || value === "momo" || value === "qr";
+}
+
+function readStoredPaymentMethod(): PaymentMethod | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const stored = sessionStorage.getItem(CHECKOUT_PAYMENT_METHOD_STORAGE_KEY);
+    return isPaymentMethod(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistPaymentMethod(method: PaymentMethod) {
+  if (typeof window === "undefined") return;
+
+  try {
+    sessionStorage.setItem(CHECKOUT_PAYMENT_METHOD_STORAGE_KEY, method);
+  } catch {
+    // Ignore storage failures during redirect checkout.
+  }
+}
+
+function clearPersistedPaymentMethod() {
+  if (typeof window === "undefined") return;
+
+  try {
+    sessionStorage.removeItem(CHECKOUT_PAYMENT_METHOD_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures during redirect checkout.
+  }
+}
+
+function persistPendingPayment(
+  method: PaymentMethod,
+  order?: Pick<
+    OrderResponse,
+    "orderId" | "orderCode" | "paymentLinkId" | "createdAt"
+  > | null,
+) {
+  if (typeof window === "undefined") return;
+
+  try {
+    const payload: PendingCheckoutPayment = {
+      method,
+      orderId:
+        typeof order?.orderId === "number" && Number.isFinite(order.orderId)
+          ? order.orderId
+          : null,
+      orderCode:
+        order?.orderCode == null ? "" : String(order.orderCode).trim(),
+      paymentLinkId:
+        typeof order?.paymentLinkId === "string" ? order.paymentLinkId : "",
+      createdAt:
+        typeof order?.createdAt === "string" && order.createdAt.trim()
+          ? order.createdAt
+          : new Date().toISOString(),
+    };
+    sessionStorage.setItem(
+      CHECKOUT_PENDING_PAYMENT_STORAGE_KEY,
+      JSON.stringify(payload),
+    );
+  } catch {
+    // Ignore storage failures during redirect checkout.
+  }
+}
+
+function readPendingPayment(): PendingCheckoutPayment | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = sessionStorage.getItem(CHECKOUT_PENDING_PAYMENT_STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<PendingCheckoutPayment>;
+    if (!isPaymentMethod(parsed.method)) return null;
+
+    return {
+      method: parsed.method,
+      orderId:
+        typeof parsed.orderId === "number" && Number.isFinite(parsed.orderId)
+          ? parsed.orderId
+          : null,
+      orderCode:
+        typeof parsed.orderCode === "string" ? parsed.orderCode.trim() : "",
+      paymentLinkId:
+        typeof parsed.paymentLinkId === "string"
+          ? parsed.paymentLinkId.trim()
+          : "",
+      createdAt:
+        typeof parsed.createdAt === "string" ? parsed.createdAt : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingPayment() {
+  if (typeof window === "undefined") return;
+
+  try {
+    sessionStorage.removeItem(CHECKOUT_PENDING_PAYMENT_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures during redirect checkout.
+  }
+}
+
+function mapGatewayToPaymentMethod(gateway?: string | null): PaymentMethod {
+  const normalized = gateway?.trim().toLowerCase();
+  if (normalized === "momo") return "momo";
+  if (normalized === "qr" || normalized === "payos") return "qr";
+  return "cash";
+}
+
+function mapGatewayToSuccessPaymentMethod(
+  gateway?: string | null,
+): SuccessPaymentMethod {
+  const normalized = gateway?.trim().toLowerCase();
+  if (normalized === "payos") return "payos";
+  if (normalized === "momo") return "momo";
+  if (normalized === "qr") return "qr";
+  return "cash";
+}
+
+function extractRedirectOrderId(value: string | null | undefined): number | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  if (raw.includes("_")) {
+    const parts = raw.split("_");
+    const candidate = parts.findLast((part) => /^\d+$/.test(part));
+    if (candidate) {
+      const parsed = Number(candidate);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
+  }
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function resolveRedirectPaymentStatus(
+  searchParams: { get: (key: string) => string | null },
+): "success" | "failed" | null {
+  const resultCode = searchParams.get("resultCode");
+  const code = String(searchParams.get("code") ?? "")
+    .trim()
+    .toUpperCase();
+  const status = String(searchParams.get("status") ?? "")
+    .trim()
+    .toUpperCase();
+  const cancel = String(searchParams.get("cancel") ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (resultCode !== null) {
+    return resultCode === "0" ? "success" : "failed";
+  }
+
+  if (status) {
+    if (["PAID", "SUCCESS", "COMPLETED"].includes(status)) return "success";
+    if (["FAILED", "CANCELLED", "CANCELED", "EXPIRED"].includes(status)) {
+      return "failed";
+    }
+  }
+
+  if (cancel === "true") return "failed";
+  if (code) return code === "00" ? "success" : "failed";
+
+  return null;
+}
+
+function isExistingPaymentConflict(message: string): boolean {
+  return message.toLowerCase().includes("đơn thanh toán đã tồn tại");
+}
+
+function isPendingRedirectOrder(order: OrderResponse): boolean {
+  const gateway = String(order.paymentGateway ?? "").trim().toUpperCase();
+  const status = String(order.orderStatus ?? "").trim().toUpperCase();
+
+  if (!order.orderId || FINAL_ORDER_STATUSES.has(status)) {
+    return false;
+  }
+
+  return gateway === "PAYOS" || gateway === "MOMO" || gateway === "QR";
+}
 
 function getRoleFromAccessToken(token: string): AuthRole | null {
   try {
@@ -132,11 +344,12 @@ const CheckoutContent = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [deliveryMethod, setDeliveryMethod] =
     useState<DeliveryMethod>("delivery");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "momo">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<Promotion | null>(null);
   const [note, setNote] = useState("");
   const [address, setAddress] = useState("");
+  const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
@@ -148,6 +361,107 @@ const CheckoutContent = () => {
   const [paymentStatus, setPaymentStatus] = useState<
     "success" | "failed" | null
   >(null);
+
+  // --- Goong Maps state ---
+  const [lat, setLat] = useState<number>(10.7725);
+  const [lng, setLng] = useState<number>(106.6981);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const goongMapInstanceRef = useRef<any | null>(null);
+  const markerRef = useRef<any | null>(null);
+  const initializingRef = useRef(false);
+
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Initialize Goong Map
+  const initMap = useCallback(() => {
+    const maptilesKey = process.env.NEXT_PUBLIC_GOONG_MAP_KEY;
+    const goongjs = (window as any).goongjs;
+    if (!maptilesKey || !goongjs || !mapContainerRef.current || goongMapInstanceRef.current || initializingRef.current) return;
+
+    initializingRef.current = true;
+    try {
+      goongjs.accessToken = maptilesKey;
+      const map = new goongjs.Map({
+        container: mapContainerRef.current,
+        style: 'https://tiles.goong.io/assets/goong_map_web.json',
+        center: [lng, lat],
+        zoom: 15
+      });
+
+      goongMapInstanceRef.current = map;
+      map.on('load', () => {
+        initializingRef.current = false;
+        map.resize();
+        const marker = new goongjs.Marker({ draggable: true, anchor: 'bottom' })
+          .setLngLat([lng, lat])
+          .addTo(map);
+
+        marker.on('dragend', async () => {
+          const pos = marker.getLngLat();
+          setLat(pos.lat); setLng(pos.lng);
+          try {
+            const res = await fetch(`/api/map/geocode?latlng=${pos.lat},${pos.lng}`);
+            const data = await res.json();
+            if (data.status === "OK" && data.results?.[0]) {
+              setAddress(data.results[0].formatted_address);
+            }
+          } catch (e) {}
+        });
+        markerRef.current = marker;
+      });
+
+      map.on('error', (e: any) => {
+        console.error("Goong Map error (Checkout):", e);
+        initializingRef.current = false;
+      });
+    } catch (err) {
+      console.error(err);
+      initializingRef.current = false;
+    }
+  }, [lat, lng]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if ((window as any).goongjs && mapContainerRef.current) {
+        initMap();
+        clearInterval(timer);
+      }
+    }, 500);
+    return () => {
+      clearInterval(timer);
+      if (goongMapInstanceRef.current) {
+        goongMapInstanceRef.current.remove();
+        goongMapInstanceRef.current = null;
+        markerRef.current = null;
+        initializingRef.current = false;
+      }
+    };
+  }, [initMap]);
+
+  const fetchSuggestions = useMemo(() => debounce(async (input: string) => {
+    if (input.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
+    try {
+      const res = await fetch(`/api/map/autocomplete?input=${encodeURIComponent(input)}`);
+      const data = await res.json();
+      setSuggestions(data.predictions || []); setShowSuggestions(true);
+    } catch (e) {}
+  }, 500), []);
+
+  const handleSelectSuggestion = async (s: any) => {
+    setAddress(s.description); setShowSuggestions(false);
+    try {
+      const res = await fetch(`/api/map/place-detail?placeId=${s.place_id}`);
+      const data = await res.json();
+      if (data.status === "OK") {
+        const { lat: nl, lng: ng } = data.result.geometry.location;
+        setLat(nl); setLng(ng);
+        if (goongMapInstanceRef.current) goongMapInstanceRef.current.flyTo({ center: [ng, nl], zoom: 16 });
+        if (markerRef.current) markerRef.current.setLngLat([ng, nl]);
+      }
+    } catch (e) {}
+  };
 
   useEffect(() => {
     // Check session storage for recently placed order items (useful for MoMo redirect)
@@ -161,6 +475,10 @@ const CheckoutContent = () => {
     }
   }, []);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const customerId = useMemo(() => {
+    const parsed = Number(profile?.customerId);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [profile?.customerId]);
 
   useEffect(() => {
     if (accessToken && !isStaffRole) {
@@ -179,6 +497,7 @@ const CheckoutContent = () => {
             }
             return payload as ProfileData;
           });
+          setProfile(profile);
           if (profile.address) {
             setAddress(profile.address);
           }
@@ -193,54 +512,68 @@ const CheckoutContent = () => {
   }, [accessToken, isStaffRole]);
 
   useEffect(() => {
-    const resultCode = searchParams.get("resultCode");
-    const orderIdParam = searchParams.get("orderId");
-    const message = searchParams.get("message");
+    const redirectStatus = resolveRedirectPaymentStatus(searchParams);
+    const orderIdParam =
+      searchParams.get("orderId") ?? searchParams.get("orderCode");
+    const message =
+      searchParams.get("message") ??
+      searchParams.get("status") ??
+      searchParams.get("code");
+    const storedPaymentMethod = readStoredPaymentMethod();
+    const pendingPayment = readPendingPayment();
+    const orderId =
+      extractRedirectOrderId(orderIdParam) ?? pendingPayment?.orderId ?? null;
 
-    if (resultCode !== null && accessToken) {
-      if (resultCode === "0") {
+    if (redirectStatus && accessToken) {
+      if (storedPaymentMethod) {
+        setPaymentMethod(storedPaymentMethod);
+      }
+
+      if (redirectStatus === "success") {
         setPaymentStatus("success");
         setCurrentStep(2);
 
-        if (orderIdParam) {
-          // Extra handling for Momo orderId format: ORD_19_timestamp
-          let realOrderId = orderIdParam;
-          if (orderIdParam.includes("_")) {
-            const parts = orderIdParam.split("_");
-            if (parts.length > 1) realOrderId = parts[1];
-          }
-
-          // Add a small delay to ensure backend transaction is committed
+        if (orderId) {
           setTimeout(() => {
-            getOrderById(accessToken, Number(realOrderId))
+            getOrderById(accessToken, orderId)
               .then((order) => {
                 setSuccessOrder(order);
                 setCreatedOrderId(order.orderId);
-                if (order.paymentGateway) {
-                  setPaymentMethod(
-                    order.paymentGateway.toLowerCase() as "cash" | "momo",
-                  );
-                }
+                setPaymentMethod(
+                  storedPaymentMethod ??
+                  mapGatewayToPaymentMethod(order.paymentGateway),
+                );
                 setShowSuccessModal(true);
+                clearPersistedPaymentMethod();
+                clearPendingPayment();
 
-                // Only clear URL after successful processing
                 const newUrl = window.location.pathname;
                 window.history.replaceState({}, "", newUrl);
               })
               .catch((err) => {
-                console.error("Failed to fetch momo order details", err);
+                console.error("Failed to fetch order details after payment", err);
+                clearPersistedPaymentMethod();
+                clearPendingPayment();
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, "", newUrl);
                 toast.error("Không thể tải thông tin đơn hàng.");
               });
           }, 600);
         }
 
-        toast.success("Thanh toán MoMo thành công!");
+        toast.success("Thanh toán thành công!");
         clearCart();
+        if (!orderId) {
+          clearPersistedPaymentMethod();
+          clearPendingPayment();
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, "", newUrl);
+        }
       } else {
         setPaymentStatus("failed");
         toast.error(`Thanh toán thất bại: ${message}`);
+        clearPendingPayment();
 
-        // Clear URL for failure too
         const newUrl = window.location.pathname;
         window.history.replaceState({}, "", newUrl);
       }
@@ -281,6 +614,57 @@ const CheckoutContent = () => {
   }, [searchParams, accessToken, clearCart]);
 
   const [isUpdatingAddress, setIsUpdatingAddress] = useState(false);
+  const shouldUseRedirectPayment =
+    paymentMethod === "momo" || paymentMethod === "qr";
+  const successPaymentMethod: SuccessPaymentMethod = successOrder?.paymentGateway
+    ? mapGatewayToSuccessPaymentMethod(successOrder.paymentGateway)
+    : paymentMethod;
+
+  const resumePendingRedirectPayment = useCallback(async () => {
+    if (!accessToken) {
+      throw new Error("Vui lòng đăng nhập lại để tiếp tục thanh toán.");
+    }
+
+    const pendingOrders = (await getMyOrders(accessToken, {
+      throwOnError: true,
+    }))
+      .filter(isPendingRedirectOrder)
+      .sort((a, b) => {
+        const timeA = Date.parse(a.createdAt ?? "");
+        const timeB = Date.parse(b.createdAt ?? "");
+        return (Number.isNaN(timeB) ? 0 : timeB) - (Number.isNaN(timeA) ? 0 : timeA);
+      });
+
+    const existingOrder = pendingOrders[0];
+    if (!existingOrder?.orderId) {
+      throw new Error(
+        "Đã có đơn thanh toán chờ xử lý nhưng không tìm thấy đơn để tiếp tục.",
+      );
+    }
+
+    const resumedPayment = await initiatePayment(
+      accessToken,
+      existingOrder.orderId,
+      window.location.origin + window.location.pathname,
+    );
+
+    const payUrl = resumedPayment.payUrl ?? existingOrder.payUrl;
+    if (!payUrl) {
+      throw new Error(
+        `Tìm thấy đơn #${existingOrder.orderId} nhưng không lấy được liên kết thanh toán.`,
+      );
+    }
+
+    persistPaymentMethod(paymentMethod);
+    persistPendingPayment(paymentMethod, {
+      orderId: existingOrder.orderId,
+      orderCode: resumedPayment.orderCode ?? existingOrder.orderCode,
+      paymentLinkId:
+        resumedPayment.paymentLinkId ?? existingOrder.paymentLinkId,
+      createdAt: resumedPayment.createdAt ?? existingOrder.createdAt,
+    });
+    window.location.href = payUrl;
+  }, [accessToken, paymentMethod]);
 
   const handleUpdateAddress = async () => {
     if (!accessToken) return;
@@ -316,6 +700,8 @@ const CheckoutContent = () => {
   };
 
   const handlePlaceOrder = async () => {
+    if (isPlacingOrder) return;
+
     // If we're coming from chatbot, the order is already in DB
     const isChatbotFlow =
       searchParams.get("mode") === "chatbot" && createdOrderId;
@@ -332,11 +718,19 @@ const CheckoutContent = () => {
         return;
       }
 
+      const payableAmount = successOrder?.paidPrice ?? totals.total;
+      if (shouldUseRedirectPayment && payableAmount <= 0) {
+        throw new Error(
+          "PayOS yêu cầu số tiền thanh toán lớn hơn 0. Vui lòng bỏ mã giảm giá hoặc chọn tiền mặt.",
+        );
+      }
+
+      clearPendingPayment();
       let res: OrderResponse;
 
       if (isChatbotFlow && createdOrderId) {
         // Reuse existing order — choose payment method
-        if (paymentMethod === "momo") {
+        if (shouldUseRedirectPayment) {
           res = await initiatePayment(
             accessToken,
             createdOrderId,
@@ -349,26 +743,44 @@ const CheckoutContent = () => {
       } else {
         // Create new order
         const payload: CreateOrderRequest = {
+          ...(customerId ? { customerId } : {}),
           orderType: "ONLINE",
           orderItems: items.map((item) => ({
             productVariantId: item.variantId,
             quantity: item.quantity,
-            toppingItems: item.toppings.map((t) => ({
-              toppingId: t.id,
-              quantity: t.quantity,
-            })),
+            toppingItems: item.toppings
+              .filter((t) => t.quantity > 0)
+              .map((t) => ({
+                toppingId: Number(t.id),
+                quantity: t.quantity,
+              }))
+              .filter((t) => Number.isFinite(t.toppingId) && t.toppingId > 0),
           })),
           promotionCode: appliedVoucher?.promotionCode,
-          paymentGateway: paymentMethod.toUpperCase(),
-          returnUrl: window.location.href,
+          paymentGateway: shouldUseRedirectPayment ? "PAYOS" : "CASH",
+          ...(deliveryMethod === "delivery" && {
+            deliveryAddress: address,
+            latitude: lat ?? undefined,
+            longitude: lng ?? undefined,
+          }),
         };
-        res = await createOrder(accessToken, payload);
+        res = await createOrderV2(payload);
       }
 
-      // Handle MoMo redirect
-      if (paymentMethod === "momo" && res.payUrl) {
+      if (shouldUseRedirectPayment && res.payUrl) {
+        persistPaymentMethod(paymentMethod);
+        persistPendingPayment(paymentMethod, {
+          orderId: res.orderId ?? createdOrderId ?? undefined,
+          orderCode: res.orderCode,
+          paymentLinkId: res.paymentLinkId,
+          createdAt: res.createdAt,
+        });
         window.location.href = res.payUrl;
         return;
+      }
+
+      if (shouldUseRedirectPayment) {
+        throw new Error("Không lấy được liên kết thanh toán PayOS");
       }
 
       // Finalize success state
@@ -376,12 +788,32 @@ const CheckoutContent = () => {
       setSuccessOrder(res);
       toast.success("Đặt hàng thành công!");
       clearCart();
+      clearPendingPayment();
       setCurrentStep(2);
       window.scrollTo(0, 0);
       setShowSuccessModal(true);
     } catch (error) {
       console.error("Checkout Error:", error);
-      toast.error(error instanceof Error ? error.message : "Đặt hàng thất bại");
+      const message =
+        error instanceof Error ? error.message : "Đặt hàng thất bại";
+
+      if (shouldUseRedirectPayment && isExistingPaymentConflict(message)) {
+        try {
+          toast.info(
+            "Đã có đơn thanh toán đang chờ. Hệ thống đang mở lại liên kết thanh toán.",
+          );
+          await resumePendingRedirectPayment();
+          return;
+        } catch (resumeError) {
+          console.error("Resume Pending Payment Error:", resumeError);
+          toast.error(
+            resumeError instanceof Error ? resumeError.message : message,
+          );
+          return;
+        }
+      }
+
+      toast.error(message);
     } finally {
       setIsPlacingOrder(false);
     }
@@ -447,18 +879,13 @@ const CheckoutContent = () => {
       (searchParams.get("mode") === "chatbot" || searchParams.get("resultCode"))
     ) {
       const subtotal = successOrder.basePrice || 0;
+      const shippingFee = typeof successOrder.shippingFee === "number" ? successOrder.shippingFee : 0;
+      const discountAmount = successOrder.discountAmount || 0;
       const total = successOrder.paidPrice || 0;
-      // We don't have explicit shipping/discount fields in OrderResponse yet,
-      // but we can infer or just show the main ones.
       return {
         subtotal,
-        shipping: deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0,
-        voucherDiscount: Math.max(
-          0,
-          subtotal +
-            (deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0) -
-            total,
-        ),
+        shipping: shippingFee,
+        voucherDiscount: discountAmount,
         total,
       };
     }
@@ -506,7 +933,7 @@ const CheckoutContent = () => {
   const isEmpty = items.length === 0 && !successOrder;
 
   return (
-    <div className="min-h-screen bg-white pt-10">
+    <div className="min-h-screen bg-white ">
       <div className="container mx-auto px-4 lg:px-8 py-10 space-y-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -655,39 +1082,67 @@ const CheckoutContent = () => {
                     </div>
 
                     {deliveryMethod === "delivery" && (
-                      <div className="space-y-2 mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="space-y-4 mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
                         <label className="text-sm font-semibold text-stone-900">
                           Địa chỉ giao hàng
                         </label>
-                        <Textarea
-                          value={address}
-                          onChange={(e) => setAddress(e.target.value)}
-                          placeholder={
-                            isLoadingProfile
-                              ? "Đang tải địa chỉ..."
-                              : "Số nhà, tên đường, phường/xã, quận/huyện..."
-                          }
-                          className="bg-white border-amber-100 focus-visible:ring-amber-200 min-h-[80px]"
+                        <div className="relative">
+                          <textarea
+                            value={address}
+                            onChange={(e) => {
+                              setAddress(e.target.value);
+                              fetchSuggestions(e.target.value);
+                            }}
+                            placeholder={
+                              isLoadingProfile
+                                ? "Đang tải địa chỉ..."
+                                : "Nhập địa chỉ giao hàng..."
+                            }
+                            className="flex w-full rounded-xl border border-amber-100 bg-white px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 min-h-[100px] resize-none shadow-sm transition-all"
+                            rows={3}
+                          />
+                          {showSuggestions && suggestions.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 z-50 bg-white border border-stone-100 rounded-xl mt-2 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                              {suggestions.map((s, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => handleSelectSuggestion(s)}
+                                  className="w-full p-4 text-left hover:bg-amber-50 border-b border-stone-50 last:border-0 text-sm transition-colors flex items-center gap-3"
+                                >
+                                  <MapPin size={14} className="text-stone-400 shrink-0" />
+                                  <span className="truncate">{s.description}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Goong Map preview */}
+                        <div
+                          ref={mapContainerRef}
+                          className="w-full h-64 rounded-xl overflow-hidden border border-amber-100 mt-2 shadow-inner bg-stone-100"
                         />
+                        
+                        {lat && lng && (
+                          <p className="text-xs text-amber-700 font-bold flex items-center gap-1.5 bg-amber-50 w-fit px-3 py-1.5 rounded-full">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Đã xác định vị trí trên bản đồ
+                          </p>
+                        )}
                         <div className="flex justify-end pt-1">
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={handleUpdateAddress}
-                            // Stop propagation to prevent form defaults if inside form
                             type="button"
                             disabled={isUpdatingAddress || isLoadingProfile}
-                            className="text-xs border-amber-200 hover:bg-amber-50 text-amber-800 h-8"
+                            className="text-xs border-amber-200 hover:bg-amber-50 text-amber-800 h-9 px-4 font-bold rounded-full"
                           >
                             {isUpdatingAddress
                               ? "Đang lưu..."
-                              : "Xác nhận địa chỉ"}
+                              : "Cập nhật vào hồ sơ"}
                           </Button>
                         </div>
-                        <p className="text-xs text-gray-500 italic">
-                          * Phí giao hàng sẽ được tính toán dựa trên khoảng
-                          cách.
-                        </p>
                       </div>
                     )}
 
@@ -748,7 +1203,7 @@ const CheckoutContent = () => {
                             localItem?.productName ||
                             capturedItems[
                               fetchedItem?.productVariantId ||
-                                localItem?.variantId
+                              localItem?.variantId
                             ]?.name ||
                             "Sản phẩm";
                           const size =
@@ -760,15 +1215,13 @@ const CheckoutContent = () => {
                               (fetchedItem.unitPrice || 0) *
                               (fetchedItem.quantity || 1);
                           } else {
-                            const sizeDelta =
-                              localItem.size === "M" ? -4000 : 0;
                             const toppingTotal = localItem.toppings.reduce(
                               (sum: number, t: any) =>
                                 sum + t.price * t.quantity,
                               0,
                             );
                             displayPrice =
-                              (localItem.basePrice + sizeDelta + toppingTotal) *
+                              (localItem.basePrice + toppingTotal) *
                               localItem.quantity;
                           }
 
@@ -832,20 +1285,20 @@ const CheckoutContent = () => {
                                     fetchedItem?.toppingPerOrderItems ||
                                     localItem?.toppings
                                   )?.length > 0 && (
-                                    <div className="text-xs text-gray-600">
-                                      Topping:{" "}
-                                      {isFetchedItem
-                                        ? fetchedItem.toppingPerOrderItems
+                                      <div className="text-xs text-gray-600">
+                                        Topping:{" "}
+                                        {isFetchedItem
+                                          ? fetchedItem.toppingPerOrderItems
                                             .map((t: any) => t.toppingName)
                                             .join(", ")
-                                        : localItem.toppings
+                                          : localItem.toppings
                                             .map(
                                               (t: any) =>
                                                 `${t.name} x${t.quantity}`,
                                             )
                                             .join(", ")}
-                                    </div>
-                                  )}
+                                      </div>
+                                    )}
                                 </div>
                               </div>
 
@@ -937,34 +1390,28 @@ const CheckoutContent = () => {
                       className={cn(
                         "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
                         paymentMethod === "momo"
-                          ? "border-pink-300 bg-pink-50 ring-2 ring-pink-100 shadow-sm"
-                          : "border-gray-100 hover:border-pink-200 hover:bg-pink-50/30",
+                          ? "border-sky-300 bg-sky-50 ring-2 ring-sky-100 shadow-sm"
+                          : "border-gray-100 hover:border-sky-200 hover:bg-sky-50/30",
                       )}
-                    >
-                      <div className="h-12 w-12 rounded-lg bg-pink-600 flex items-center justify-center text-white shrink-0 shadow-sm overflow-hidden">
-                        <Image
-                          src="/images/momo.jpg"
-                          alt="MoMo"
-                          width={48}
-                          height={48}
-                          className="object-contain"
-                        />
+                      >
+                      <div className="h-12 w-12 rounded-lg bg-sky-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                        <ShieldCheck className="w-7 h-7" />
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-stone-900 text-lg">
-                          Ví MoMo
+                          PayOS
                         </p>
                         <p className="text-sm text-gray-600">
-                          Thanh toán nhanh chóng, an toàn qua ứng dụng MoMo.
+                          Chuyển sang cổng thanh toán PayOS để hoàn tất đơn hàng.
                         </p>
                       </div>
                       <div
-                        className={cn(
-                          "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
-                          paymentMethod === "momo"
-                            ? "border-pink-600 bg-pink-600"
-                            : "border-gray-300",
-                        )}
+                          className={cn(
+                            "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                            paymentMethod === "momo"
+                              ? "border-sky-600 bg-sky-600"
+                              : "border-gray-300",
+                          )}
                       >
                         {paymentMethod === "momo" && (
                           <div className="w-2 h-2 rounded-full bg-white" />
@@ -1006,9 +1453,52 @@ const CheckoutContent = () => {
                         )}
                       </div>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("qr")}
+                      className={cn(
+                        "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
+                        paymentMethod === "qr"
+                          ? "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-100 shadow-sm"
+                          : "border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30",
+                      )}
+                    >
+                      <div className="h-12 w-12 rounded-lg bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                        <QrCode className="w-7 h-7" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-stone-900 text-lg">
+                          Mã QR
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Trang thanh toán sẽ hiển thị mã QR để bạn quét trên
+                          thiết bị khác.
+                        </p>
+                      </div>
+                      <div
+                        className={cn(
+                          "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                          paymentMethod === "qr"
+                            ? "border-emerald-600 bg-emerald-600"
+                            : "border-gray-300",
+                        )}
+                      >
+                        {paymentMethod === "qr" && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                    </button>
                   </div>
 
                   <div className="rounded-lg bg-gray-50 p-4 border border-gray-100 mt-6">
+                    {paymentMethod !== "cash" && (
+                      <p className="mb-2 text-sm font-medium text-stone-700">
+                        {paymentMethod === "qr"
+                          ? "Sau khi xác nhận đơn, PayOS sẽ hiển thị mã QR để bạn quét và hoàn tất."
+                          : "Bạn sẽ được chuyển sang cổng thanh toán PayOS để hoàn tất."}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-600 italic">
                       Lưu ý: Bạn có thể đổi hình thức thanh toán bất cứ lúc nào
                       trước khi xác nhận đơn hàng.
@@ -1058,16 +1548,21 @@ const CheckoutContent = () => {
                       <span
                         className={cn(
                           "font-medium flex items-center gap-2",
-                          paymentMethod === "momo" ||
-                            successOrder?.paymentGateway?.toLowerCase() ===
-                              "momo"
-                            ? "text-pink-600"
-                            : "text-amber-800",
+                          successPaymentMethod === "payos"
+                            ? "text-sky-700"
+                            : successPaymentMethod === "momo"
+                              ? "text-pink-600"
+                              : successPaymentMethod === "qr"
+                                ? "text-emerald-600"
+                                : "text-amber-800",
                         )}
                       >
-                        {paymentMethod === "momo" ||
-                        successOrder?.paymentGateway?.toLowerCase() ===
-                          "momo" ? (
+                        {successPaymentMethod === "payos" ? (
+                          <>
+                            <ShieldCheck className="w-4 h-4 text-sky-700" />
+                            PayOS
+                          </>
+                        ) : successPaymentMethod === "momo" ? (
                           <>
                             <Image
                               src="/images/momo.jpg"
@@ -1077,6 +1572,11 @@ const CheckoutContent = () => {
                               className="object-contain"
                             />
                             Ví MoMo
+                          </>
+                        ) : successPaymentMethod === "qr" ? (
+                          <>
+                            <QrCode className="w-4 h-4 text-emerald-600" />
+                            Mã QR
                           </>
                         ) : (
                           <>
@@ -1103,7 +1603,7 @@ const CheckoutContent = () => {
                         // Resilient Fallback Logic
                         const fallbackList = JSON.parse(
                           sessionStorage.getItem("last_order_items_fallback") ||
-                            "[]",
+                          "[]",
                         );
                         const fallback = fallbackList[idx];
 
@@ -1324,10 +1824,10 @@ const CheckoutContent = () => {
                                 </div>
                                 {tempSelectedVoucher?.promotionId ===
                                   promo.promotionId && (
-                                  <div className="self-center">
-                                    <CheckCircle2 className="w-5 h-5 text-amber-600" />
-                                  </div>
-                                )}
+                                    <div className="self-center">
+                                      <CheckCircle2 className="w-5 h-5 text-amber-600" />
+                                    </div>
+                                  )}
                               </div>
                             ))
                         )}
@@ -1444,7 +1944,7 @@ const CheckoutContent = () => {
                 <div className="flex flex-col gap-3 pt-2">
                   <Button
                     className="w-full h-12 text-base font-bold bg-[#693916] hover:bg-amber-900 shadow-warm"
-                    disabled={isEmpty}
+                    disabled={isEmpty || isPlacingOrder}
                     onClick={() => {
                       if (!accessToken) {
                         router.push("/login");

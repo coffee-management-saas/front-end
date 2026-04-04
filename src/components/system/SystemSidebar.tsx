@@ -1,8 +1,9 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Coffee, LayoutDashboard, FolderTree, LogOut, Tag } from "lucide-react";
+import { LayoutDashboard, FolderTree, LogOut, Tag } from "lucide-react";
 
 import {
   Sidebar,
@@ -73,8 +74,15 @@ export function SystemSidebar() {
     <Sidebar className="border-r border-sidebar-border">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-            <Coffee className="w-5 h-5 text-sidebar-primary-foreground" />
+          <div className="relative w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center overflow-hidden">
+            <Image
+              src="/images/logo1.png"
+              alt="Coffee"
+              fill
+              className="object-contain p-1"
+              sizes="40px"
+              priority
+            />
           </div>
 
           <div>
@@ -82,10 +90,10 @@ export function SystemSidebar() {
               className="font-semibold text-sidebar-foreground text-lg"
               style={{ fontFamily: "'Playfair Display', serif" }}
             >
-              Coffee Admin
+              F&B Admin
             </h1>
             <p className="text-xs text-sidebar-foreground/60">
-              Quản lý quán café
+              Quản lý nội dung
             </p>
           </div>
         </div>

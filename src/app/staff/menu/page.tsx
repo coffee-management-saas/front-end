@@ -16,6 +16,7 @@ import {
   Timer,
   Users,
   Coffee,
+  ShieldCheck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -44,11 +45,7 @@ import type {
 import type { ToppingsResponse } from "@/types/topping";
 import type { ScheduleDto, SchedulesResponse } from "@/types/schedules";
 import type { Promotion } from "@/types/promotion";
-import {
-  createOrder,
-  getOrderById,
-  initiatePayment,
-} from "@/services/order.service";
+import { createOrderV2 } from "@/services/order.service";
 import type { CreateOrderRequest, OrderResponse } from "@/types/order";
 
 type MenuItem = {
@@ -63,7 +60,7 @@ type MenuItem = {
 };
 
 type LevelOption = "Ít" | "Bình thường" | "Nhiều";
-type PaymentMethod = "cash" | "momo";
+type PaymentMethod = "cash" | "payos";
 type SelectedTopping = {
   id: string;
   name: string;
@@ -82,6 +79,15 @@ type CartItem = MenuItem & {
 
 const MENU: MenuItem[] = [];
 const MENU_PAGE_SIZE = 18;
+const STAFF_POS_PENDING_PAYMENT_STORAGE_KEY = "staff-pos-payment.pending";
+
+type PendingStaffPayment = {
+  method: PaymentMethod;
+  orderId: number | null;
+  orderCode?: string;
+  paymentLinkId?: string;
+  createdAt?: string;
+};
 
 function getCartItemKey(
   item: Pick<CartItem, "id" | "variantId" | "size" | "ice" | "toppings">,
@@ -100,6 +106,76 @@ function isPromotionActive(p: Promotion): boolean {
 
 const formatVnd = (val: number) =>
   val.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+
+function persistPendingStaffPayment(
+  method: PaymentMethod,
+  order?: Pick<
+    OrderResponse,
+    "orderId" | "orderCode" | "paymentLinkId" | "createdAt"
+  > | null,
+) {
+  if (typeof window === "undefined") return;
+
+  try {
+    const payload: PendingStaffPayment = {
+      method,
+      orderId:
+        typeof order?.orderId === "number" && Number.isFinite(order.orderId)
+          ? order.orderId
+          : null,
+      orderCode:
+        order?.orderCode == null ? "" : String(order.orderCode).trim(),
+      paymentLinkId:
+        typeof order?.paymentLinkId === "string" ? order.paymentLinkId : "",
+      createdAt:
+        typeof order?.createdAt === "string" && order.createdAt.trim()
+          ? order.createdAt
+          : new Date().toISOString(),
+    };
+    sessionStorage.setItem(
+      STAFF_POS_PENDING_PAYMENT_STORAGE_KEY,
+      JSON.stringify(payload),
+    );
+  } catch {}
+}
+
+function clearPendingStaffPayment() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(STAFF_POS_PENDING_PAYMENT_STORAGE_KEY);
+  } catch {}
+}
+
+function resolveRedirectPaymentStatus(
+  searchParams: { get: (key: string) => string | null },
+): "success" | "failed" | null {
+  const resultCode = searchParams.get("resultCode");
+  const code = String(searchParams.get("code") ?? "")
+    .trim()
+    .toUpperCase();
+  const status = String(searchParams.get("status") ?? "")
+    .trim()
+    .toUpperCase();
+  const cancel = String(searchParams.get("cancel") ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (resultCode !== null) {
+    return resultCode === "0" ? "success" : "failed";
+  }
+
+  if (status) {
+    if (["PAID", "SUCCESS", "COMPLETED"].includes(status)) return "success";
+    if (["FAILED", "CANCELLED", "CANCELED", "EXPIRED"].includes(status)) {
+      return "failed";
+    }
+  }
+
+  if (cancel === "true") return "failed";
+  if (code) return code === "00" ? "success" : "failed";
+
+  return null;
+}
 
 function safeImageSrc(src: unknown): string {
   if (typeof src !== "string") return FALLBACK_IMG;
@@ -281,7 +357,7 @@ const StaffPosPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { tokens } = useAppContext();
-  const momoHandledRef = useRef(false);
+  const paymentCallbackHandledRef = useRef<string | null>(null);
 
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
@@ -338,55 +414,30 @@ const StaffPosPage = () => {
   }, [categoryIdFromUrl]);
 
   useEffect(() => {
-    const resultCode = searchParams.get("resultCode");
-    if (resultCode === null) return;
-    if (momoHandledRef.current) return;
-    momoHandledRef.current = true;
+    const redirectStatus = resolveRedirectPaymentStatus(searchParams);
+    if (!redirectStatus) return;
 
-    const message = searchParams.get("message") || "";
-    const orderIdParam = searchParams.get("orderId");
-
-    if (resultCode === "0") {
-      let realOrderId = orderIdParam;
-      if (realOrderId && realOrderId.includes("_")) {
-        const parts = realOrderId.split("_");
-        if (parts.length > 1) realOrderId = parts[1];
-      }
-      const parsed = realOrderId ? Number(realOrderId) : NaN;
-      setIsSuccessOpen(true);
-      setCreatedOrderId(Number.isFinite(parsed) ? parsed : null);
-      if (Number.isFinite(parsed) && tokens.accessToken) {
-        getOrderById(tokens.accessToken, parsed)
-          .then((order) => setSuccessOrder(order))
-          .catch(() => setSuccessOrder(null));
-      } else {
-        setSuccessOrder(null);
-      }
-      toast.success("Thanh toán MoMo thành công!");
-
-      setCart([]);
-      setAppliedVoucher(null);
-      setVoucherCode("");
-      try {
-        sessionStorage.removeItem("staff-pos-checkout");
-      } catch {}
-    } else {
-      toast.error(`Thanh toán thất bại: ${message || resultCode}`);
-    }
-
-    try {
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("resultCode");
-      params.delete("message");
-      params.delete("orderId");
-      router.replace(
-        params.toString() ? `?${params.toString()}` : "/staff/menu",
-        {
-          scroll: false,
-        },
-      );
-    } catch {}
-  }, [router, searchParams, tokens.accessToken]);
+    const callbackKey = [
+      searchParams.get("resultCode") ?? "",
+      searchParams.get("code") ?? "",
+      searchParams.get("status") ?? "",
+      searchParams.get("cancel") ?? "",
+      searchParams.get("orderId") ?? "",
+      searchParams.get("orderCode") ?? "",
+      searchParams.get("id") ?? "",
+    ].join("|");
+    if (paymentCallbackHandledRef.current === callbackKey) return;
+    paymentCallbackHandledRef.current = callbackKey;
+    const nextQuery = searchParams.toString();
+    router.replace(
+      nextQuery
+        ? `/staff/payos-callback?${nextQuery}`
+        : "/staff/payos-callback",
+      {
+        scroll: false,
+      },
+    );
+  }, [router, searchParams]);
 
   useEffect(() => {
     try {
@@ -408,7 +459,8 @@ const StaffPosPage = () => {
       }
       if (typeof payload.paymentMethod === "string") {
         const pm = payload.paymentMethod as string;
-        if (pm === "cash" || pm === "momo") setPaymentMethod(pm);
+        if (pm === "cash") setPaymentMethod("cash");
+        if (pm === "payos" || pm === "momo") setPaymentMethod("payos");
       }
       if (typeof payload.voucherCode === "string" && !voucherCode) {
         setVoucherCode(payload.voucherCode);
@@ -485,13 +537,7 @@ const StaffPosPage = () => {
     } catch {
       // ignore
     }
-  }, [
-    appliedVoucher,
-    cart,
-    isSessionRestored,
-    paymentMethod,
-    voucherCode,
-  ]);
+  }, [appliedVoucher, cart, isSessionRestored, paymentMethod, voucherCode]);
 
   useEffect(() => {
     if (cart.length > 0 && createdOrderId !== null) {
@@ -1085,11 +1131,10 @@ const StaffPosPage = () => {
 
     setPlacingOrder(true);
     try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("resultCode");
-      url.searchParams.delete("message");
-      url.searchParams.delete("orderId");
-      const returnUrl = url.toString();
+      const returnUrl = new URL(
+        "/staff/payos-callback",
+        window.location.origin,
+      ).toString();
 
       const payload: CreateOrderRequest = {
         orderType: "OFFLINE",
@@ -1102,18 +1147,21 @@ const StaffPosPage = () => {
             .map((t) => ({ toppingId: Number(t.id), quantity: t.quantity }))
             .filter((t) => Number.isFinite(t.toppingId) && t.toppingId > 0),
         })),
-        paymentGateway: paymentMethod.toUpperCase(),
+        paymentGateway: paymentMethod === "payos" ? "PAYOS" : "CASH",
         ...(returnUrl ? { returnUrl } : {}),
       };
 
-      const res = await createOrder(tokens.accessToken, payload);
+      const res = await createOrderV2(payload);
 
-      if (paymentMethod === "momo") {
-        const payUrl =
-          res.payUrl ??
-          (await initiatePayment(tokens.accessToken, res.orderId, returnUrl))
-            .payUrl;
-        if (!payUrl) throw new Error("Không lấy được link thanh toán MoMo");
+      if (paymentMethod === "payos") {
+        const payUrl = res.payUrl;
+        if (!payUrl) throw new Error("Không lấy được liên kết thanh toán PayOS");
+        persistPendingStaffPayment("payos", {
+          orderId: res.orderId,
+          orderCode: res.orderCode,
+          paymentLinkId: res.paymentLinkId,
+          createdAt: res.createdAt,
+        });
         window.location.href = payUrl;
         return;
       }
@@ -1122,6 +1170,7 @@ const StaffPosPage = () => {
       setSuccessOrder(res);
       setIsSuccessOpen(true);
       toast.success(`Tạo đơn thành công (#${res.orderId})`);
+      clearPendingStaffPayment();
 
       setCart([]);
       setAppliedVoucher(null);
@@ -1465,59 +1514,52 @@ const StaffPosPage = () => {
         )}
 
         <div className="mt-3 space-y-3">
-          <Card className="border border-[#cec3bc]/60 bg-white">
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-xs font-semibold text-[#693916] flex items-center gap-1.5">
-                <TicketPercent className="w-3.5 h-3.5" />
-                Voucher
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 pt-0 space-y-2">
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="Nhập mã voucher"
-                  value={voucherCode}
-                  onChange={(e) => setVoucherCode(e.target.value)}
-                  className="bg-white h-8 text-xs w-32 lg:w-40"
-                />
-                <Button
-                  type="button"
-                  onClick={handleApplyVoucher}
-                  disabled={promoLoading}
-                  className="h-8 rounded-full bg-[#693916] hover:bg-[#876F60] text-white px-3 text-[11px]"
-                >
-                  Áp dụng
-                </Button>
-              </div>
+          <Card className="space-y-2 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-base font-bold text-[#693916]">
+              <TicketPercent className="h-4 w-4" />
+              Voucher
+            </div>
 
-              {promoError && (
-                <p className="text-xs text-red-600">{promoError}</p>
-              )}
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Nhập mã voucher"
+                value={voucherCode}
+                onChange={(e) => setVoucherCode(e.target.value)}
+                className="h-8 flex-1 min-w-0 rounded-xl bg-white text-xs"
+              />
+              <Button
+                type="button"
+                onClick={handleApplyVoucher}
+                disabled={promoLoading}
+                className="h-8 shrink-0 rounded-full bg-[#693916] px-4 text-[11px] text-white hover:bg-[#876F60]"
+              >
+                Áp dụng
+              </Button>
+            </div>
 
-              {appliedVoucher ? (
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-[#693916] font-semibold">
-                    Đã áp dụng: {appliedVoucher.promotionCode}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVoucherCode("");
-                      setAppliedVoucher(null);
-                    }}
-                    className="text-[11px] font-semibold text-gray-600 hover:text-[#693916]"
-                  >
-                    Bỏ
-                  </button>
-                </div>
-              ) : (
-                <p className="text-[11px] text-gray-500">
-                  {promoLoading
-                    ? "Đang tải voucher..."
-                    : "Nhập mã để giảm giá."}
+            {promoError && <p className="text-xs text-red-600">{promoError}</p>}
+
+            {appliedVoucher ? (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-[#693916] font-semibold">
+                  Đã áp dụng: {appliedVoucher.promotionCode}
                 </p>
-              )}
-            </CardContent>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVoucherCode("");
+                    setAppliedVoucher(null);
+                  }}
+                  className="text-[11px] font-semibold text-gray-600 hover:text-[#693916]"
+                >
+                  Bỏ
+                </button>
+              </div>
+            ) : (
+              <p className="text-[11px] text-gray-500">
+                {promoLoading ? "Đang tải voucher..." : "Nhập mã để giảm giá."}
+              </p>
+            )}
           </Card>
 
           <div className="space-y-2 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -1566,16 +1608,24 @@ const StaffPosPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => setPaymentMethod("momo")}
-              className={`flex-1 h-10 text-xs font-semibold rounded-full border transition-colors ${
-                paymentMethod === "momo"
-                  ? "bg-[#cec3bc] text-[#693916] border-[#cec3bc]"
-                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              onClick={() => setPaymentMethod("payos")}
+              className={`flex-1 h-10 text-xs font-semibold rounded-full border transition-colors flex items-center justify-center gap-1.5 ${
+                paymentMethod === "payos"
+                  ? "bg-sky-50 text-sky-700 border-sky-200"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-sky-50/40"
               }`}
             >
-              MoMo
+              <ShieldCheck className="w-3.5 h-3.5" />
+              PayOS
             </button>
           </div>
+
+          {paymentMethod === "payos" && (
+            <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3 text-xs font-medium text-sky-800">
+              Sau khi xác nhận đơn, hệ thống sẽ chuyển sang cổng thanh toán
+              PayOS giống luồng khách hàng để hoàn tất giao dịch.
+            </div>
+          )}
 
           <Button
             className="w-full h-12 text-base bg-[#693916] hover:bg-[#876F60] text-white disabled:opacity-60 disabled:pointer-events-none"
@@ -1585,8 +1635,8 @@ const StaffPosPage = () => {
           >
             {placingOrder
               ? "Đang tạo đơn..."
-              : paymentMethod === "momo"
-                ? "Thanh toán MoMo"
+              : paymentMethod === "payos"
+                ? "Thanh toán PayOS"
                 : "Xác nhận tiền mặt"}
           </Button>
         </div>
@@ -1611,13 +1661,13 @@ const StaffPosPage = () => {
             </div>
             <div className="flex items-center justify-between">
               <span>Thanh toán</span>
-              <span className="font-semibold text-stone-900">
-                {successOrder?.paymentGateway
-                  ? successOrder.paymentGateway
-                  : paymentMethod === "momo"
-                    ? "MOMO"
-                    : "CASH"}
-              </span>
+                <span className="font-semibold text-stone-900">
+                  {successOrder?.paymentGateway
+                    ? successOrder.paymentGateway
+                    : paymentMethod === "payos"
+                      ? "PAYOS"
+                      : "CASH"}
+                </span>
             </div>
             <div className="flex items-center justify-between">
               <span>Tổng tiền</span>

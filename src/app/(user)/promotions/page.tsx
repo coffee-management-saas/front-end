@@ -3,7 +3,7 @@ import React from "react";
 
 function ProfilePage() {
   return (
-    <div className="bg-[#F9F7F5] pt-20 ">
+    <div className="bg-[#F9F7F5] ">
       <SubscriptionCards />
     </div>
   );

@@ -23,8 +23,12 @@ const nextConfig: NextConfig = {
         destination: `${BACKEND_URL}/api/auth/:path*`,
       },
       {
+        source: "/api/profile",
+        destination: `${BACKEND_URL}/api/customers/me`,
+      },
+      {
         source: "/api/profile/:path*",
-        destination: `${BACKEND_URL}/api/profile/:path*`,
+        destination: `${BACKEND_URL}/api/customers/me/:path*`,
       },
       {
         source: "/api/orders/:path*",
@@ -66,6 +70,10 @@ const nextConfig: NextConfig = {
       {
         source: "/api/subscriptions/:path*",
         destination: `${BACKEND_URL}/api/subscriptions/:path*`,
+      },
+      {
+        source: "/api/map/:path*",
+        destination: `${BACKEND_URL}/api/map/:path*`,
       },
     ];
   },

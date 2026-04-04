@@ -72,7 +72,7 @@ export function PortalHeader() {
             className="relative inline-flex items-center justify-center w-[220px] h-[80px]"
           >
             <Image
-              src="/images/logo%20EXEpng.png"
+              src="/images/logo1.png"
               alt="Coffee Management"
               fill
               priority
