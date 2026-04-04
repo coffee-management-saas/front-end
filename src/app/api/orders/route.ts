@@ -18,6 +18,31 @@ async function parseJsonSafely(res: Response): Promise<unknown> {
   }
 }
 
+function getApiMessage(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "BE error";
+  const message = (payload as { message?: unknown }).message;
+  return typeof message === "string" && message.trim() ? message : "BE error";
+}
+
+function readCustomerId(payload: unknown): number | null {
+  if (!payload || typeof payload !== "object") return null;
+  const raw = (payload as { customerId?: unknown }).customerId;
+  const customerId = Number(raw);
+  return Number.isFinite(customerId) && customerId > 0 ? customerId : null;
+}
+
+function readOrderList(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  if (
+    payload &&
+    typeof payload === "object" &&
+    Array.isArray((payload as { data?: unknown }).data)
+  ) {
+    return (payload as { data: unknown[] }).data;
+  }
+  return [];
+}
+
 export async function GET(req: Request) {
   try {
     const cookieStore = await cookies();
@@ -29,9 +54,7 @@ export async function GET(req: Request) {
     }
 
     const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-    const beUrl = `${base}/orders/my-orders`;
-
-    const res = await fetch(beUrl, {
+    const profileRes = await fetch(`${base}/customers/me`, {
       method: "GET",
       headers: {
         Accept: "application/json",
@@ -40,13 +63,42 @@ export async function GET(req: Request) {
       cache: "no-store",
     });
 
-    const payload = await parseJsonSafely(res);
+    const profilePayload = await parseJsonSafely(profileRes);
 
-    if (!res.ok) {
-      throw new ApiError("BE error", res.status, payload);
+    if (!profileRes.ok) {
+      throw new ApiError(
+        getApiMessage(profilePayload),
+        profileRes.status,
+        profilePayload,
+      );
     }
 
-    return Response.json(payload ?? [], { status: 200 });
+    const customerId = readCustomerId(profilePayload);
+    if (!customerId) {
+      throw new ApiError("Không xác định được customerId", 500, profilePayload);
+    }
+
+    const historyUrl = `${base}/orders/history?page=0&size=100&customerId=${encodeURIComponent(String(customerId))}`;
+    const historyRes = await fetch(historyUrl, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      cache: "no-store",
+    });
+
+    const historyPayload = await parseJsonSafely(historyRes);
+
+    if (!historyRes.ok) {
+      throw new ApiError(
+        getApiMessage(historyPayload),
+        historyRes.status,
+        historyPayload,
+      );
+    }
+
+    return Response.json(readOrderList(historyPayload), { status: 200 });
   } catch (err) {
     if (err instanceof ApiError) {
       return Response.json(
