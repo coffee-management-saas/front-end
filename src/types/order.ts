@@ -13,6 +13,7 @@ export interface OrderItemRequest {
 }
 
 export interface CreateOrderRequest {
+    customerId?: number;
     orderType: OrderType;
     promotionItemsId?: string;
     orderItems: OrderItemRequest[];
@@ -53,6 +54,11 @@ export interface OrderResponse {
     paymentGateway?: string;
     createdAt?: string;
     payUrl?: string;
+    checkoutUrl?: string;
+    paymentUrl?: string;
+    redirectUrl?: string;
+    orderCode?: string | number;
+    paymentLinkId?: string;
     message?: string;
     orderItems?: OrderItemResponse[];
     shippingFee?: number;

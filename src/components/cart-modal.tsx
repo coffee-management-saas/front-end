@@ -62,12 +62,11 @@ export function CartModal({ open, onOpenChange }: CartModalProps) {
                         <div className="flex-1 px-6 max-h-[50vh] overflow-y-auto">
                             <div className="space-y-4 py-4">
                                 {items.map((item) => {
-                                    const sizeDelta = item.size === "M" ? -4000 : 0;
                                     const toppingTotal = item.toppings.reduce(
                                         (sum, t) => sum + t.price * t.quantity,
                                         0,
                                     );
-                                    const itemPrice = (item.basePrice + sizeDelta + toppingTotal) * item.quantity;
+                                    const itemPrice = (item.basePrice + toppingTotal) * item.quantity;
 
                                     return (
                                         <div

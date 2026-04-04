@@ -21,6 +21,8 @@ export default function LayoutContent({
     pathname.startsWith("/staff") ||
     pathname === "/login" ||
     pathname === "/checkout/subscription" ||
+    pathname === "/payos-success" ||
+    pathname === "/payos-cancel" ||
     pathname === "/subscription/momo-callback" ||
     pathname === "/forgot" ||
     pathname === "/register" ||

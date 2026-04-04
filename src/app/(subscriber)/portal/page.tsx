@@ -1,6 +1,5 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import Script from "next/script";
 import { PortalFooter } from "@/components/portal/PortalFooter";
@@ -323,18 +322,6 @@ export default function Page() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0f0a07] text-white">
-      {/* Background (Spline) */}
-      <div className="spline-container absolute top-0 left-0 w-full h-full -z-10">
-        <iframe
-          src="https://my.spline.design/liquidring-PGc8zQXZyDUpVFvWNgohNZnv"
-          frameBorder={0}
-          width="100%"
-          height="100%"
-          id="aura-spline"
-          title="Background"
-        />
-      </div>
-
       <PortalHeader />
 
       {/* Hero */}

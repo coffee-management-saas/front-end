@@ -59,12 +59,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
     const totalPrice = items.reduce((sum, item) => {
-        const sizeDelta = item.size === "M" ? -4000 : 0;
         const toppingTotal = item.toppings.reduce(
             (tSum, t) => tSum + t.price * t.quantity,
             0,
         );
-        const itemPrice = (item.basePrice + sizeDelta + toppingTotal) * item.quantity;
+        const itemPrice = (item.basePrice + toppingTotal) * item.quantity;
         return sum + itemPrice;
     }, 0);
 

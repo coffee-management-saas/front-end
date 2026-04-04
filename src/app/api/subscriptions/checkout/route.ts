@@ -28,9 +28,6 @@ async function readJsonOrNull(res: Response): Promise<unknown | null> {
 export async function POST(req: Request) {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("accessToken")?.value;
-  if (!accessToken) {
-    return Response.json({ message: "Unauthenticated" }, { status: 401 });
-  }
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
@@ -48,41 +45,65 @@ export async function POST(req: Request) {
     );
   }
 
+  const requestUrl = new URL(req.url);
+  const callbackUrl = new URL(
+    "/subscription/momo-callback",
+    requestUrl.origin,
+  ).toString();
+  const requestPayload = {
+    ...obj,
+    returnUrl:
+      typeof obj.returnUrl === "string" && obj.returnUrl.trim()
+        ? obj.returnUrl.trim()
+        : callbackUrl,
+    cancelUrl:
+      typeof obj.cancelUrl === "string" && obj.cancelUrl.trim()
+        ? obj.cancelUrl.trim()
+        : callbackUrl,
+  };
+
   const bases = getBaseCandidates();
+  const paths = ["/subscriptions/checkout/v2", "/subscriptions/checkout"];
   let lastStatus = 500;
   let lastPayload: unknown = null;
 
   for (const base of bases) {
-    const backendRes = await fetch(`${base}/subscriptions/checkout`, {
-      method: "POST",
-      headers: {
+    for (const path of paths) {
+      const headers: Record<string, string> = {
         Accept: "application/json",
         "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    }).catch(() => null);
+      };
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
 
-    if (!backendRes) continue;
+      const backendRes = await fetch(`${base}${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(requestPayload),
+        cache: "no-store",
+      }).catch(() => null);
 
-    const payload = await readJsonOrNull(backendRes);
-    lastStatus = backendRes.status;
-    lastPayload = payload;
+      if (!backendRes) continue;
 
-    if (backendRes.ok) {
-      return Response.json(payload, { status: backendRes.status || 200 });
+      const payload = await readJsonOrNull(backendRes);
+      lastStatus = backendRes.status;
+      lastPayload = payload;
+
+      if (backendRes.ok) {
+        return Response.json(payload, { status: backendRes.status || 200 });
+      }
+
+      // If the backend doesn't have this route at the current base, try the next candidate.
+      if (backendRes.status === 404 || backendRes.status === 405) {
+        continue;
+      }
+
+      return Response.json(
+        payload ?? { message: `Checkout failed (${backendRes.status})` },
+        { status: backendRes.status || 500 },
+      );
     }
-
-    // If the backend doesn't have this route at the current base, try the next candidate.
-    if (backendRes.status === 404 || backendRes.status === 405) {
-      continue;
-    }
-
-    return Response.json(
-      payload ?? { message: `Checkout failed (${backendRes.status})` },
-      { status: backendRes.status || 500 },
-    );
   }
 
   const message =
@@ -98,4 +119,6 @@ export async function POST(req: Request) {
     { status: lastStatus || 500 },
   );
 }
+
+
 

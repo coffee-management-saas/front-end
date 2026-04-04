@@ -3,7 +3,7 @@
 import { Minus, Plus, X } from "lucide-react";
 import Image from "next/image";
 import type { CartItem } from "@/types/cart";
-import { cn } from "@/lib/utils";
+import { canUseImage, cn, FALLBACK_IMG } from "@/lib/utils";
 
 interface CartItemCardProps {
     item: CartItem;
@@ -16,12 +16,12 @@ export function CartItemCard({
     onUpdateQuantity,
     onRemove,
 }: CartItemCardProps) {
-    const sizeDelta = item.size === "M" ? -4000 : 0;
+    const imageSrc = canUseImage(item.productImage) ? item.productImage! : FALLBACK_IMG;
     const toppingTotal = item.toppings.reduce(
         (sum, t) => sum + t.price * t.quantity,
         0,
     );
-    const itemPrice = (item.basePrice + sizeDelta + toppingTotal) * item.quantity;
+    const itemPrice = (item.basePrice + toppingTotal) * item.quantity;
 
     const formatPrice = (price: number) => price.toLocaleString("vi-VN") + " ₫";
 
@@ -29,7 +29,7 @@ export function CartItemCard({
         <div className="flex gap-3 p-3 bg-card rounded-lg border border-border/50">
             <div className="relative w-20 h-20 rounded-md overflow-hidden flex-shrink-0 bg-secondary/30">
                 <Image
-                    src={item.productImage}
+                    src={imageSrc}
                     alt={item.productName}
                     fill
                     className="object-cover"
@@ -43,7 +43,7 @@ export function CartItemCard({
                             {item.productName} ({item.size})
                         </h4>
                         <p className="text-xs text-muted-foreground">
-                            {formatPrice(item.basePrice + sizeDelta)}
+                            {formatPrice(item.basePrice)}
                         </p>
                     </div>
 

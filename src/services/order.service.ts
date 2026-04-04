@@ -28,6 +28,62 @@ async function parseJsonSafely<T>(res: Response): Promise<T> {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function extractOrderSource(payload: unknown): Record<string, unknown> | null {
+  if (!isRecord(payload)) return null;
+  if (isRecord(payload.data)) return payload.data;
+  return payload;
+}
+
+function extractPaymentUrl(payload: unknown): string | null {
+  if (!isRecord(payload)) return null;
+
+  const directCandidates = [
+    payload.payUrl,
+    payload.checkoutUrl,
+    payload.paymentUrl,
+    payload.redirectUrl,
+  ];
+  for (const candidate of directCandidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  if (isRecord(payload.data)) {
+    const nestedCandidates = [
+      payload.data.payUrl,
+      payload.data.checkoutUrl,
+      payload.data.paymentUrl,
+      payload.data.redirectUrl,
+    ];
+    for (const candidate of nestedCandidates) {
+      if (typeof candidate === "string" && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+  }
+
+  return null;
+}
+
+function normalizeOrderResponse(payload: unknown): OrderResponse {
+  const source = extractOrderSource(payload) ?? {};
+  const response = { ...(source as Partial<OrderResponse>) } as OrderResponse;
+  const payUrl = extractPaymentUrl(payload);
+  if (payUrl) {
+    response.payUrl = payUrl;
+  }
+  if (!response.message) {
+    const message = extractErrorMessage(payload);
+    if (message) response.message = message;
+  }
+  return response;
+}
+
 function extractErrorMessage(input: unknown): string | null {
   const visited = new Set<unknown>();
 
@@ -102,6 +158,37 @@ export async function createOrder(
   }
 
   return data;
+}
+
+export async function createOrderV2(
+  request: CreateOrderRequest,
+): Promise<OrderResponse> {
+  const useNextApi = typeof window !== "undefined";
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const url = useNextApi ? "/api/orders/v2" : `${base}/orders/v2`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(request),
+    credentials: useNextApi ? "same-origin" : "omit",
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonSafely<unknown>(res);
+
+  if (!res.ok) {
+    throw new ApiError(
+      extractErrorMessage(payload) || "Create order failed",
+      res.status,
+      payload,
+    );
+  }
+
+  return normalizeOrderResponse(payload);
 }
 
 export async function createEmployeeOrder(

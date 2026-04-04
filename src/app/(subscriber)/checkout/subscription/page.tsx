@@ -16,6 +16,8 @@ type CheckoutForm = {
   autoRenewal: boolean;
 };
 
+const SUBSCRIPTION_PAYMENT_STORAGE_KEY = "subscriptionPayment.pending";
+
 const getApiMessage = (payload: unknown): string | null => {
   if (!payload || typeof payload !== "object") return null;
   if (!("message" in payload)) return null;
@@ -60,6 +62,85 @@ const extractCheckoutUrl = (payload: unknown): string | null => {
   return null;
 };
 
+const parseAmount = (value: unknown): number | null => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
+const persistPendingSubscriptionPayment = (payload: unknown) => {
+  if (
+    typeof window === "undefined" ||
+    !payload ||
+    typeof payload !== "object"
+  ) {
+    return;
+  }
+
+  const obj = payload as Record<string, unknown>;
+  const source =
+    obj.data && typeof obj.data === "object"
+      ? (obj.data as Record<string, unknown>)
+      : obj;
+
+  const amount = parseAmount(source.amount);
+  const checkoutUrl = extractCheckoutUrl(payload);
+  const orderCodeRaw = source.orderCode;
+  const orderCode =
+    typeof orderCodeRaw === "number" || typeof orderCodeRaw === "string"
+      ? String(orderCodeRaw)
+      : "";
+  const paymentLinkId =
+    typeof source.paymentLinkId === "string" ? source.paymentLinkId : "";
+  const description =
+    typeof source.description === "string" ? source.description : "";
+  const accountName =
+    typeof source.accountName === "string" ? source.accountName : "";
+  const accountNumber =
+    typeof source.accountNumber === "string" ? source.accountNumber : "";
+  const bin = typeof source.bin === "string" ? source.bin : "";
+  const currency = typeof source.currency === "string" ? source.currency : "";
+  const status = typeof source.status === "string" ? source.status : "";
+  const expiredAt =
+    typeof source.expiredAt === "string" ? source.expiredAt : "";
+  const qrCode = typeof source.qrCode === "string" ? source.qrCode : "";
+
+  const pending = {
+    amount,
+    orderCode,
+    paymentLinkId,
+    description,
+    accountName,
+    accountNumber,
+    bin,
+    currency,
+    status,
+    expiredAt,
+    qrCode,
+    checkoutUrl,
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    window.sessionStorage.setItem(
+      SUBSCRIPTION_PAYMENT_STORAGE_KEY,
+      JSON.stringify(pending),
+    );
+  } catch {
+    // Ignore storage failures and continue to the payment page.
+  }
+};
+
 export default function SubscriptionCheckoutPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -90,64 +171,68 @@ export default function SubscriptionCheckoutPage() {
     autoRenewal: true,
   });
 
-  const runCheckout = useCallback(async (payload: CheckoutForm) => {
-    if (!subscriptionPlanId || !billingCycle) return;
+  const runCheckout = useCallback(
+    async (payload: CheckoutForm) => {
+      if (!subscriptionPlanId || !billingCycle) return;
 
-    const callOnce = async () =>
-      fetch("/api/subscriptions/checkout", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          subscriptionPlanId,
-          billingCycle,
-          ...payload,
-        }),
-        credentials: "include",
-        cache: "no-store",
-      });
+      const callOnce = async () =>
+        fetch("/api/subscriptions/checkout/v2", {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            subscriptionPlanId,
+            billingCycle,
+            ...payload,
+          }),
+          credentials: "include",
+          cache: "no-store",
+        });
 
-    let res: Response | null = await callOnce().catch(() => null);
-    if (!res) {
-      setError("Không kết nối được máy chủ.");
-      return;
-    }
+      let res: Response | null = await callOnce().catch(() => null);
+      if (!res) {
+        setError("Không kết nối được máy chủ.");
+        return;
+      }
 
-    // If session expired, refresh once then retry.
-    if (res.status === 401 || res.status === 403) {
-      const refreshRes = await fetch("/api/auth/refresh", {
-        method: "POST",
-        cache: "no-store",
-        credentials: "include",
-      }).catch(() => null);
+      // If session expired, refresh once then retry.
+      if (res.status === 401 || res.status === 403) {
+        const refreshRes = await fetch("/api/auth/refresh", {
+          method: "POST",
+          cache: "no-store",
+          credentials: "include",
+        }).catch(() => null);
 
-      if (refreshRes?.ok) {
-        res = await callOnce().catch(() => null);
-        if (!res) {
-          setError("Không kết nối được máy chủ.");
-          return;
+        if (refreshRes?.ok) {
+          res = await callOnce().catch(() => null);
+          if (!res) {
+            setError("Không kết nối được máy chủ.");
+            return;
+          }
         }
       }
-    }
 
-    const payloadJson = await parseJsonSafely<unknown>(res);
-    if (!res.ok) {
-      setError(
-        getApiMessage(payloadJson) || `Thanh toán thất bại (${res.status}).`,
-      );
-      return;
-    }
+      const payloadJson = await parseJsonSafely<unknown>(res);
+      if (!res.ok) {
+        setError(
+          getApiMessage(payloadJson) || `Thanh toán thất bại (${res.status}).`,
+        );
+        return;
+      }
 
-    const checkoutUrl = extractCheckoutUrl(payloadJson);
-    if (!checkoutUrl) {
-      setError("Không nhận được liên kết thanh toán (payUrl).");
-      return;
-    }
+      const checkoutUrl = extractCheckoutUrl(payloadJson);
+      if (!checkoutUrl) {
+        setError("Không nhận được liên kết thanh toán (checkoutUrl).");
+        return;
+      }
 
-    window.location.assign(checkoutUrl);
-  }, [billingCycle, subscriptionPlanId]);
+      persistPendingSubscriptionPayment(payloadJson);
+      window.location.assign(checkoutUrl);
+    },
+    [billingCycle, subscriptionPlanId],
+  );
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0f0a07] text-white">
@@ -157,7 +242,8 @@ export default function SubscriptionCheckoutPage() {
         <div className="mx-auto max-w-xl rounded-2xl border border-neutral-800 bg-neutral-950/60 p-8 shadow-[0_26px_80px_rgba(0,0,0,0.9)]">
           <h1 className="text-xl font-semibold">Thanh toán gói thuê</h1>
           <p className="mt-2 text-sm text-neutral-400">
-            Nhập thông tin và bấm “Tạo thanh toán” để chuyển sang cổng thanh toán.
+            Nhập thông tin và bấm “Tạo thanh toán” để chuyển sang cổng thanh
+            toán.
           </p>
 
           {!canCheckout ? (
@@ -187,21 +273,27 @@ export default function SubscriptionCheckoutPage() {
                 className="w-full rounded-lg bg-neutral-900/70 border border-neutral-700 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
                 placeholder="Tên cửa hàng"
                 value={form.shopName}
-                onChange={(e) => setForm((p) => ({ ...p, shopName: e.target.value }))}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, shopName: e.target.value }))
+                }
                 required
               />
               <input
                 className="w-full rounded-lg bg-neutral-900/70 border border-neutral-700 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
                 placeholder="Địa chỉ"
                 value={form.address}
-                onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, address: e.target.value }))
+                }
                 required
               />
               <input
                 className="w-full rounded-lg bg-neutral-900/70 border border-neutral-700 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
                 placeholder="Số điện thoại"
                 value={form.phone}
-                onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, phone: e.target.value }))
+                }
                 required
               />
               <input
@@ -209,14 +301,18 @@ export default function SubscriptionCheckoutPage() {
                 placeholder="Email"
                 type="email"
                 value={form.email}
-                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, email: e.target.value }))
+                }
                 required
               />
               <input
                 className="w-full rounded-lg bg-neutral-900/70 border border-neutral-700 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
                 placeholder="Domain"
                 value={form.domain}
-                onChange={(e) => setForm((p) => ({ ...p, domain: e.target.value }))}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, domain: e.target.value }))
+                }
                 required
               />
               <label className="flex items-center gap-2 text-sm text-neutral-300">
@@ -255,13 +351,6 @@ export default function SubscriptionCheckoutPage() {
               onClick={() => router.push("/subscription")}
             >
               Quay lại
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center rounded-full border border-neutral-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-900"
-              onClick={() => router.push("/system/login")}
-            >
-              Đăng nhập
             </button>
           </div>
         </div>
