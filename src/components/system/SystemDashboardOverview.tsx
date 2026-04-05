@@ -6,6 +6,7 @@ import {
   CreditCard,
   DollarSign,
   Filter,
+  RefreshCw,
   TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -335,9 +336,11 @@ function SimpleLineChart({
 
 export default function SystemDashboardOverview() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isTriggering, setIsTriggering] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [monthsRaw, setMonthsRaw] = useState<SystemDashboardMonth[]>([]);
   const [year, setYear] = useState(DEFAULT_YEAR);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -382,7 +385,37 @@ export default function SystemDashboardOverview() {
       mounted = false;
       controller.abort();
     };
-  }, [year]);
+  }, [year, reloadKey]);
+
+  const handleTriggerRefresh = async () => {
+    if (isTriggering) return;
+
+    setIsTriggering(true);
+    try {
+      const res = await fetch("/api/dashboard/system/overview/trigger", {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+
+      const json = (await res
+        .json()
+        .catch(() => null)) as SystemDashboardResponse | null;
+
+      if (!res.ok || (json?.code != null && Number(json.code) >= 400)) {
+        throw new Error(json?.message || "Không thể đồng bộ dashboard");
+      }
+
+      toast.success("Đã đồng bộ thành công");
+      setReloadKey((value) => value + 1);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Không thể đồng bộ dashboard";
+      toast.error(message);
+    } finally {
+      setIsTriggering(false);
+    }
+  };
 
   const yearOptions = useMemo(() => {
     const end = DEFAULT_YEAR;
@@ -470,7 +503,18 @@ export default function SystemDashboardOverview() {
             </p>
           </div>
 
-          <div className="flex items-center justify-start sm:justify-end">
+          <div className="flex items-center justify-start gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => void handleTriggerRefresh()}
+              disabled={isTriggering}
+              className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isTriggering ? "animate-spin" : ""}`}
+              />
+              <span>{isTriggering ? "Đang đồng bộ..." : "Đồng bộ"}</span>
+            </button>
             <label className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs shadow-sm">
               <Filter className="h-4 w-4 text-stone-500" />
               <span className="font-medium text-stone-600">Lọc năm</span>

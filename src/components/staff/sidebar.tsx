@@ -1,4 +1,5 @@
 ﻿"use client";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -58,9 +59,19 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
     >
       {/* Logo */}
       <div className="p-6">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl font-bold text-[#693916]">F&B Coffee</span>
-        </div>
+        <Link
+          href="/staff/menu"
+          className="flex h-16 items-center overflow-visible"
+        >
+          <Image
+            src="/images/logo-01.png"
+            alt="Coffee Management"
+            width={160}
+            height={90}
+            priority
+            className="h-20 w-auto max-w-none object-contain"
+          />
+        </Link>
       </div>
 
       {/* Main Navigation */}
