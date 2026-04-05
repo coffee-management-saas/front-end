@@ -272,7 +272,7 @@ export default function SystemLoginForm() {
             id="vanta-canvas"
             className={`h-[130px] relative ${vantaFailed ? "bg-[radial-gradient(ellipse_at_top,rgba(245,158,11,0.18)_0%,rgba(18,10,6,0.92)_60%,rgba(18,10,6,1)_100%)]" : ""}`}
           >
-            <div className="absolute top-4 left-4 z-10">
+            <div className="absolute left-16 right-4 top-4 z-10 flex flex-col items-start">
               <span className="px-2 py-1 bg-[#24160f]/75 rounded-full text-xs text-amber-100/70 mb-2 inline-block ring-1 ring-amber-200/10">
                 FUTURE&BETTER
               </span>

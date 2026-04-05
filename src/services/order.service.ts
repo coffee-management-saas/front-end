@@ -289,6 +289,43 @@ export async function getOrderById(
   return data as OrderResponse;
 }
 
+export async function getOrderByOrderCode(
+  accessToken: string,
+  orderCode: string | number,
+): Promise<OrderResponse> {
+  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
+  const useNextApi = shouldUseNextApi();
+  const lookupId = String(orderCode ?? "").trim();
+
+  if (!lookupId) {
+    throw new ApiError("Missing orderCode", 400);
+  }
+
+  const beUrl = useNextApi
+    ? `/api/orders/v2/${encodeURIComponent(lookupId)}`
+    : `${base}/orders/v2/${encodeURIComponent(lookupId)}`;
+
+  const res = await fetch(beUrl, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    credentials: useNextApi ? "same-origin" : "omit",
+    cache: "no-store",
+  });
+
+  const data = await parseJsonSafely<OrderResponse>(res).catch(() => null);
+
+  if (!res.ok) {
+    const message =
+      extractErrorMessage(data) || "Failed to fetch order details by orderCode";
+    throw new ApiError(message, res.status, data);
+  }
+
+  return data as OrderResponse;
+}
+
 export async function getOrderHistory(
   accessToken: string,
   params: { page: number; size: number; customerId: number },
