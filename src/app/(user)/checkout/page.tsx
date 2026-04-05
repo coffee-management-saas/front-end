@@ -13,7 +13,6 @@ import {
   Gift,
   Minus,
   Plus,
-  QrCode,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -49,6 +48,7 @@ import { useAppContext } from "@/app/AppProvider";
 import { toast } from "sonner";
 import {
   createOrderV2,
+  getOrderByOrderCode,
   getMyOrders,
   initiatePayment,
   confirmCashPayment,
@@ -57,8 +57,8 @@ import type { CreateOrderRequest } from "@/types/order";
 import Link from "next/link";
 
 type DeliveryMethod = "delivery" | "pickup";
-type PaymentMethod = "cash" | "momo" | "qr";
-type SuccessPaymentMethod = PaymentMethod | "payos";
+type PaymentMethod = "cash" | "payos";
+type SuccessPaymentMethod = PaymentMethod;
 type AuthRole = "SHOP" | "EMPLOYEE" | "SYSTEM" | "USER";
 const CHECKOUT_PAYMENT_METHOD_STORAGE_KEY = "checkout:selected-payment-method";
 const CHECKOUT_PENDING_PAYMENT_STORAGE_KEY = "checkout:pending-payment";
@@ -80,8 +80,17 @@ const FINAL_ORDER_STATUSES = new Set([
   "DONE",
 ]);
 
-function isPaymentMethod(value: unknown): value is PaymentMethod {
-  return value === "cash" || value === "momo" || value === "qr";
+function normalizePaymentMethod(value: unknown): PaymentMethod | null {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "cash") return "cash";
+  if (
+    normalized === "payos" ||
+    normalized === "momo" ||
+    normalized === "qr"
+  ) {
+    return "payos";
+  }
+  return null;
 }
 
 function readStoredPaymentMethod(): PaymentMethod | null {
@@ -89,7 +98,7 @@ function readStoredPaymentMethod(): PaymentMethod | null {
 
   try {
     const stored = sessionStorage.getItem(CHECKOUT_PAYMENT_METHOD_STORAGE_KEY);
-    return isPaymentMethod(stored) ? stored : null;
+    return normalizePaymentMethod(stored);
   } catch {
     return null;
   }
@@ -157,10 +166,11 @@ function readPendingPayment(): PendingCheckoutPayment | null {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as Partial<PendingCheckoutPayment>;
-    if (!isPaymentMethod(parsed.method)) return null;
+    const method = normalizePaymentMethod(parsed.method);
+    if (!method) return null;
 
     return {
-      method: parsed.method,
+      method,
       orderId:
         typeof parsed.orderId === "number" && Number.isFinite(parsed.orderId)
           ? parsed.orderId
@@ -191,8 +201,13 @@ function clearPendingPayment() {
 
 function mapGatewayToPaymentMethod(gateway?: string | null): PaymentMethod {
   const normalized = gateway?.trim().toLowerCase();
-  if (normalized === "momo") return "momo";
-  if (normalized === "qr" || normalized === "payos") return "qr";
+  if (
+    normalized === "momo" ||
+    normalized === "qr" ||
+    normalized === "payos"
+  ) {
+    return "payos";
+  }
   return "cash";
 }
 
@@ -200,9 +215,13 @@ function mapGatewayToSuccessPaymentMethod(
   gateway?: string | null,
 ): SuccessPaymentMethod {
   const normalized = gateway?.trim().toLowerCase();
-  if (normalized === "payos") return "payos";
-  if (normalized === "momo") return "momo";
-  if (normalized === "qr") return "qr";
+  if (
+    normalized === "payos" ||
+    normalized === "momo" ||
+    normalized === "qr"
+  ) {
+    return "payos";
+  }
   return "cash";
 }
 
@@ -221,6 +240,12 @@ function extractRedirectOrderId(value: string | null | undefined): number | null
 
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normalizeRedirectIdentifier(
+  value: string | number | null | undefined,
+): string {
+  return String(value ?? "").trim();
 }
 
 function resolveRedirectPaymentStatus(
@@ -513,16 +538,19 @@ const CheckoutContent = () => {
 
   useEffect(() => {
     const redirectStatus = resolveRedirectPaymentStatus(searchParams);
-    const orderIdParam =
-      searchParams.get("orderId") ?? searchParams.get("orderCode");
     const message =
       searchParams.get("message") ??
       searchParams.get("status") ??
       searchParams.get("code");
     const storedPaymentMethod = readStoredPaymentMethod();
     const pendingPayment = readPendingPayment();
-    const orderId =
-      extractRedirectOrderId(orderIdParam) ?? pendingPayment?.orderId ?? null;
+    const callbackOrderCode =
+      normalizeRedirectIdentifier(searchParams.get("orderCode")) ||
+      normalizeRedirectIdentifier(pendingPayment?.orderCode);
+    const fallbackOrderId =
+      extractRedirectOrderId(searchParams.get("orderId")) ??
+      pendingPayment?.orderId ??
+      null;
 
     if (redirectStatus && accessToken) {
       if (storedPaymentMethod) {
@@ -533,9 +561,13 @@ const CheckoutContent = () => {
         setPaymentStatus("success");
         setCurrentStep(2);
 
-        if (orderId) {
+        if (callbackOrderCode || fallbackOrderId) {
           setTimeout(() => {
-            getOrderById(accessToken, orderId)
+            const request = callbackOrderCode
+              ? getOrderByOrderCode(accessToken, callbackOrderCode)
+              : getOrderById(accessToken, fallbackOrderId as number);
+
+            request
               .then((order) => {
                 setSuccessOrder(order);
                 setCreatedOrderId(order.orderId);
@@ -563,7 +595,7 @@ const CheckoutContent = () => {
 
         toast.success("Thanh toán thành công!");
         clearCart();
-        if (!orderId) {
+        if (!callbackOrderCode && !fallbackOrderId) {
           clearPersistedPaymentMethod();
           clearPendingPayment();
           const newUrl = window.location.pathname;
@@ -614,8 +646,7 @@ const CheckoutContent = () => {
   }, [searchParams, accessToken, clearCart]);
 
   const [isUpdatingAddress, setIsUpdatingAddress] = useState(false);
-  const shouldUseRedirectPayment =
-    paymentMethod === "momo" || paymentMethod === "qr";
+  const shouldUseRedirectPayment = paymentMethod === "payos";
   const successPaymentMethod: SuccessPaymentMethod = successOrder?.paymentGateway
     ? mapGatewayToSuccessPaymentMethod(successOrder.paymentGateway)
     : paymentMethod;
@@ -873,7 +904,7 @@ const CheckoutContent = () => {
   }, []);
 
   const totals = useMemo(() => {
-    // If we have a fetched order from chatbot/momo redirect, use its values
+    // If we have a fetched order from chatbot/PayOS redirect, use its values
     if (
       successOrder &&
       (searchParams.get("mode") === "chatbot" || searchParams.get("resultCode"))
@@ -1386,10 +1417,10 @@ const CheckoutContent = () => {
                   <div className="grid grid-cols-1 gap-4">
                     <button
                       type="button"
-                      onClick={() => setPaymentMethod("momo")}
+                      onClick={() => setPaymentMethod("payos")}
                       className={cn(
                         "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
-                        paymentMethod === "momo"
+                        paymentMethod === "payos"
                           ? "border-sky-300 bg-sky-50 ring-2 ring-sky-100 shadow-sm"
                           : "border-gray-100 hover:border-sky-200 hover:bg-sky-50/30",
                       )}
@@ -1408,12 +1439,12 @@ const CheckoutContent = () => {
                       <div
                           className={cn(
                             "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
-                            paymentMethod === "momo"
+                            paymentMethod === "payos"
                               ? "border-sky-600 bg-sky-600"
                               : "border-gray-300",
                           )}
                       >
-                        {paymentMethod === "momo" && (
+                        {paymentMethod === "payos" && (
                           <div className="w-2 h-2 rounded-full bg-white" />
                         )}
                       </div>
@@ -1454,49 +1485,12 @@ const CheckoutContent = () => {
                       </div>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod("qr")}
-                      className={cn(
-                        "flex items-center gap-4 rounded-xl border p-5 text-left transition-all",
-                        paymentMethod === "qr"
-                          ? "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-100 shadow-sm"
-                          : "border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30",
-                      )}
-                    >
-                      <div className="h-12 w-12 rounded-lg bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-sm">
-                        <QrCode className="w-7 h-7" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-stone-900 text-lg">
-                          Mã QR
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Trang thanh toán sẽ hiển thị mã QR để bạn quét trên
-                          thiết bị khác.
-                        </p>
-                      </div>
-                      <div
-                        className={cn(
-                          "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
-                          paymentMethod === "qr"
-                            ? "border-emerald-600 bg-emerald-600"
-                            : "border-gray-300",
-                        )}
-                      >
-                        {paymentMethod === "qr" && (
-                          <div className="w-2 h-2 rounded-full bg-white" />
-                        )}
-                      </div>
-                    </button>
                   </div>
 
                   <div className="rounded-lg bg-gray-50 p-4 border border-gray-100 mt-6">
                     {paymentMethod !== "cash" && (
                       <p className="mb-2 text-sm font-medium text-stone-700">
-                        {paymentMethod === "qr"
-                          ? "Sau khi xác nhận đơn, PayOS sẽ hiển thị mã QR để bạn quét và hoàn tất."
-                          : "Bạn sẽ được chuyển sang cổng thanh toán PayOS để hoàn tất."}
+                        Bạn sẽ được chuyển sang cổng thanh toán PayOS để hoàn tất.
                       </p>
                     )}
                     <p className="text-sm text-gray-600 italic">
@@ -1550,33 +1544,13 @@ const CheckoutContent = () => {
                           "font-medium flex items-center gap-2",
                           successPaymentMethod === "payos"
                             ? "text-sky-700"
-                            : successPaymentMethod === "momo"
-                              ? "text-pink-600"
-                              : successPaymentMethod === "qr"
-                                ? "text-emerald-600"
-                                : "text-amber-800",
+                            : "text-amber-800",
                         )}
                       >
                         {successPaymentMethod === "payos" ? (
                           <>
                             <ShieldCheck className="w-4 h-4 text-sky-700" />
                             PayOS
-                          </>
-                        ) : successPaymentMethod === "momo" ? (
-                          <>
-                            <Image
-                              src="/images/momo.jpg"
-                              alt="MoMo"
-                              width={16}
-                              height={16}
-                              className="object-contain"
-                            />
-                            Ví MoMo
-                          </>
-                        ) : successPaymentMethod === "qr" ? (
-                          <>
-                            <QrCode className="w-4 h-4 text-emerald-600" />
-                            Mã QR
                           </>
                         ) : (
                           <>

@@ -142,16 +142,26 @@ function PricingPlanCard({
 
   const hasPrices =
     Number.isFinite(plan.priceMonthly) && Number.isFinite(plan.priceYearly);
+  const billingCycle = billingMode === "monthly" ? "MONTHLY" : "YEARLY";
+  const checkoutHref = `/checkout/subscription?${new URLSearchParams({
+    subscriptionPlanId: String(plan.subscriptionPlanId),
+    billingCycle,
+  }).toString()}`;
 
   return (
     <div
       className={[
-        "rounded-[32px] border shadow-[0_26px_80px_rgba(0,0,0,0.9)] px-8 py-10 flex flex-col justify-between reveal",
+        "relative rounded-[32px] border shadow-[0_26px_80px_rgba(0,0,0,0.9)] px-8 py-10 flex flex-col justify-between reveal",
         featured
           ? "bg-neutral-900/70 border-orange-500/40 ring-1 ring-orange-500/20"
           : "bg-neutral-950/70 border-neutral-800",
       ].join(" ")}
     >
+      {featured ? (
+        <span className="absolute right-6 top-6 inline-flex items-center rounded-full border border-orange-300/40 bg-orange-500 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-black shadow-[0_10px_30px_rgba(249,115,22,0.35)]">
+          Most Popular
+        </span>
+      ) : null}
       <div>
         <h3 className="text-xl mb-2 font-medium">
           {plan.subscriptionPlanName}
@@ -208,7 +218,7 @@ function PricingPlanCard({
 
       <div className="space-y-6">
         <Link
-          href="/checkout/subscription"
+          href={checkoutHref}
           className={[
             "w-full inline-flex items-center justify-center rounded-full transition-colors px-6 py-3 text-sm",
             featured
