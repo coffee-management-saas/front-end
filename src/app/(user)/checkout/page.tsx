@@ -967,7 +967,7 @@ const CheckoutContent = () => {
     // If we have a fetched order from chatbot/PayOS redirect, use its values
     if (
       successOrder &&
-      (searchParams.get("mode") === "chatbot" || searchParams.get("resultCode"))
+      (currentStep === 2 || searchParams.get("mode") === "chatbot" || searchParams.get("resultCode"))
     ) {
       const subtotal = successOrder.basePrice || 0;
       const shippingFee = typeof successOrder.shippingFee === "number" ? successOrder.shippingFee : 0;
