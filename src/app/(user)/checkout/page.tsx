@@ -388,16 +388,21 @@ const CheckoutContent = () => {
   >(null);
 
   // --- Goong Maps state ---
-  const [lat, setLat] = useState<number>(10.7725);
-  const [lng, setLng] = useState<number>(106.6981);
+  const [lat, setLat] = useState<number>(10.8412);
+  const [lng, setLng] = useState<number>(106.8098);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const goongMapInstanceRef = useRef<any | null>(null);
   const markerRef = useRef<any | null>(null);
+  const shopMarkerRef = useRef<any | null>(null);
   const initializingRef = useRef(false);
 
   // Autocomplete state
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // New state for dynamic shipping fee
+  const [shippingFee, setShippingFee] = useState<number>(0);
+  const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
 
   // Initialize Goong Map
   const initMap = useCallback(() => {
@@ -419,6 +424,15 @@ const CheckoutContent = () => {
       map.on('load', () => {
         initializingRef.current = false;
         map.resize();
+        
+        // --- 1. Marker của SHOP (Cố định - Màu vàng/cam) ---
+        const shopMarker = new goongjs.Marker({ color: '#f59e0b', anchor: 'bottom' })
+          .setLngLat([106.8098, 10.8412]) // Tọa độ FPT University Thủ Đức
+          .setPopup(new goongjs.Popup().setHTML("<b>Shop: Đại học FPT TP.HCM</b>"))
+          .addTo(map);
+        shopMarkerRef.current = shopMarker;
+
+        // --- 2. Marker giao hàng (Được phép kéo) ---
         const marker = new goongjs.Marker({ draggable: true, anchor: 'bottom' })
           .setLngLat([lng, lat])
           .addTo(map);
@@ -445,7 +459,7 @@ const CheckoutContent = () => {
       console.error(err);
       initializingRef.current = false;
     }
-  }, [lat, lng]);
+  }, []); // Remove lat, lng dependencies to prevent re-initialization
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -464,6 +478,17 @@ const CheckoutContent = () => {
       }
     };
   }, [initMap]);
+
+  // Handle lat/lng changes without re-initializing the map
+  useEffect(() => {
+    if (goongMapInstanceRef.current && markerRef.current) {
+      const currentPos = markerRef.current.getLngLat();
+      if (currentPos.lat !== lat || currentPos.lng !== lng) {
+        markerRef.current.setLngLat([lng, lat]);
+        goongMapInstanceRef.current.flyTo({ center: [lng, lat], zoom: 16 });
+      }
+    }
+  }, [lat, lng]);
 
   const fetchSuggestions = useMemo(() => debounce(async (input: string) => {
     if (input.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
@@ -487,6 +512,41 @@ const CheckoutContent = () => {
       }
     } catch (e) {}
   };
+
+  // Logic to update shipping fee whenever lat/lng changes
+  useEffect(() => {
+    if (deliveryMethod === "delivery" && lat && lng) {
+      const controller = new AbortController();
+      const calculateShipping = async () => {
+        setIsCalculatingShipping(true);
+        try {
+          const res = await fetch(
+            `/api/map/calculate-shipping?lat=${lat}&lng=${lng}`,
+            { signal: controller.signal },
+          );
+          if (!res.ok) throw new Error("Failed to calculate shipping");
+          const data = await res.json();
+          console.log("Shipping calculation result:", data);
+          setShippingFee(data.shippingFee || 0);
+        } catch (err: any) {
+          if (err.name !== "AbortError") {
+            console.error("Error calculating shipping:", err);
+            // Fallback if needed
+          }
+        } finally {
+          setIsCalculatingShipping(false);
+        }
+      };
+
+      const timer = setTimeout(calculateShipping, 500); // debounce API call
+      return () => {
+        clearTimeout(timer);
+        controller.abort();
+      };
+    } else {
+      setShippingFee(0);
+    }
+  }, [lat, lng, deliveryMethod]);
 
   useEffect(() => {
     // Check session storage for recently placed order items (useful for MoMo redirect)
@@ -775,7 +835,7 @@ const CheckoutContent = () => {
         // Create new order
         const payload: CreateOrderRequest = {
           ...(customerId ? { customerId } : {}),
-          orderType: "ONLINE",
+          orderType: deliveryMethod === "delivery" ? "DELIVERY" : "ONLINE",
           orderItems: items.map((item) => ({
             productVariantId: item.variantId,
             quantity: item.quantity,
@@ -907,7 +967,7 @@ const CheckoutContent = () => {
     // If we have a fetched order from chatbot/PayOS redirect, use its values
     if (
       successOrder &&
-      (searchParams.get("mode") === "chatbot" || searchParams.get("resultCode"))
+      (currentStep === 2 || searchParams.get("mode") === "chatbot" || searchParams.get("resultCode"))
     ) {
       const subtotal = successOrder.basePrice || 0;
       const shippingFee = typeof successOrder.shippingFee === "number" ? successOrder.shippingFee : 0;
@@ -922,7 +982,7 @@ const CheckoutContent = () => {
     }
 
     const subtotal = totalPrice;
-    const shipping = deliveryMethod === "delivery" && subtotal > 0 ? 15000 : 0;
+    const shipping = deliveryMethod === "delivery" ? shippingFee : 0;
 
     let voucherDiscount = 0;
     if (appliedVoucher) {
@@ -939,7 +999,7 @@ const CheckoutContent = () => {
     const total = Math.max(subtotal + shipping - voucherDiscount, 0);
 
     return { subtotal, shipping, voucherDiscount, total };
-  }, [totalPrice, deliveryMethod, appliedVoucher, successOrder, searchParams]);
+  }, [totalPrice, deliveryMethod, appliedVoucher, successOrder, searchParams, shippingFee]);
 
   const handleApplyVoucher = () => {
     const code = voucherCode.trim().toUpperCase();
@@ -1888,7 +1948,9 @@ const CheckoutContent = () => {
                     }
                     value={
                       deliveryMethod === "delivery"
-                        ? formatCurrency(totals.shipping)
+                        ? isCalculatingShipping
+                          ? "Đang tính..."
+                          : formatCurrency(totals.shipping)
                         : "Miễn phí"
                     }
                     highlight={deliveryMethod === "pickup"}
