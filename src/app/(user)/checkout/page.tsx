@@ -459,7 +459,7 @@ const CheckoutContent = () => {
       console.error(err);
       initializingRef.current = false;
     }
-  }, [lat, lng]);
+  }, []); // Remove lat, lng dependencies to prevent re-initialization
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -478,6 +478,17 @@ const CheckoutContent = () => {
       }
     };
   }, [initMap]);
+
+  // Handle lat/lng changes without re-initializing the map
+  useEffect(() => {
+    if (goongMapInstanceRef.current && markerRef.current) {
+      const currentPos = markerRef.current.getLngLat();
+      if (currentPos.lat !== lat || currentPos.lng !== lng) {
+        markerRef.current.setLngLat([lng, lat]);
+        goongMapInstanceRef.current.flyTo({ center: [lng, lat], zoom: 16 });
+      }
+    }
+  }, [lat, lng]);
 
   const fetchSuggestions = useMemo(() => debounce(async (input: string) => {
     if (input.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
