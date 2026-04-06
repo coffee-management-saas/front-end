@@ -151,10 +151,8 @@ function PricingPlanCard({
   return (
     <div
       className={[
-        "relative rounded-[32px] border shadow-[0_26px_80px_rgba(0,0,0,0.9)] px-8 py-10 flex flex-col justify-between reveal",
-        featured
-          ? "bg-neutral-900/70 border-orange-500/40 ring-1 ring-orange-500/20"
-          : "bg-neutral-950/70 border-neutral-800",
+        "group relative rounded-[32px] border shadow-[0_26px_80px_rgba(0,0,0,0.9)] px-8 py-10 flex flex-col justify-between reveal transition-colors duration-300",
+        "bg-neutral-950/70 border-neutral-800 hover:bg-neutral-900/70 hover:border-orange-500/40 hover:ring-1 hover:ring-orange-500/20",
       ].join(" ")}
     >
       {featured ? (
@@ -221,9 +219,7 @@ function PricingPlanCard({
           href={checkoutHref}
           className={[
             "w-full inline-flex items-center justify-center rounded-full transition-colors px-6 py-3 text-sm",
-            featured
-              ? "bg-orange-500 hover:bg-orange-400 font-semibold text-black"
-              : "bg-neutral-800/80 hover:bg-neutral-700 font-medium text-white",
+            "bg-neutral-800/80 text-white font-medium group-hover:bg-orange-500 group-hover:text-black group-hover:font-semibold hover:bg-neutral-700 group-hover:hover:bg-orange-500",
           ].join(" ")}
         >
           Chọn gói
@@ -232,16 +228,14 @@ function PricingPlanCard({
         {features.length ? (
           <ul
             className={[
-              "space-y-2 text-sm",
-              featured ? "text-neutral-50/90" : "text-neutral-300",
+              "space-y-2 text-sm text-neutral-300 transition-colors duration-300 group-hover:text-neutral-50/90",
             ].join(" ")}
           >
             {features.map((t) => (
               <li key={t} className="flex items-start gap-2">
                 <span
                   className={[
-                    "mt-[3px] h-1.5 w-1.5 rounded-full",
-                    featured ? "bg-orange-400" : "bg-neutral-500",
+                    "mt-[3px] h-1.5 w-1.5 rounded-full bg-neutral-500 transition-colors duration-300 group-hover:bg-orange-400",
                   ].join(" ")}
                 />
                 <span>{t}</span>
