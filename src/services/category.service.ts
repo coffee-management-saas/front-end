@@ -199,7 +199,7 @@ export async function getProductCategories(params: {
   const filter = encodeURIComponent(JSON.stringify({ page, size }));
   const beUrl = useNextApi
     ? `/api/categories?page=${page}&size=${size}`
-    : `${base}/categories?page=${page}&size=${size}`;
+    : `${base}/product/categories?page=${page}&size=${size}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -229,7 +229,7 @@ export async function deleteProductCategoryById(
   accessToken?: string,
 ): Promise<DeleteResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/categories/${id}`;
+  const beUrl = `${base}/product/categories/${id}`;
 
   console.log(
     "[deleteProductCategoryById] id:",
@@ -294,7 +294,7 @@ export async function updateProductCategoryById(
   accessToken?: string,
 ) {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/categories/${id}`;
+  const beUrl = `${base}/product/categories/${id}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
@@ -356,7 +356,7 @@ export async function createProductCategory(body: {
   accessToken?: string;
 }) {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/categories`;
+  const beUrl = `${base}/product/categories`;
 
   const res = await fetch(beUrl, {
     method: "POST",
@@ -423,7 +423,7 @@ export async function getCategoryById(
   accessToken?: string,
 ): Promise<ProductCategoriesResponse> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  const beUrl = `${base}/categories/${id}`;
+  const beUrl = `${base}/product/categories/${id}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
