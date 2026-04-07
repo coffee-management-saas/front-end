@@ -44,7 +44,7 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/front-end:latest
           build-args: |
-            NEXT_PUBLIC_API_ENDPOINT=http://futurebetter.online/api
+            NEXT_PUBLIC_API_ENDPOINT=http://54.95.117.37:8081/api
 
       - name: Deploy frontend to EC2
         if: github.event_name == 'push'
