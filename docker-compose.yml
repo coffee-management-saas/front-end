@@ -3,23 +3,11 @@ services:
     image: hungtruong01/front-end:latest
     container_name: saas-frontend
     restart: unless-stopped
-
-    # Dùng host network để frontend container có thể gọi backend
-    # tại localhost:8080 (backend đang chạy network_mode: host)
     network_mode: host
 
     environment:
-      # Port Next.js server listen
       PORT: 3000
-
-      # BACKEND_INTERNAL_URL: URL backend cho Next.js server-side calls (Route Handlers, rewrites)
-      # Đây là runtime env → có thể thay đổi mà KHÔNG cần rebuild Docker image
-      # Với network_mode: host → backend đang listen ở localhost:8080 trên EC2
       BACKEND_INTERNAL_URL: http://localhost:8080
-
-      # NEXT_PUBLIC_API_ENDPOINT: KHÔNG cần set ở đây nữa
-      # config.ts tự tính từ BACKEND_INTERNAL_URL (server-side) hoặc '' (client-side)
-
     mem_limit: 512m
     cpus: 0.50
     logging:

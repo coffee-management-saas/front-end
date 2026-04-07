@@ -1,4 +1,4 @@
-// src/app/api/product/categories/route.ts
+// src/app/api/categories/route.ts
 import { NextRequest } from "next/server";
 import { ApiError } from "@/lib/utils";
 import {
