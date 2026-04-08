@@ -351,7 +351,7 @@ export default function SystemShopManagerPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [page, setPage] = useState(0);
-  const [size] = useState(10);
+  const [size] = useState(20);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createSaving, setCreateSaving] = useState(false);

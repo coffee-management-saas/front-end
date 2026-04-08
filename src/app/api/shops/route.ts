@@ -28,7 +28,7 @@ async function readJsonOrNull(res: Response): Promise<unknown | null> {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const page = Number(searchParams.get("page") ?? "0");
-  const size = Number(searchParams.get("size") ?? "10");
+  const size = Number(searchParams.get("size") ?? "20");
 
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("accessToken")?.value;
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 
   const qs = new URLSearchParams({
     page: String(Number.isFinite(page) ? page : 0),
-    size: String(Number.isFinite(size) ? size : 10),
+    size: String(Number.isFinite(size) ? size : 20),
   });
 
   const bases = getBaseCandidates();
