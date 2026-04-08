@@ -76,7 +76,7 @@ export default function ChatbotWidget() {
                 .concat({
                     id: `bot-${Date.now()}`,
                     role: "bot",
-                    text: res.message || "Tôi không hiểu yêu cầu này, bạn có thể nói rõ hơn không?",
+                    text: res.reply || res.message || "Tôi không hiểu yêu cầu này, bạn có thể nói rõ hơn không?",
                 }),
         );
 

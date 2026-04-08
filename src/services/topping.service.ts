@@ -47,7 +47,7 @@ export async function getToppings(params: {
 
   const beUrl = useNextApi
     ? `/api/products/toppings?${qs.toString()}`
-    : `${base}/product/toppings?${qs.toString()}`;
+    : `${base}/products/toppings?${qs.toString()}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -81,7 +81,7 @@ export async function getToppingById(
   const useNextApi = shouldUseNextApi(options);
   const beUrl = useNextApi
     ? `/api/products/toppings/${id}`
-    : `${base}/product/toppings/${id}`;
+    : `${base}/products/toppings/${id}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -109,7 +109,7 @@ export async function createTopping(
   const useNextApi = shouldUseNextApi();
   const beUrl = useNextApi
     ? "/api/products/toppings"
-    : `${base}/product/toppings`;
+    : `${base}/products/toppings`;
 
   const res = await fetch(beUrl, {
     method: "POST",
@@ -146,7 +146,7 @@ export async function updateToppingById(
   const useNextApi = shouldUseNextApi(options);
   const beUrl = useNextApi
     ? `/api/products/toppings/${id}`
-    : `${base}/product/toppings/${id}`;
+    : `${base}/products/toppings/${id}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
@@ -182,7 +182,7 @@ export async function deleteToppingById(
   const useNextApi = shouldUseNextApi(options);
   const beUrl = useNextApi
     ? `/api/products/toppings/${id}`
-    : `${base}/product/toppings/${id}`;
+    : `${base}/products/toppings/${id}`;
 
   const res = await fetch(beUrl, {
     method: "DELETE",

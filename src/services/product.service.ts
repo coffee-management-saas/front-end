@@ -200,7 +200,7 @@ export async function getProductVariants(
   const qs = productId ? `?productId=${productId}` : "";
   const beUrl = useNextApi
     ? `/api/variants${qs}`
-    : `${base}/product/variants${qs}`;
+    : `${base}/variants${qs}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -227,7 +227,7 @@ export async function getProductSizes(options?: {
 }): Promise<ApiEnvelope<Size[]>> {
   const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
   const useNextApi = shouldUseNextApi(options);
-  const beUrl = useNextApi ? "/api/sizes" : `${base}/product/sizes`;
+  const beUrl = useNextApi ? "/api/sizes" : `${base}/sizes`;
 
   const res = await fetch(beUrl, {
     method: "GET",
