@@ -23,7 +23,7 @@ export async function sendChatMessage(
                 "Content-Type": "application/json",
                 ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
             },
-            body: JSON.stringify({ message, conversationId }),
+            body: JSON.stringify({ prompt: message, conversationId }),
             cache: "no-store",
         });
     } catch (networkErr) {
