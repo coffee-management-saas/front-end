@@ -8,6 +8,7 @@ import { FlyingCartManager } from "@/components/FlyingCartAnimation";
 import AppProvider from "@/app/AppProvider";
 import SlideSession from "@/components/slide-session";
 import { cookies } from "next/headers";
+import Script from "next/script";
 
 // helper decode exp từ JWT ở server
 function getExpiresAtFromJwt(accessToken: string): string {
@@ -41,7 +42,19 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
+      <head>
+        {/* Goong Maps CSS – loaded globally so the map renders correctly */}
+        <link
+          href="https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.css"
+          rel="stylesheet"
+        />
+      </head>
       <body className="antialiased">
+        {/* Goong Maps JS – afterInteractive so it runs after hydration */}
+        <Script
+          src="https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.js"
+          strategy="afterInteractive"
+        />
         <AppProvider
           initialTokens={{
             accessToken,
