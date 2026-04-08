@@ -2,7 +2,8 @@ import type { CreateOrderRequest } from "@/types/order";
 
 export interface ChatBotResponse {
     action: "INFO" | "COLLECTING" | "ORDER";
-    message: string;
+    reply: string;
+    message?: string; // alias for reply, mapped by proxy
     orderRequest?: CreateOrderRequest;
     redirectToPayment?: boolean;
     orderId?: number;
@@ -30,7 +31,7 @@ export async function sendChatMessage(
         console.error("[Chatbot] Network error:", networkErr);
         return {
             action: "INFO",
-            message: "Không kết nối được tới máy chủ. Vui lòng kiểm tra kết nối mạng.",
+            reply: "Không kết nối được tới máy chủ. Vui lòng kiểm tra kết nối mạng.",
         };
     }
 
@@ -39,7 +40,7 @@ export async function sendChatMessage(
     try {
         const raw = await res.json();
         if (typeof raw === "string") {
-            data = { action: "INFO", message: raw };
+            data = { action: "INFO", reply: raw };
         } else {
             data = raw as ChatBotResponse;
         }
@@ -49,7 +50,7 @@ export async function sendChatMessage(
         console.error("[Chatbot] Non-JSON response:", text.substring(0, 200));
         return {
             action: "INFO",
-            message: "AI đang bận, vui lòng thử lại sau vài giây.",
+            reply: "AI đang bận, vui lòng thử lại sau vài giây.",
         };
     }
 
@@ -58,15 +59,16 @@ export async function sendChatMessage(
         console.error(`[Chatbot] Server error ${res.status}:`, data);
         return {
             action: "INFO",
-            message:
+            reply:
+                (data as any)?.reply ||
                 (data as any)?.message ||
                 `Lỗi máy chủ (${res.status}). Vui lòng thử lại sau.`,
         };
     }
 
-    // Đảm bảo message không rỗng
-    if (!data?.message) {
-        return { action: "INFO", message: "AI không trả lời được. Vui lòng thử lại." };
+    // Đảm bảo reply không rỗng (backend trả field 'reply')
+    if (!data?.reply && !data?.message) {
+        return { action: "INFO", reply: "AI không trả lời được. Vui lòng thử lại." };
     }
 
     return data;

@@ -43,8 +43,7 @@ function authHeaders(accessToken?: string): Record<string, string> {
 }
 
 function getApiBase(): string {
-  const base = envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
-  return base.endsWith("/api") ? base : `${base}/api`;
+  return envConfig.NEXT_PUBLIC_API_ENDPOINT.replace(/\/$/, "");
 }
 
 const toNumber = (value: unknown, fallback = 0): number => {
@@ -106,7 +105,7 @@ export async function getSizes(
   const qs = new URLSearchParams();
   if (status) qs.set("status", status);
 
-  const beUrl = `${base}/product/sizes${qs.toString() ? `?${qs}` : ""}`;
+  const beUrl = `${base}/sizes${qs.toString() ? `?${qs}` : ""}`;
 
   const res = await fetch(beUrl, {
     method: "GET",
@@ -132,7 +131,7 @@ export async function createSize(
   accessToken?: string,
 ): Promise<Size> {
   const base = getApiBase();
-  const beUrl = `${base}/product/sizes`;
+  const beUrl = `${base}/sizes`;
 
   const res = await fetch(beUrl, {
     method: "POST",
@@ -166,7 +165,7 @@ export async function updateSize(
   accessToken?: string,
 ): Promise<Size> {
   const base = getApiBase();
-  const beUrl = `${base}/product/sizes/${sizeId}`;
+  const beUrl = `${base}/sizes/${sizeId}`;
 
   const res = await fetch(beUrl, {
     method: "PUT",
@@ -199,7 +198,7 @@ export async function deleteSize(
   accessToken?: string,
 ): Promise<void> {
   const base = getApiBase();
-  const beUrl = `${base}/product/sizes/${sizeId}`;
+  const beUrl = `${base}/sizes/${sizeId}`;
 
   const res = await fetch(beUrl, {
     method: "DELETE",

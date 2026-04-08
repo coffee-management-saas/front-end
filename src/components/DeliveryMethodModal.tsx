@@ -27,6 +27,9 @@ export function DeliveryMethodModal({ open, onClose, onSelectMethod }: { open: b
     const [deliveryAddress, setDeliveryAddress] = useState("");
     const [lat, setLat] = useState<number>(10.7725);
     const [lng, setLng] = useState<number>(106.6981);
+    // Refs to hold latest lat/lng so initMap can read them without stale closure
+    const latRef = useRef(10.7725);
+    const lngRef = useRef(106.6981);
     const [suggestions, setSuggestions] = useState<any[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     
@@ -34,6 +37,10 @@ export function DeliveryMethodModal({ open, onClose, onSelectMethod }: { open: b
     const goongMapInstanceRef = useRef<any | null>(null);
     const markerRef = useRef<any | null>(null);
     const initializingRef = useRef(false);
+
+    // Keep refs in sync with state
+    useEffect(() => { latRef.current = lat; }, [lat]);
+    useEffect(() => { lngRef.current = lng; }, [lng]);
 
     useEffect(() => {
         if (!open) return;
@@ -74,16 +81,17 @@ export function DeliveryMethodModal({ open, onClose, onSelectMethod }: { open: b
             const map = new goongjs.Map({
                 container: mapContainerRef.current,
                 style: 'https://tiles.goong.io/assets/goong_map_web.json',
-                center: [lng, lat],
+                center: [lngRef.current, latRef.current],
                 zoom: 15
             });
 
             goongMapInstanceRef.current = map;
             map.on('load', () => {
                 initializingRef.current = false;
-                map.resize(); // Ensure map fits container
+                // Wait for the dialog animation then resize so map fills the container correctly
+                setTimeout(() => map.resize(), 350);
                 const marker = new goongjs.Marker({ draggable: true, anchor: 'bottom' })
-                    .setLngLat([lng, lat])
+                    .setLngLat([lngRef.current, latRef.current])
                     .addTo(map);
 
                 marker.on('dragend', async () => {
@@ -108,7 +116,7 @@ export function DeliveryMethodModal({ open, onClose, onSelectMethod }: { open: b
             console.error("Map initialization failed:", err);
             initializingRef.current = false; 
         }
-    }, [lat, lng]);
+    }, []); // No lat/lng deps — we use refs to avoid map recreation on coord changes
 
     useEffect(() => {
         if (open && step === "delivery") {
