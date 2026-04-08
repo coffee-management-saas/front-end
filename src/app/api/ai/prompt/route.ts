@@ -11,9 +11,9 @@ export async function POST(req: Request) {
 
         const body = await req.json().catch(() => null);
         console.log("[AI Prompt Proxy] Received body:", body);
-        if (!body?.message) {
+        if (!body?.prompt) {
             return Response.json(
-                { action: "INFO", message: "Thiếu nội dung tin nhắn" },
+                { action: "INFO", reply: "Thiếu nội dung tin nhắn" },
                 { status: 400 },
             );
         }
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
         const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
 
         const payload = {
-            prompt: body.message,
+            prompt: body.prompt,
             conversationId: body.conversationId,
         };
         console.log("[AI Prompt Proxy] Sending to backend:", beUrl, payload);
