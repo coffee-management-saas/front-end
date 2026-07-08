@@ -30,9 +30,13 @@ export async function GET(req: Request) {
   const accessToken = cookieStore.get("accessToken")?.value;
 
   const bases = getBaseCandidates();
-  // Backend in this project exposes plans under `/system/subscription-plan`.
-  // Keep `/subscription-plan` as a fallback for other environments.
-  const paths = ["/system/subscription-plan", "/subscription-plan"];
+  // shop-service exposes subscription plans under `/subscription-plans`.
+  // Keep old paths as fallbacks for older environments.
+  const paths = [
+    "/subscription-plans",
+    "/system/subscription-plan",
+    "/subscription-plan",
+  ];
   const search = new URL(req.url).search;
 
   let lastStatus = 500;

@@ -37,21 +37,18 @@ export async function GET(
 
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("accessToken")?.value;
-  if (!accessToken) {
-    return Response.json({ message: "Unauthenticated" }, { status: 401 });
-  }
 
   const bases = getSystemBaseCandidates();
   let lastStatus = 500;
   let lastPayload: unknown = null;
 
   for (const base of bases) {
-    const backendRes = await fetch(`${base}/system/subscription-plan/${planId}`, {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+    const backendRes = await fetch(`${base}/subscription-plans/${planId}`, {
       method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers,
       cache: "no-store",
     }).catch(() => null);
 
@@ -102,9 +99,6 @@ export async function PUT(
 
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("accessToken")?.value;
-  if (!accessToken) {
-    return Response.json({ message: "Unauthenticated" }, { status: 401 });
-  }
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
@@ -143,15 +137,17 @@ export async function PUT(
   let lastPayload: unknown = null;
 
   for (const base of bases) {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
     const backendRes = await fetch(
-      `${base}/system/subscription-plan/${planId}`,
+      `${base}/subscription-plans/${planId}`,
       {
         method: "PUT",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers,
         body: JSON.stringify({
           subscriptionPlanName,
           subscriptionPlanDescription,
@@ -211,23 +207,20 @@ export async function DELETE(
 
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("accessToken")?.value;
-  if (!accessToken) {
-    return Response.json({ message: "Unauthenticated" }, { status: 401 });
-  }
 
   const bases = getSystemBaseCandidates();
   let lastStatus = 500;
   let lastPayload: unknown = null;
 
   for (const base of bases) {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
     const backendRes = await fetch(
-      `${base}/system/subscription-plan/${planId}`,
+      `${base}/subscription-plans/${planId}`,
       {
         method: "DELETE",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers,
         cache: "no-store",
       },
     ).catch(() => null);
